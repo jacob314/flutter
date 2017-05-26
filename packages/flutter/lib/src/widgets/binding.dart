@@ -105,6 +105,17 @@ abstract class WidgetsBinding extends BindingBase implements GestureBinding, Ren
         return _forceRebuild();
       }
     );
+
+    registerBoolServiceExtension(
+        name: 'widgetInspector',
+        getter: () async => WidgetsApp.showWidgetInspectorOverride,
+        setter: (bool value) {
+          if (WidgetsApp.showWidgetInspectorOverride == value)
+            return new Future<Null>.value();
+          WidgetsApp.showWidgetInspectorOverride = value;
+          return _forceRebuild();
+        }
+    );
   }
 
   Future<Null> _forceRebuild() {

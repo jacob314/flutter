@@ -20,6 +20,7 @@ import 'performance_overlay.dart';
 import 'semantics_debugger.dart';
 import 'text.dart';
 import 'title.dart';
+import 'widget_inspector.dart';
 
 /// Signature for a function that is called when the operating system changes the current locale.
 ///
@@ -51,6 +52,7 @@ class WidgetsApp extends StatefulWidget {
     this.checkerboardRasterCacheImages: false,
     this.checkerboardOffscreenLayers: false,
     this.showSemanticsDebugger: false,
+    this.showWidgetInspector: false,
     this.debugShowCheckedModeBanner: true
   }) : assert(color != null),
        assert(onGenerateRoute != null),
@@ -58,6 +60,7 @@ class WidgetsApp extends StatefulWidget {
        assert(checkerboardRasterCacheImages != null),
        assert(checkerboardOffscreenLayers != null),
        assert(showSemanticsDebugger != null),
+       assert(showWidgetInspector != null),
        super(key: key);
 
   /// A one-line description of this app for use in the window manager.
@@ -104,6 +107,10 @@ class WidgetsApp extends StatefulWidget {
   /// reported by the framework.
   final bool showSemanticsDebugger;
 
+  /// Turns on an overlay that shows render information about widgets
+  /// reported by the framework.
+  final bool showWidgetInspector;
+
   /// Turns on a "SLOW MODE" little banner in checked mode to indicate
   /// that the app is in checked mode. This is on by default (in
   /// checked mode), to turn it off, set the constructor argument to
@@ -126,6 +133,11 @@ class WidgetsApp extends StatefulWidget {
   ///
   /// Used by `showPerformanceOverlay` observatory extension.
   static bool showPerformanceOverlayOverride = false;
+
+  /// If true, forces the widget inspector to be visible.
+  ///
+  /// Used by `showWidgetInspector` debugging extension.
+  static bool showWidgetInspectorOverride = false;
 
   /// If false, prevents the debug banner from being visible.
   ///
@@ -252,6 +264,11 @@ class _WidgetsAppState extends State<WidgetsApp> implements WidgetsBindingObserv
         child: result
       );
     }
+    if (widget.showWidgetInspector || WidgetsApp.showWidgetInspectorOverride) {
+      result = new WidgetInspector (
+          child: result
+      );
+    }
     assert(() {
       if (widget.debugShowCheckedModeBanner && WidgetsApp.debugAllowBannerOverride) {
         result = new CheckedModeBanner(
@@ -260,6 +277,7 @@ class _WidgetsAppState extends State<WidgetsApp> implements WidgetsBindingObserv
       }
       return true;
     });
+
     return result;
   }
 
