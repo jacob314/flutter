@@ -11,7 +11,6 @@ import 'package:flutter/gestures.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import 'debug.dart';
-import 'node.dart';
 import 'object.dart';
 
 // This class should only be used in debug builds.

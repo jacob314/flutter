@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:collection';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:ui' as ui show window;
@@ -18,6 +19,7 @@ import 'binding.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 
+var r = new math.Random();
 /// A widget that enables inspecting the child widget's structure.
 ///
 /// This widget is useful for understand how an app is structured enabling
@@ -35,6 +37,8 @@ class WidgetInspector extends StatefulWidget {
   _WidgetInspectorState createState() => new _WidgetInspectorState();
 }
 
+const double _kEdgeHitMargin = 2.0;
+
 class _WidgetInspectorState extends State<WidgetInspector>
     with WidgetsBindingObserver {
   _WidgetClient _client;
@@ -42,7 +46,10 @@ class _WidgetInspectorState extends State<WidgetInspector>
   Offset _lastPointerLocation;
 
   /// Selected [RenderObject] being inspected.
-  RenderObject _selected;
+  List<RenderObject> _candidates = <RenderObject>[];
+  RenderObject get _selection => _selectionIndex < _candidates.length ? _candidates[_selectionIndex] : null;
+
+  int _selectionIndex = 0;
 
   /// Whether the inspector is in select mode.
   ///
@@ -98,64 +105,95 @@ class _WidgetInspectorState extends State<WidgetInspector>
     });
   }
 
-  bool _hitTestHelper(List<RenderObject> result, Offset position, RenderObject object, Matrix4 transform) {
+  bool _hitTestHelper(LinkedHashMap<RenderObject, bool> hits,
+      LinkedHashSet<RenderObject> edgeHits,
+      Offset position, RenderObject object, Matrix4 transform) {
+    if (hits.containsKey(object)) return hits[object];
+
     final Matrix4 inverse = new Matrix4.inverted(transform);
     final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
 
-    List<RenderObject> children = <RenderObject>[];
-
-    object.visitChildren((RenderObject child) {
-      children.add(child);
-    });
-
     bool hit = false;
-    for (int i = children.length - 1; i >= 0; i--) {
-      final RenderObject child = children[i];
-      final Rect paintClip = object.describeApproximatePaintClip(child);
-      if (paintClip != null && !paintClip.contains(localPosition))
-        continue;
 
-      final Matrix4 childTransform = transform.clone();
-      object.applyPaintTransform(child, childTransform);
-      if (_hitTestHelper(result, position, child, childTransform)) {
+    void _hitTestBaseline() {
+      final List<RenderObject> children = <RenderObject>[];
+
+      object.visitChildren((RenderObject child) {
+        children.add(child);
+      });
+
+      for (int i = children.length - 1; i >= 0; i--) {
+        final RenderObject child = children[i];
+        final Rect paintClip = object.describeApproximatePaintClip(child);
+        if (paintClip != null && !paintClip.contains(localPosition))
+          continue;
+
+        final Matrix4 childTransform = transform.clone();
+        object.applyPaintTransform(child, childTransform);
+        if (_hitTestHelper(hits, edgeHits, position, child, childTransform)) {
+          hit = true;
+        }
+      }
+      final Rect bounds = object.semanticBounds;
+      if (bounds.contains(localPosition)) {
         hit = true;
+        if (!bounds.deflate(_kEdgeHitMargin).contains(localPosition)) {
+          edgeHits.add(object);
+        }
+      }
+      hits[object] = hit;
+    }
+
+    // Leverage hitTest method on RenderBox to prioritize hit.
+    if (object is RenderBox) {
+      final HitTestResult hitTestResult = new HitTestResult();
+      object.hitTest(hitTestResult, position: localPosition);
+      if (hitTestResult.path.isNotEmpty) {
+        final RenderObject target = hitTestResult.path.first.target;
+        if (target != object) {
+          // TODO(jacobr): be more efficient about computing childTransform.
+          final Matrix4 childTransform = target.getTransformTo(null);
+          _hitTestHelper(hits, edgeHits, position, target, childTransform);
+        }
       }
     }
 
-    if (hit == false &&  children.length > 0) return false;
-    hit = hit || object.semanticBounds.contains(localPosition);
-    if (hit) {
-      result.add(object);
-    }
+    _hitTestBaseline();
     return hit;
   }
 
   /// Hit test method that hit tests against all visible elements rather than
   /// just elements that would normally participate in hit testing.
-  bool hitTest(List<RenderObject> result, Offset position, RenderBox root) {
-    return _hitTestHelper(result, position, root, root.getTransformTo(null));
+  bool hitTest(LinkedHashMap<RenderObject, bool> hits, LinkedHashSet<RenderObject> edgeHits, Offset position, RenderObject root) {
+    return _hitTestHelper(hits, edgeHits, position, root, root.getTransformTo(null));
   }
 
   void _inspectAt(Offset position) {
     if (!isSelectMode)
       return;
 
-    final List<RenderObject> result = <RenderObject>[];
     final RenderIgnorePointer ignorePointer =
         _ignorePointerKey.currentContext.findRenderObject();
-    final RenderBox userRender = ignorePointer.child;
-    hitTest(result, position, userRender);
-    /*
-    result.sort((RenderObject a, RenderObject b) {
-      return _rectSize(a.semanticBounds).compareTo(_rectSize(b.semanticBounds));
+    final RenderObject userRender = ignorePointer.child;
+    final LinkedHashMap<RenderObject, bool> result = new LinkedHashMap<RenderObject, bool>();
+    final LinkedHashSet<RenderObject> edgeHits = new LinkedHashSet<RenderObject>();
+
+    hitTest(result, edgeHits, position, userRender);
+    final List<RenderObject> selected = <RenderObject>[];
+    selected.addAll(edgeHits);
+    // XXX has dupes.
+    result.forEach((RenderObject o, bool value) {
+      if (value)
+        selected.add(o);
     });
-    */
+
     setState(() {
-      _selected = result.first;
+      RenderObject lastSelection = _selection;
+      _candidates = selected;
+      _selectionIndex = 0;
     });
   }
 
-  double _rectSize(Rect r) => r.width * r.height;
   void _handlePointerDown(PointerDownEvent event) {
     _lastPointerLocation = event.position;
     _inspectAt(event.position);
@@ -169,7 +207,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   void _handlePointerCancel(PointerCancelEvent event) {
     setState(() {
       isSelectMode = false;
-      _selected = null;
+      _candidates = <RenderObject>[];
     });
   }
 
@@ -185,7 +223,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
             .deflate(_kOffScreenMargin);
     if (!bounds.contains(event.position)) {
       setState(() {
-        _selected = null;
+        _candidates = <RenderObject>[];
       });
       return;
     }
@@ -197,14 +235,35 @@ class _WidgetInspectorState extends State<WidgetInspector>
       return;
     if (_lastPointerLocation == null)
       return;
-    setState(() {
-      _inspectAt(_lastPointerLocation);
 
-      if (_selected != null) {
-        // Notify debuggers to open an inspector on the object.
-        developer.inspect(_selected);
-        print(_selected.toStringDeep());
+    _inspectAt(_lastPointerLocation);
+
+    if (_selection != null) {
+      // Notify debuggers to open an inspector on the object.
+      // developer.inspect(_selection);
+      bool _kRainbowDemo = true;
+
+      if (_kRainbowDemo && _selection is RenderParagraph) {
+        final RenderParagraph paragraph = _selection;
+        final TextSpan t = paragraph.text;
+        if (t.style != null) {
+          final TextStyle style = t.style.copyWith(color: new Color.fromARGB(
+              255, r.nextInt(256), r.nextInt(256), r.nextInt(256)));
+          paragraph.text = new TextSpan(style: style,
+              text: t.text,
+              children: t.children,
+              recognizer: t.recognizer);
+        }
       }
+
+      var str = _selection.toStringDeep();
+      if (str.length > 2000) {
+        str = str.substring(0, 2000);
+      }
+      print(str);
+
+    }
+    setState(() {
       isSelectMode = false;
     });
   }
@@ -223,8 +282,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
   Widget build(BuildContext context) {
     return new CustomPaint(
         foregroundPainter: new _WidgetInspectorPainter(
-            _pipelineOwner, _client.generation, _selected),
+            _pipelineOwner, _client.generation, _candidates, _selection),
         child: new Stack(children: <Widget>[
+
           new GestureDetector(
               onTap: _handleTap,
               behavior: HitTestBehavior.opaque,
@@ -235,12 +295,12 @@ class _WidgetInspectorState extends State<WidgetInspector>
                   onPointerUp: _handlePointerUp,
                   onPointerCancel: _handlePointerCancel,
                   behavior: HitTestBehavior.opaque,
-                  child: isSelectMode
-                      ? new IgnorePointer(
+                  child: new IgnorePointer(
                           key: _ignorePointerKey,
+                          ignoring: isSelectMode,
                           ignoringSemantics: false,
                           child: widget.child)
-                      : widget.child)),
+                      )),
           new Positioned(
             left: _kInspectButtonMargin,
             bottom: _kInspectButtonMargin,
@@ -344,7 +404,7 @@ const TextStyle _messageStyle = const TextStyle(
 final int _kMaxTooltipLines = 5;
 const Color _kTooltipBackgroundColor = const Color.fromARGB(230, 60, 60, 60);
 
-void _paintDescription(Canvas canvas, RenderBox render, Offset target,
+void _paintDescription(Canvas canvas, RenderObject render, Offset target,
     double verticalOffset, Size size, Rect targetRect) {
   // TODO(jacobr): craft a better description message.
   final String message = '$render\n\n'
@@ -398,18 +458,23 @@ void _paintDescription(Canvas canvas, RenderBox render, Offset target,
 }
 
 final Color _kHighlightedRenderObjectFillColor =
-    const Color.fromARGB(128, 128, 128, 255);
+    const Color.fromARGB(0, 128, 128, 255);
 final Color _kHighlightedRenderObjectBorderColor =
     const Color.fromARGB(128, 64, 64, 128);
 
+final Color _kHighlightedCandidateRenderObjectBorderColor =
+const Color.fromARGB(32, 64, 64, 128);
+
 class _WidgetInspectorPainter extends CustomPainter {
-  const _WidgetInspectorPainter(this.owner, this.generation, this.selected);
+  const _WidgetInspectorPainter(this.owner, this.generation, this.candidates, this.selected);
 
   final PipelineOwner owner;
   final int generation;
+  final List<RenderObject> candidates;
   final RenderObject selected;
 
   bool get isSelectionActive => selected != null && selected.attached;
+
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -432,10 +497,29 @@ class _WidgetInspectorPainter extends CustomPainter {
           selected.semanticBounds.deflate(0.5),
           new Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0
+            ..strokeWidth = 3.0
             ..color = _kHighlightedRenderObjectBorderColor)
       ..restore();
 
+    if (true) {
+      // Show all other candidate possibly selected elements.
+      for (RenderObject candidate in candidates) {
+        if (candidate == selected || !candidate.attached)
+          continue;
+        canvas
+          ..save()
+          ..transform(candidate
+              .getTransformTo(null)
+              .storage)
+          ..drawRect(
+              candidate.semanticBounds.deflate(0.5),
+              new Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.5
+                ..color = _kHighlightedCandidateRenderObjectBorderColor)
+          ..restore();
+      }
+    }
     final Rect targetRect = MatrixUtils.transformRect(transform, selected.semanticBounds);
 
     final Offset target = new Offset(targetRect.left, targetRect.center.dy);
