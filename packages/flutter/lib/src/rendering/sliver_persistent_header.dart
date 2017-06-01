@@ -175,18 +175,22 @@ abstract class RenderSliverPersistentHeader extends RenderSliver with RenderObje
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    try {
-      description.add('maxExtent: ${maxExtent.toStringAsFixed(1)}');
-    } catch (e) {
-      description.add('maxExtent: EXCEPTION (${e.runtimeType})');
-    }
-    try {
-      description.add('child position: ${childMainAxisPosition(child).toStringAsFixed(1)}');
-    } catch (e) {
-      description.add('child position: EXCEPTION (${e.runtimeType})');
-    }
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+      new DiagnosticsNode.unsafeDoubleProperty(
+        'maxExtent',
+        () => maxExtent,
+        fractionDigits: 1,
+      ),
+    );
+    description.add(
+      new DiagnosticsNode.unsafeDoubleProperty(
+        'child position',
+        () => childMainAxisPosition(child),
+        fractionDigits: 1,
+      ),
+    );
   }
 }
 
@@ -419,9 +423,12 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('effective scroll offset: ${_effectiveScrollOffset?.toStringAsFixed(1)}');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.doubleProperty(
+        'effective scroll offset', // TODO(jacobr): change this to effectiveScrollOffset?
+        _effectiveScrollOffset,
+        fractionDigits: 1));
   }
 }
 

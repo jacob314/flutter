@@ -467,7 +467,7 @@ class SliverConstraints extends Constraints {
 /// A sliver can occupy space in several different ways, which is why this class
 /// contains multiple values.
 @immutable
-class SliverGeometry {
+class SliverGeometry implements TreeDiagnostics {
   /// Creates an object that describes the amount of space occupied by a sliver.
   ///
   /// If the [layoutExtent] argument is null, [layoutExtent] defaults to the
@@ -621,37 +621,70 @@ class SliverGeometry {
 
   @override
   String toString() {
-    final StringBuffer buffer = new StringBuffer();
-    buffer.write('SliverGeometry(');
-      buffer.write('scrollExtent: ${scrollExtent.toStringAsFixed(1)}, ');
-      if (paintExtent > 0.0) {
-        if (visible) {
-          buffer.write('paintExtent: ${paintExtent.toStringAsFixed(1)}, ');
+    return toDiagnosticsNode(style: DiagnosticsTreeStyle.singleLine)
+        .toStringDeep();
+  }
+
+  @override
+  String toStringDeep([String prefix = '', String indentPrefix ]) {
+    return toDiagnosticsNode().toStringDeep(prefix, indentPrefix);
+  }
+
+  @override
+  DiagnosticsNode toDiagnosticsNode({
+      String name,
+      DiagnosticsTreeStyle style = DiagnosticsTreeStyle.whitespace,
+  }) {
+    return new DiagnosticsNode.lazy(
+      name: name,
+      object: this,
+      header: 'SliverGeometry',
+      style: style,
+      emptyDescription: '<no decorations specified>',
+      fillProperties: (List<DiagnosticsNode> properties) {
+        properties.add(new DiagnosticsNode.doubleProperty(
+            'scrollExtent', scrollExtent, fractionDigits: 1));
+
+        if (paintExtent > 0.0) {
+          properties.add(new DiagnosticsNode.doubleProperty(
+            'paintExtent',
+            paintExtent,
+            fractionDigits: 1,
+            suffix : visible ? null : ' but not painting',
+          ));
+        } else if (paintExtent == 0.0) {
+          if (visible) {
+            properties.add(new DiagnosticsNode.doubleProperty(
+              'paintExtent',
+              paintExtent,
+              fractionDigits: 1,
+              suffix: visible ? null : ' but visible',
+            ));
+          } else {
+            properties.add(new DiagnosticsNode.message('hidden'));
+          }
         } else {
-          buffer.write('paintExtent: ${paintExtent.toStringAsFixed(1)} but not painting, ');
+          properties.add(new DiagnosticsNode.doubleProperty(
+            'paintExtent',
+            paintExtent,
+            fractionDigits: 1,
+            suffix: visible ? null : ' (1)',
+          ));
         }
-      } else if (paintExtent == 0.0) {
-        if (visible) {
-          buffer.write('paintExtent: ${paintExtent.toStringAsFixed(1)} but visible, ');
-        } else {
-          buffer.write('hidden, ');
-        }
-      } else {
-        buffer.write('paintExtent: ${paintExtent.toStringAsFixed(1)} (!), ');
-      }
-      if (paintOrigin != 0.0)
-        buffer.write('paintOrigin: ${paintOrigin.toStringAsFixed(1)}, ');
-      if (layoutExtent != paintExtent)
-        buffer.write('layoutExtent: ${layoutExtent.toStringAsFixed(1)}, ');
-      buffer.write('maxPaintExtent: ${maxPaintExtent.toStringAsFixed(1)}, ');
-      if (hitTestExtent != paintExtent)
-        buffer.write('hitTestExtent: ${hitTestExtent.toStringAsFixed(1)}, ');
-      if (hasVisualOverflow)
-        buffer.write('hasVisualOverflow: true, ');
-      if (scrollOffsetCorrection != null)
-        buffer.write('scrollOffsetCorrection: ${scrollOffsetCorrection.toStringAsFixed(1)}');
-    buffer.write(')');
-    return buffer.toString();
+        properties.add(new DiagnosticsNode.doubleProperty(
+            'paintOrigin', paintOrigin,
+            fractionDigits: 1,
+            hidden: paintOrigin == 0.0,
+        ));
+        properties.add(new DiagnosticsNode.doubleProperty(
+            'layoutExtent', layoutExtent,
+            fractionDigits: 1,
+            hidden: layoutExtent == paintExtent));
+        properties.add(new DiagnosticsNode.doubleProperty('maxPaintExtent', maxPaintExtent, fractionDigits: 1));
+        properties.add(new DiagnosticsNode.doubleProperty('hitTestExtent', hitTestExtent, fractionDigits: 1, hidden: hitTestExtent == paintExtent));
+        properties.add(new DiagnosticsNode.boolProperty('hasVisualOverflow', hasVisualOverflow, hidden: !hasVisualOverflow));
+        properties.add(new DiagnosticsNode.doubleProperty('scrollOffsetCorrection', scrollOffsetCorrection, fractionDigits: 1, showNull: false));
+      });
   }
 }
 
@@ -1321,9 +1354,9 @@ abstract class RenderSliver extends RenderObject {
   void handleEvent(PointerEvent event, SliverHitTestEntry entry) { }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('geometry: $geometry');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('geometry', geometry));
   }
 }
 

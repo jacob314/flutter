@@ -430,111 +430,123 @@ class TextStyle {
 
   @override
   String toString([String prefix = '']) {
-    final List<String> result = <String>[];
-    result.add('${prefix}inherit: $inherit');
-    if (color != null)
-      result.add('${prefix}color: $color');
-    if (fontFamily != null)
-      result.add('${prefix}family: "$fontFamily"');
-    if (fontSize != null)
-      result.add('${prefix}size: $fontSize');
+    final List<DiagnosticsNode> properties = <DiagnosticsNode>[];
+    debugFillProperties(properties);
+    // TODO(jacobr): this is a strange toString method for TextStyle.
+    // It would make more sense to specify something along the lines of
+    // TextStyle(property1; property2; property3) as is done elsewhere.
+    return properties
+        .where((DiagnosticsNode property) => property.show)
+        .map((DiagnosticsNode property) => '$prefix$property')
+        .join('\n');
+  }
+
+  void debugFillProperties(List<DiagnosticsNode> properties) {
+    final List<DiagnosticsNode> styles = <DiagnosticsNode>[];
+    styles.add(new DiagnosticsNode.colorProperty('color', color, showNull: false));
+    styles.add(new DiagnosticsNode.stringProperty('family', fontFamily, showNull: false));
+    styles.add(new DiagnosticsNode.doubleProperty('size', fontSize, showNull: false));
+    String weightDescription;
     if (fontWeight != null) {
       switch (fontWeight) {
         case FontWeight.w100:
-          result.add('${prefix}weight: 100');
+          weightDescription = '100';
           break;
         case FontWeight.w200:
-          result.add('${prefix}weight: 200');
+          weightDescription = '200';
           break;
         case FontWeight.w300:
-          result.add('${prefix}weight: 300');
+          weightDescription = '300';
           break;
         case FontWeight.w400:
-          result.add('${prefix}weight: 400');
+          weightDescription = '400';
           break;
         case FontWeight.w500:
-          result.add('${prefix}weight: 500');
+          weightDescription = '500';
           break;
         case FontWeight.w600:
-          result.add('${prefix}weight: 600');
+          weightDescription = '600';
           break;
         case FontWeight.w700:
-          result.add('${prefix}weight: 700');
+          weightDescription = '700';
           break;
         case FontWeight.w800:
-          result.add('${prefix}weight: 800');
+          weightDescription = '800';
           break;
         case FontWeight.w900:
-          result.add('${prefix}weight: 900');
+          weightDescription = '900';
           break;
       }
     }
-    if (fontStyle != null) {
-      switch (fontStyle) {
-        case FontStyle.normal:
-          result.add('${prefix}style: normal');
-          break;
-        case FontStyle.italic:
-          result.add('${prefix}style: italic');
-          break;
-      }
-    }
-    if (letterSpacing != null)
-      result.add('${prefix}letterSpacing: ${letterSpacing}x');
-    if (wordSpacing != null)
-      result.add('${prefix}wordSpacing: ${wordSpacing}x');
-    if (textBaseline != null) {
-      switch (textBaseline) {
-        case TextBaseline.alphabetic:
-          result.add('${prefix}baseline: alphabetic');
-          break;
-        case TextBaseline.ideographic:
-          result.add('${prefix}baseline: ideographic');
-          break;
-      }
-    }
-    if (height != null)
-      result.add('${prefix}height: ${height}x');
+    styles.add(
+      new DiagnosticsNode.objectProperty(
+        'weight',
+        fontWeight,
+        header: weightDescription,
+        showNull: false,
+      ),
+    );
+    styles.add(new DiagnosticsNode.enumProperty('style', fontStyle, showNull: false));
+    styles.add(new DiagnosticsNode.doubleProperty('letterSpacing', letterSpacing, suffix: 'x', showNull: false));
+    styles.add(new DiagnosticsNode.doubleProperty('wordSpacing', wordSpacing, suffix: 'x', showNull: false));
+    styles.add(new DiagnosticsNode.enumProperty('baseline', textBaseline, showNull: false));
+    styles.add(new DiagnosticsNode.doubleProperty('height', height, suffix: 'x', showNull: false));
     if (decoration != null || decorationColor != null || decorationStyle != null) {
-      String decorationDescription = '${prefix}decoration: ';
-      bool haveDecorationDescription = false;
+      final List<String> decorationDescription = <String>[];
       if (decorationStyle != null) {
-        switch (decorationStyle) {
-          case TextDecorationStyle.solid:
-            decorationDescription += 'solid';
-            break;
-          case TextDecorationStyle.double:
-            decorationDescription += 'double';
-            break;
-          case TextDecorationStyle.dotted:
-            decorationDescription += 'dotted';
-            break;
-          case TextDecorationStyle.dashed:
-            decorationDescription += 'dashed';
-            break;
-          case TextDecorationStyle.wavy:
-            decorationDescription += 'wavy';
-            break;
-        }
-        haveDecorationDescription = true;
+        decorationDescription.add(describeEnum((decorationStyle)));
       }
+
+      // Hide decorationColor from the default text view as we show it in the
+      // terse decoration summary as well.
+      styles.add(
+        new DiagnosticsNode.colorProperty(
+          'decorationColor',
+          decorationColor,
+          showNull: false,
+          hidden: true,
+        ),
+      );
+
       if (decorationColor != null) {
-        if (haveDecorationDescription)
-          decorationDescription += ' ';
-        decorationDescription += '$decorationColor';
-        haveDecorationDescription = true;
+        decorationDescription.add('$decorationColor');
       }
+      // Note intentionally collide with the name 'decoration' shown bellow.
+      // Tools that show hidden properties could choose the first property
+      // matching the name to disambiguate.
+      styles.add(new DiagnosticsNode.objectProperty('decoration', decoration,
+          showNull: false, hidden: true));
       if (decoration != null) {
-        if (haveDecorationDescription)
-          decorationDescription += ' ';
-        decorationDescription += '$decoration';
-        haveDecorationDescription = true;
+        decorationDescription.add('$decoration');
       }
-      assert(haveDecorationDescription);
-      result.add(decorationDescription);
+      assert(decorationDescription.isNotEmpty);
+      styles.add(new DiagnosticsNode.stringProperty('decoration',
+          decorationDescription.join(' ')));
     }
-    if (result.isEmpty)
-      return '$prefix<no style specified>';
-    return result.join('\n');
+
+    bool styleSpecified = false;
+    for (DiagnosticsNode node in styles) {
+      if (node.show) {
+        styleSpecified = true;
+        break;
+      }
+    }
+
+    properties.add(
+      new DiagnosticsNode.boolProperty(
+        'inherit', inherit,
+        hidden: !styleSpecified && inherit,
+      ),
+    );
+
+    properties.addAll(styles);
+
+    // TODO(jacobr): add a different <no style specified> message depending on
+    // the value of inherited.
+    if (!styleSpecified) {
+      properties.add(new DiagnosticsNode.message(
+          inherit ? '<all styles inherited>' : '<no style specified>'));
+    }
   }
+
 }

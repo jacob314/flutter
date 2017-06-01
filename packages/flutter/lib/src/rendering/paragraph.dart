@@ -4,9 +4,11 @@
 
 import 'dart:ui' as ui show Gradient, Shader, TextBox;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:meta/meta.dart';
+
 
 import 'box.dart';
 import 'debug.dart';
@@ -360,10 +362,12 @@ class RenderParagraph extends RenderBox {
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    return '$prefix \u2558\u2550\u2566\u2550\u2550 text \u2550\u2550\u2550\n'
-           '${text.toString("$prefix   \u2551 ")}' // TextSpan includes a newline
-           '$prefix   \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n'
-           '${prefix.trimRight()}\n';
+  void debugFillChildren(List<DiagnosticsNode> children) {
+    children.add(
+      text.toDiagnosticsNode(
+        name: 'text',
+        style: DiagnosticsTreeStyle.box,
+      ),
+    );
   }
 }

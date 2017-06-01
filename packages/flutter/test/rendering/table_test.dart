@@ -33,6 +33,7 @@ void main() {
         ' │ table size: 0×0\n'
         ' │ column offsets: unknown\n'
         ' │ row offsets: []\n'
+        ' │\n'
         ' └─table is empty\n',
       ),
     );

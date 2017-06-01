@@ -10,7 +10,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:vector_math/vector_math_64.dart';
 
-import 'debug.dart';
 import 'node.dart';
 
 /// A composited layer.
@@ -105,12 +104,14 @@ abstract class Layer extends AbstractNode with TreeDiagnosticsMixin {
   String toString() => '${super.toString()}${ owner == null ? " DETACHED" : ""}';
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    if (parent == null && owner != null)
-      description.add('owner: $owner');
-    if (debugCreator != null)
-      description.add('creator: $debugCreator');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+        new DiagnosticsNode.objectProperty(
+            'owner', owner, hidden: parent != null, showNull: false));
+    description.add(
+        new DiagnosticsNode.objectProperty(
+            'creator', debugCreator, showNull: false));
   }
 }
 
@@ -163,9 +164,10 @@ class PictureLayer extends Layer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('paint bounds: $canvasBounds');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+        new DiagnosticsNode.rectProperty('paint bounds', canvasBounds));
   }
 }
 
@@ -413,24 +415,18 @@ class ContainerLayer extends Layer {
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
+  void debugFillChildren(List<DiagnosticsNode> children) {
     if (firstChild == null)
-      return '';
-    final StringBuffer result = new StringBuffer()
-      ..write(prefix)
-      ..write(' \u2502\n');
+      return;
     Layer child = firstChild;
     int count = 1;
-    while (child != lastChild) {
-      result.write(child.toStringDeep("$prefix \u251C\u2500child $count: ", "$prefix \u2502"));
+    while (true) {
+      children.add(child.toDiagnosticsNode(name: 'child $count'));
+      if (child == lastChild)
+        break;
       count += 1;
       child = child.nextSibling;
     }
-    if (child != null) {
-      assert(child == lastChild);
-      result.write(child.toStringDeep("$prefix \u2514\u2500child $count: ", "$prefix  "));
-    }
-    return result.toString();
   }
 }
 
@@ -465,9 +461,9 @@ class OffsetLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('offset: $offset');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('offset', offset));
   }
 }
 
@@ -493,9 +489,9 @@ class ClipRectLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('clipRect: $clipRect');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('clipRect', clipRect));
   }
 }
 
@@ -521,9 +517,9 @@ class ClipRRectLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('clipRRect: $clipRRect');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('clipRRect', clipRRect));
   }
 }
 
@@ -549,9 +545,9 @@ class ClipPathLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('clipPath: $clipPath');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('clipPath', clipPath));
   }
 }
 
@@ -601,10 +597,10 @@ class TransformLayer extends OffsetLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('transform:');
-    description.addAll(debugDescribeTransform(transform));
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+        new DiagnosticsNode.transformProperty('transform', transform));
   }
 }
 
@@ -633,9 +629,10 @@ class OpacityLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('alpha: $alpha');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.intProperty('alpha', alpha));
+
   }
 }
 
@@ -673,11 +670,11 @@ class ShaderMaskLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('shader: $shader');
-    description.add('maskRect: $maskRect');
-    description.add('blendMode: $blendMode');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('shader', shader));
+    description.add(new DiagnosticsNode.objectProperty('maskRect', maskRect));
+    description.add(new DiagnosticsNode.objectProperty('blendMode', blendMode));
   }
 }
 
@@ -751,9 +748,9 @@ class PhysicalModelLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('clipRRect: $clipRRect');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('clipRRect', clipRRect));
   }
 }
 
@@ -775,7 +772,7 @@ class LayerLink {
   LeaderLayer _leader;
 
   @override
-  String toString() => '$runtimeType#$hashCode(${ _leader != null ? "<linked>" : "<dangling>" })';
+  String toString() => '${describeIdentity(this)}(${ _leader != null ? "<linked>" : "<dangling>" })';
 }
 
 /// A composited layer that can be followed by a [FollowerLayer].
@@ -858,10 +855,10 @@ class LeaderLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('offset: $offset');
-    description.add('link: $link');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('offset', offset));
+    description.add(new DiagnosticsNode.objectProperty('link', link));
   }
 }
 
@@ -1047,12 +1044,10 @@ class FollowerLayer extends ContainerLayer {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('link: $link');
-    if (_lastTransform != null) {
-      description.add('transform:');
-      description.addAll(debugDescribeTransform(getLastTransform()));
-    }
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('link', link));
+    description.add(new DiagnosticsNode.transformProperty('transform',
+        getLastTransform(), showNull: false));
   }
 }

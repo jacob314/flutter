@@ -415,13 +415,17 @@ abstract class RenderSliverMultiBoxAdaptor extends RenderSliver
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    if (firstChild != null) {
-      description.add('currently live children: ${indexOf(firstChild)} to ${indexOf(lastChild)}');
-    } else {
-      description.add('no children current live');
-    }
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+      new DiagnosticsNode.describeBoolProperty(
+        'liveChildren',
+        firstChild != null,
+        trueDescription:  'currently live children: ${indexOf(firstChild)} to ${indexOf(lastChild)}',
+        falseDescription: 'no children current live',
+        showName: false,
+      ),
+    );
   }
 
   /// Asserts that the reified child list is not empty and has a contiguous

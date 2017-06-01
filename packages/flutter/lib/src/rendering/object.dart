@@ -17,7 +17,7 @@ import 'layer.dart';
 import 'node.dart';
 import 'semantics.dart';
 
-export 'package:flutter/foundation.dart' show FlutterError, InformationCollector;
+export 'package:flutter/foundation.dart' show FlutterError, InformationCollector, DiagnosticsNode;
 export 'package:flutter/gestures.dart' show HitTestEntry, HitTestResult;
 export 'package:flutter/painting.dart';
 
@@ -1315,7 +1315,7 @@ class PipelineOwner {
 /// [RenderObject.markNeedsLayout] so that if a parent has queried the intrinsic
 /// or baseline information, it gets marked dirty whenever the child's geometry
 /// changes.
-abstract class RenderObject extends AbstractNode implements HitTestTarget {
+abstract class RenderObject extends AbstractNode with TreeDiagnosticsMixin implements HitTestTarget {
   /// Initializes internal fields for subclasses.
   RenderObject() {
     _needsCompositing = isRepaintBoundary || alwaysNeedsCompositing;
@@ -2708,25 +2708,13 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
   /// Returns a description of the tree rooted at this node.
   /// If the prefix argument is provided, then every line in the output
   /// will be prefixed by that string.
+  @override
   String toStringDeep([String prefixLineOne = '', String prefixOtherLines = '']) {
     final RenderObject debugPreviousActiveLayout = _debugActiveLayout;
     _debugActiveLayout = null;
-    String result = '$prefixLineOne$this\n';
-    final String childrenDescription = debugDescribeChildren(prefixOtherLines);
-    final String descriptionPrefix = childrenDescription != '' ? '$prefixOtherLines \u2502 ' : '$prefixOtherLines   ';
-    final List<String> description = <String>[];
-    debugFillDescription(description);
-    result += description
-      .expand((String description) => debugWordWrap(description, 65, wrapIndent: '  '))
-      .map<String>((String line) => "$descriptionPrefix$line\n")
-      .join();
-    if (childrenDescription == '') {
-      final String prefix = prefixOtherLines.trimRight();
-      if (prefix != '')
-        result += '$prefix\n';
-    } else {
-      result += childrenDescription;
-    }
+
+    final String result = super.toStringDeep(prefixLineOne, prefixOtherLines);
+
     _debugActiveLayout = debugPreviousActiveLayout;
     return result;
   }
@@ -2736,42 +2724,39 @@ abstract class RenderObject extends AbstractNode implements HitTestTarget {
   ///
   /// This includes the same information for this RenderObject as given by
   /// [toStringDeep], but does not recurse to any children.
+  @override
   String toStringShallow([String joiner = '; ']) {
     final RenderObject debugPreviousActiveLayout = _debugActiveLayout;
     _debugActiveLayout = null;
-    final StringBuffer result = new StringBuffer();
-    result.write('${this}$joiner'); // TODO(ianh): https://github.com/dart-lang/sdk/issues/28206
-    final List<String> description = <String>[];
-    debugFillDescription(description);
-    result.write(description.join(joiner));
+    String result = super.toStringShallow(joiner);
     _debugActiveLayout = debugPreviousActiveLayout;
-    return result.toString();
+    return result;
   }
 
   /// Accumulates a list of strings describing the current node's fields, one
   /// field per string. Subclasses should override this to have their
   /// information included in [toStringDeep].
   @protected
-  void debugFillDescription(List<String> description) {
-    if (debugCreator != null)
-      description.add('creator: $debugCreator');
-    description.add('parentData: $parentData${ _debugCanParentUseSize == true ? " (can use size)" : ""}');
-    description.add('constraints: $constraints');
-    if (_layer != null) // don't access it via the "layer" getter since that's only valid when we don't need paint
-      description.add('layer: $_layer');
-    if (_semantics != null)
-      description.add('semantics: $_semantics');
-    if (isBlockingSemanticsOfPreviouslyPaintedNodes)
-      description.add('blocks semantics of earlier render objects below the common boundary');
-    if (isSemanticBoundary)
-      description.add('semantic boundary');
+  @override
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    description.add(new DiagnosticsNode.objectProperty('creator', debugCreator, showNull: false));
+    description.add(new DiagnosticsNode.objectProperty('parentData',  parentData,
+       header: '$parentData${_debugCanParentUseSize == true ? " (can use size)" : ""}'));
+    description.add(new DiagnosticsNode.objectProperty('constraints', constraints));
+
+    // don't access it via the "layer" getter since that's only valid when we don't need paint
+    description.add(new DiagnosticsNode.objectProperty('layer', _layer, showNull: false));
+    description.add(new DiagnosticsNode.objectProperty('_semantics', _semantics, showNull: false));
+
+    description.add(new DiagnosticsNode.conditionalMessage('isBlockingSemanticsOfPreviouslyPaintedNodes',
+        isBlockingSemanticsOfPreviouslyPaintedNodes, 'blocks semantics of earlier render objects below the common boundary'));
+
+    description.add(new DiagnosticsNode.conditionalMessage('isSemanticBoundary', isSemanticBoundary, 'semantic boundary'));
   }
 
-  /// Returns a string describing the current node's descendants. Each line of
-  /// the subtree in the output should be indented by the prefix argument.
   @protected
-  String debugDescribeChildren(String prefix) => '';
-
+  @override
+  void debugFillChildren(List<DiagnosticsNode> children) { }
 }
 
 /// Generic mixin for render objects with one child.
@@ -2850,10 +2835,9 @@ abstract class RenderObjectWithChildMixin<ChildType extends RenderObject> extend
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
+  void debugFillChildren(List<DiagnosticsNode> children) {
     if (child != null)
-      return '$prefix \u2502\n${child.toStringDeep('$prefix \u2514\u2500child: ', '$prefix  ')}';
-    return '';
+      children.add(child.toDiagnosticsNode(name: 'child'));
   }
 }
 
@@ -3153,26 +3137,19 @@ abstract class ContainerRenderObjectMixin<ChildType extends RenderObject, Parent
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
+  void debugFillChildren(List<DiagnosticsNode> children) {
     if (firstChild != null) {
-      final StringBuffer result = new StringBuffer()
-        ..write(prefix)
-        ..write(' \u2502\n');
       ChildType child = firstChild;
       int count = 1;
-      while (child != lastChild) {
-        result.write(child.toStringDeep("$prefix \u251C\u2500child $count: ", "$prefix \u2502"));
+      while (true) {
+        children.add(child.toDiagnosticsNode(name: 'child $count'));
+        if (child == lastChild)
+          break;
         count += 1;
         final ParentDataType childParentData = child.parentData;
         child = childParentData.nextSibling;
       }
-      if (child != null) {
-        assert(child == lastChild);
-        result.write(child.toStringDeep("$prefix \u2514\u2500child $count: ", "$prefix  "));
-      }
-      return result.toString();
     }
-    return '';
   }
 }
 

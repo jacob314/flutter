@@ -177,9 +177,9 @@ class RenderPadding extends RenderShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('padding: $padding');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('padding', padding));
   }
 }
 
@@ -236,9 +236,9 @@ abstract class RenderAligningShiftedBox extends RenderShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('alignment: $alignment');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('alignment', alignment));
   }
 }
 
@@ -366,10 +366,22 @@ class RenderPositionedBox extends RenderAligningShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('widthFactor: ${_widthFactor ?? "expand"}');
-    description.add('heightFactor: ${_heightFactor ?? "expand"}');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+      new DiagnosticsNode.doubleProperty(
+        'widthFactor',
+        _widthFactor,
+        nullDescription: 'expand',
+      ),
+    );
+    description.add(
+      new DiagnosticsNode.doubleProperty(
+        'heightFactor',
+        _heightFactor,
+        nullDescription: 'expand',
+      ),
+    );
   }
 }
 
@@ -479,12 +491,12 @@ class RenderConstrainedOverflowBox extends RenderAligningShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('minWidth: ${minWidth ?? "use parent minWidth constraint"}');
-    description.add('maxWidth: ${maxWidth ?? "use parent maxWidth constraint"}');
-    description.add('minHeight: ${minHeight ?? "use parent minHeight constraint"}');
-    description.add('maxHeight: ${maxHeight ?? "use parent maxHeight constraint"}');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.doubleProperty('minWidth', minWidth, nullDescription: 'use parent minWidth constraint'));
+    description.add(new DiagnosticsNode.doubleProperty('maxWidth', maxWidth, nullDescription: 'use parent maxWidth constraint'));
+    description.add(new DiagnosticsNode.doubleProperty('minHeight', minHeight, nullDescription: 'use parent minHeight constraint'));
+    description.add(new DiagnosticsNode.doubleProperty('maxHeight', maxHeight, nullDescription: 'use parent maxHeight constraint'));
   }
 }
 
@@ -689,10 +701,22 @@ class RenderFractionallySizedOverflowBox extends RenderAligningShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('widthFactor: ${_widthFactor ?? "pass-through"}');
-    description.add('heightFactor: ${_heightFactor ?? "pass-through"}');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+      new DiagnosticsNode.doubleProperty(
+        'widthFactor',
+        _widthFactor,
+        nullDescription: 'pass-through',
+      ),
+    );
+    description.add(
+      new DiagnosticsNode.doubleProperty(
+        'heightFactor',
+        _heightFactor,
+        nullDescription: 'pass-through',
+      ),
+    );
   }
 }
 
@@ -945,9 +969,9 @@ class RenderBaseline extends RenderShiftedBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('baseline: $baseline');
-    description.add('baselineType: $baselineType');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.doubleProperty('baseline', baseline));
+    description.add(new DiagnosticsNode.enumProperty('baselineType', baselineType));
   }
 }

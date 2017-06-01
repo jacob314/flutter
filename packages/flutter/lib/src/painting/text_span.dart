@@ -60,7 +60,7 @@ bool _deepEquals(List<Object> a, List<Object> b) {
 ///  * [RichText], a widget for finer control of text rendering.
 ///  * [TextPainter], a class for painting [TextSpan] objects on a [Canvas].
 @immutable
-class TextSpan {
+class TextSpan implements TreeDiagnostics {
   /// Creates a [TextSpan] with the given values.
   ///
   /// For the object to be useful, at least one of [text] or
@@ -263,27 +263,7 @@ class TextSpan {
 
   @override
   String toString([String prefix = '']) {
-    final StringBuffer buffer = new StringBuffer();
-    buffer.writeln('$prefix$runtimeType:');
-    final String indent = '$prefix  ';
-    if (style != null)
-      buffer.writeln(style.toString(indent));
-    if (recognizer != null)
-      buffer.writeln('${indent}recognizer: ${recognizer.runtimeType}');
-    if (text != null)
-      buffer.writeln('$indent"$text"');
-    if (children != null) {
-      for (TextSpan child in children) {
-        if (child != null) {
-          buffer.write(child.toString(indent));
-        } else {
-          buffer.writeln('$indent<null>');
-        }
-      }
-    }
-    if (style == null && text == null && children == null)
-      buffer.writeln('$indent(empty)');
-    return buffer.toString();
+    return toStringDeep(prefix, prefix);
   }
 
   /// In checked mode, throws an exception if the object is not in a
@@ -318,6 +298,11 @@ class TextSpan {
   }
 
   @override
+  String toStringDeep([String prefixLineOne = '', String prefixOtherLines = '']) {
+    return toDiagnosticsNode().toStringDeep(prefixLineOne, prefixOtherLines);
+  }
+
+  @override
   bool operator ==(dynamic other) {
     if (identical(this, other))
       return true;
@@ -332,4 +317,50 @@ class TextSpan {
 
   @override
   int get hashCode => hashValues(style, text, recognizer, hashList(children));
+  @override
+  DiagnosticsNode toDiagnosticsNode({
+    String name,
+    DiagnosticsTreeStyle style: DiagnosticsTreeStyle.whitespace
+  }) {
+    return new DiagnosticsNode.lazy(
+      name: name,
+      object: this,
+      header: '$runtimeType',
+      style: style,
+      fillProperties: (List<DiagnosticsNode> properties) {
+        // Properties on style are added as if they were properties directly on
+        // this TextSpan.
+        if (this.style != null)
+          this.style.debugFillProperties(properties);
+
+        properties.add(
+          new DiagnosticsNode.objectProperty(
+            'recognizer', recognizer,
+            header: recognizer?.runtimeType?.toString(),
+            showNull: false,
+          ),
+        );
+
+        properties.add(
+          new DiagnosticsNode.stringProperty(
+            'text',
+            text,
+            header:
+            '"$text"',
+            showName: false,
+            showNull: false
+          ),
+        );
+        if (this.style == null && text == null && children == null) {
+          properties.add(new DiagnosticsNode.message('(empty)'));
+        }
+      },
+      fillChildren: (List<DiagnosticsNode> output) {
+        if (children != null) {
+          for (TextSpan child in children)
+            output.add(child?.toDiagnosticsNode());
+        }
+      },
+    );
+  }
 }

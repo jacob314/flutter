@@ -546,22 +546,24 @@ class RenderEditable extends RenderBox {
   Rect describeApproximatePaintClip(RenderObject child) => _hasVisualOverflow ? Offset.zero & size : null;
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('cursorColor: $cursorColor');
-    description.add('showCursor: $showCursor');
-    description.add('maxLines: $maxLines');
-    description.add('selectionColor: $selectionColor');
-    description.add('textScaleFactor: $textScaleFactor');
-    description.add('selection: $selection');
-    description.add('offset: $offset');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.colorProperty('cursorColor', cursorColor));
+    description.add(new DiagnosticsNode.changeNotifierProperty('showCursor', showCursor));
+    description.add(new DiagnosticsNode.intProperty('maxLines', maxLines));
+    description.add(new DiagnosticsNode.colorProperty('selectionColor', selectionColor));
+    description.add(new DiagnosticsNode.doubleProperty('textScaleFactor', textScaleFactor));
+    description.add(new DiagnosticsNode.objectProperty('selection', selection));
+    description.add(new DiagnosticsNode.objectProperty('offset', offset));
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    return '$prefix \u2558\u2550\u2566\u2550\u2550 text \u2550\u2550\u2550\n'
-           '${text.toString("$prefix   \u2551 ")}' // TextSpan includes a newline
-           '$prefix   \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n'
-           '${prefix.trimRight()}\n';
+  void debugFillChildren(List<DiagnosticsNode> children) {
+    children.add(
+      text.toDiagnosticsNode(
+        name: 'text',
+        style: DiagnosticsTreeStyle.box,
+      ),
+    );
   }
 }

@@ -468,29 +468,26 @@ abstract class RenderViewportBase<ParentDataClass extends ContainerParentDataMix
   // TODO(ianh): semantics - shouldn't walk the invisible children
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('$axisDirection');
-    description.add('offset: $offset');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.enumProperty('axisDirection', axisDirection));
+    description.add(new DiagnosticsNode.objectProperty('offset', offset));
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    if (firstChild == null)
-      return '$prefix\n';
-    int count = indexOfFirstChild;
-    final StringBuffer result = new StringBuffer()
-      ..write(prefix)
-      ..write(' \u2502\n');
+  void debugFillChildren(List<DiagnosticsNode> children) {
     RenderSliver child = firstChild;
-    while (child != lastChild) {
-      result.write(child.toStringDeep("$prefix \u251C\u2500${labelForChild(count)}: ", "$prefix \u2502"));
+    if (child == null)
+      return;
+
+    int count = indexOfFirstChild;
+    while (true) {
+      children.add(child.toDiagnosticsNode(name: labelForChild(count)));
+      if (child == lastChild)
+        break;
       count += 1;
       child = childAfter(child);
     }
-    assert(child == lastChild);
-    result.write(child.toStringDeep("$prefix \u2514\u2500${labelForChild(count)}: ", "$prefix  "));
-    return result.toString();
   }
 
   // API TO BE IMPLEMENTED BY SUBCLASSES
@@ -1028,9 +1025,9 @@ class RenderViewport extends RenderViewportBase<SliverPhysicalContainerParentDat
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('anchor: $anchor');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.doubleProperty('anchor', anchor));
   }
 }
 

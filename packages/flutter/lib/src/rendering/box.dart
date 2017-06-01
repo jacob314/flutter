@@ -836,9 +836,8 @@ class _IntrinsicDimensionsCacheEntry {
 /// * Implement the [visitChildren] method such that it calls its argument for
 ///   each child, typically in paint order (back-most to front-most).
 ///
-/// * Implement [debugDescribeChildren] such that it outputs a string that
-///   describes all the children. In principle, for each child you want to
-///   include the results of that child's [toStringDeep] function.
+/// * Implement [debugFillChildren] such that it outputs a [DiagnosticNode]
+///   for each child.
 ///
 /// Implementing these seven bullet points is essentially all that the two
 /// aforementioned mixins do.
@@ -1613,22 +1612,17 @@ abstract class RenderBox extends RenderObject {
           while (!node.constraints.hasBoundedWidth && node.parent is RenderBox)
             node = node.parent;
           information.writeln('The nearest ancestor providing an unbounded width constraint is:');
-          information.writeln('  $node');
-          final List<String> description = <String>[];
-          node.debugFillDescription(description);
-          for (String line in description)
-            information.writeln('  $line');
-        }
+          information.write('  ');
+          information.writeln(node.toStringShallow('\n  '));
+         }
         if (!constraints.hasBoundedHeight) {
           RenderBox node = this;
           while (!node.constraints.hasBoundedHeight && node.parent is RenderBox)
             node = node.parent;
           information.writeln('The nearest ancestor providing an unbounded height constraint is:');
-          information.writeln('  $node');
-          final List<String> description = <String>[];
-          node.debugFillDescription(description);
-          for (String line in description)
-            information.writeln('  $line');
+          information.write('  ');
+          information.writeln(node.toStringShallow('\n  '));
+
         }
         throw new FlutterError(
           '$runtimeType object was given an infinite size during layout.\n'
@@ -2040,9 +2034,11 @@ abstract class RenderBox extends RenderObject {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('size: ${ hasSize ? size : "MISSING" }');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(
+        new DiagnosticsNode.lazyObjectProperty(
+            'size', () => size, header: '${ hasSize ? size : "MISSING" }'));
   }
 }
 

@@ -124,7 +124,7 @@ bool debugProfilePaintsEnabled = false;
 
 
 /// Returns a list of strings representing the given transform in a format
-/// useful for [RenderObject.debugFillDescription].
+/// useful for [DiagnosticsNode.transformProperty].
 ///
 /// If the argument is null, returns a list with the single string "null".
 List<String> debugDescribeTransform(Matrix4 transform) {

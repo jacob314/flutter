@@ -211,16 +211,18 @@ class RenderView extends RenderObject with RenderObjectWithChildMixin<RenderBox>
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    // call to ${super.debugFillDescription(prefix)} is omitted because the root superclasses don't include any interesting information for this class
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    // call to ${super.debugFillDescription(description)} is omitted because the
+    // root superclasses don't include any interesting information for this
+    // class
     assert(() {
-      description.add('debug mode enabled - ${Platform.operatingSystem}');
+      description.add(new DiagnosticsNode.message('debug mode enabled - ${Platform.operatingSystem}'));
       return true;
     });
-    description.add('window size: ${ui.window.physicalSize} (in physical pixels)');
-    description.add('device pixel ratio: ${ui.window.devicePixelRatio} (physical pixels per logical pixel)');
-    description.add('configuration: $configuration (in logical pixels)');
+    description.add(new DiagnosticsNode.withUnit('window size', ui.window.physicalSize, unit: 'in physical pixels'));
+    description.add(new DiagnosticsNode.withUnit('device pixel ratio', ui.window.devicePixelRatio, unit: 'physical pixels per logical pixel'));
+    description.add(new DiagnosticsNode.withUnit('configuration', configuration, unit: 'in logical pixels'));
     if (ui.window.semanticsEnabled)
-      description.add('semantics enabled');
+      description.add(new DiagnosticsNode.message('semantics enabled'));
   }
 }

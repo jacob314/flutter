@@ -3173,19 +3173,20 @@ abstract class Element implements BuildContext {
 
   /// A detailed, textual description of this element, includings its children.
   String toStringDeep([String prefixLineOne = '', String prefixOtherLines = '']) {
-    final StringBuffer result = new StringBuffer()
-      ..write(prefixLineOne)
-      ..write(this)
-      ..write('\n');
-    final List<Element> children = <Element>[];
-    visitChildren(children.add);
-    if (children.isNotEmpty) {
-      final Element last = children.removeLast();
-      for (Element child in children)
-        result.write(child.toStringDeep("$prefixOtherLines\u251C", "$prefixOtherLines\u2502"));
-      result.write(last.toStringDeep("$prefixOtherLines\u2514", "$prefixOtherLines "));
-    }
-    return result.toString();
+    return toDiagnosticNode().toStringDeep(prefixLineOne, prefixOtherLines);
+  }
+
+  DiagnosticsNode toDiagnosticNode({ String name, DiagnosticsTreeStyle style }) {
+    return new DiagnosticsNode.lazy(
+      name: name,
+      object: this,
+      fillChildren: (List<DiagnosticsNode> children) {
+        visitChildren((Element child) {
+          children.add(child.toDiagnosticNode());
+        });
+      },
+      style: style ?? DiagnosticsTreeStyle.dense,
+    );
   }
 
   /// Returns true if the element has been marked as needing rebuilding.

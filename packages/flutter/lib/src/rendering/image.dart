@@ -259,26 +259,20 @@ class RenderImage extends RenderBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    description.add('image: $image');
-    if (width != null)
-      description.add('width: $width');
-    if (height != null)
-      description.add('height: $height');
-    if (scale != 1.0)
-      description.add('scale: $scale');
-    if (color != null)
-      description.add('color: $color');
-    if (colorBlendMode != null)
-      description.add('colorBlendMode: $colorBlendMode');
-    if (fit != null)
-      description.add('fit: $fit');
-    if (alignment != null)
-      description.add('alignment: $alignment');
-    if (repeat != ImageRepeat.noRepeat)
-      description.add('repeat: $repeat');
-    if (centerSlice != null)
-      description.add('centerSlice: $centerSlice');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('image', image));
+    description.add(new DiagnosticsNode.doubleProperty('width', width, showNull: false));
+    description.add(new DiagnosticsNode.doubleProperty('height', height, showNull: false));
+    description.add(new DiagnosticsNode.doubleProperty('scale', scale, hidden: scale == 1.0));
+    description.add(new DiagnosticsNode.colorProperty('color', color, showNull: false));
+    description.add(new DiagnosticsNode.objectProperty('colorBlendMode', colorBlendMode, showNull: false));
+
+    description.add(new DiagnosticsNode.enumProperty('fit', fit, showNull: false));
+    description.add(new DiagnosticsNode.objectProperty('alignment', alignment, showNull: false));
+    description.add(new DiagnosticsNode.enumProperty(
+        'repeat', repeat, hidden: repeat == ImageRepeat.noRepeat));
+    description.add(new DiagnosticsNode.rectProperty(
+        'centerSlice', centerSlice, showNull: false));
   }
 }

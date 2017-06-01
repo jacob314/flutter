@@ -74,8 +74,6 @@ void main() {
         '   constraints: BoxConstraints(25.0<=w<=100.0, 25.0<=h<=100.0)\n'
         '   size: Size(25.0, 25.0)\n'
         '   image: [10×10]\n'
-        '   scale: 1.0\n'
-        '   repeat: no-repeat\n'
       ),
     );
 

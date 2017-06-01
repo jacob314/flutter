@@ -25,7 +25,7 @@ export 'edge_insets.dart' show EdgeInsets;
 /// shared between boxes; [BoxPainter] objects can cache resources to
 /// make painting on a particular surface faster.
 @immutable
-abstract class Decoration {
+abstract class Decoration implements TreeDiagnostics {
   /// Abstract const constructor. This constructor enables subclasses to provide
   /// const constructors so that they can be used in const expressions.
   const Decoration();
@@ -81,6 +81,7 @@ abstract class Decoration {
   /// if it is a [BoxDecoration] with definitely no [DecorationImage]).
   BoxPainter createBoxPainter([VoidCallback onChanged]);
 
+  /// ZZZ this comment needs to be wordsmithed.
   /// Returns a string representation of this object.
   ///
   /// Every line of the output should be prefixed by `prefix`.
@@ -90,7 +91,17 @@ abstract class Decoration {
   /// (rather that `prefix`). This is used, for example, by [BoxDecoration] for
   /// the otherwise quite verbose [BoxShadow] descriptions.
   @override
-  String toString([String prefix = '', String indentPrefix ]) => '$prefix$runtimeType';
+  String toString([String prefix = '', String indentPrefix='']) {
+    final DiagnosticsTreeStyle style =
+    prefix.isEmpty ? DiagnosticsTreeStyle.singleLine : DiagnosticsTreeStyle.whitespace;
+    return toDiagnosticsNode(style: style).toStringDeep(prefix, indentPrefix);
+  }
+
+
+  @override
+  String toStringDeep([String prefix = '', String indentPrefix ]) {
+    return toDiagnosticsNode().toStringDeep(prefix, indentPrefix);
+  }
 }
 
 /// A stateful class that can paint a particular [Decoration].

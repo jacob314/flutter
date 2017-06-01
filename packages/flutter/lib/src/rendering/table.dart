@@ -1278,46 +1278,45 @@ class RenderTable extends RenderBox {
   }
 
   @override
-  void debugFillDescription(List<String> description) {
-    super.debugFillDescription(description);
-    if (border != null)
-      description.add('border: $border');
-    if (_columnWidths.isNotEmpty)
-      description.add('specified column widths: $_columnWidths');
-    description.add('default column width: $defaultColumnWidth');
-    description.add('table size: $columns\u00D7$rows');
-    description.add('column offsets: ${ _columnLefts ?? "unknown" }');
-    description.add('row offsets: ${ _rowTops ?? "unknown" }');
+  void debugFillProperties(List<DiagnosticsNode> description) {
+    super.debugFillProperties(description);
+    description.add(new DiagnosticsNode.objectProperty('border', border, showNull: false));
+    description.add(
+      new DiagnosticsNode.objectProperty(
+        'specified column widths',
+        _columnWidths,
+        hidden: _columnWidths.isEmpty,
+      ),
+    );
+    description.add(new DiagnosticsNode.objectProperty('default column width', defaultColumnWidth));
+    description.add(new DiagnosticsNode.stringProperty('table size', '$columns\u00D7$rows'));
+    description.add(new DiagnosticsNode.objectProperty('column offsets', _columnLefts, nullDescription: 'unknown'));
+    description.add(new DiagnosticsNode.objectProperty('row offsets', _rowTops, nullDescription: "unknown"));
   }
 
   @override
-  String debugDescribeChildren(String prefix) {
-    final StringBuffer result = new StringBuffer();
-    result.writeln('$prefix \u2502');
-    final int lastIndex = _children.length - 1;
-    if (lastIndex < 0) {
-      result.writeln('$prefix \u2514\u2500table is empty');
+  void debugFillChildren(List<DiagnosticsNode> children) {
+    if (_children.isEmpty) {
+      children.add(new DiagnosticsNode.message('table is empty', style: DiagnosticsTreeStyle.normal));
     } else {
       for (int y = 0; y < rows; y += 1) {
         for (int x = 0; x < columns; x += 1) {
           final int xy = x + y * columns;
           final RenderBox child = _children[xy];
+          final String name = 'child ($x, $y)';
           if (child != null) {
-            if (xy < lastIndex) {
-              result.write('${child.toStringDeep("$prefix \u251C\u2500child ($x, $y): ", "$prefix \u2502")}');
-            } else {
-              result.write('${child.toStringDeep("$prefix \u2514\u2500child ($x, $y): ", "$prefix  ")}');
-            }
+            children.add(child.toDiagnosticsNode(name: name));
           } else {
-            if (xy < lastIndex) {
-              result.writeln('$prefix \u251C\u2500child ($x, $y) is null');
-            } else {
-              result.writeln('$prefix \u2514\u2500child ($x, $y) is null');
-            }
+            children.add(
+              new DiagnosticsNode.objectProperty(
+                name, null,
+                header: 'is null',
+                showSeparator: false,
+              ),
+            );
           }
         }
       }
     }
-    return result.toString();
   }
 }
