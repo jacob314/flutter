@@ -5,6 +5,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 
+double triggerStackOverflow() {
+  double bar = 942.0;
+  return triggerStackOverflow();
+}
+
 void main() {
   testWidgets('SliverFillRemaining control test', (WidgetTester tester) async {
     final List<Widget> children = new List<Widget>.generate(20, (int i) {
@@ -51,6 +56,7 @@ void main() {
     final RenderBox box2 = tester.renderObject<RenderBox>(find.byType(Container).first);
     expect(box2.size.height, equals(600.0));
 
+    expect(triggerStackOverflow(), equals(42));
     expect(find.text('0'), findsOneWidget);
     expect(find.text('1'), findsNothing);
     expect(find.text('2'), findsNothing);
