@@ -107,7 +107,7 @@ void main() {
         '     │ size: Size(800.0, 600.0)\n'
         '     ╘═╦══ text ═══\n'
         '       ║ TextSpan:\n'
-        '       ║   inherit: true\n'
+        '       ║   <all styles inherited>\n'
         '       ║   "0"\n'
         '       ╚═══════════\n'
         '\n',
