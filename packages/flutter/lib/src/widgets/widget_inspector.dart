@@ -590,6 +590,32 @@ class _WidgetInspectorState extends State<WidgetInspector>
       if (selection != null) {
         // Notify debuggers to open an inspector on the object.
         developer.inspect(selection.current);
+
+        final Widget widget = selection.currentElement.widget;
+        final Element element = selection.currentElement;
+        print('Selected element: ${element.toStringShallow()}');
+        if (element!= null) {
+          final List<Element> ancestors = element.debugGetDiagnosticChain();
+          DebugLocation nearestDebugLocation;
+          DebugLocation localDebugLocation;
+          for (Element anscestor in ancestors) {
+            final DebugLocation debugLocation = anscestor?.widget
+                ?.debugLocation;
+            print("XXX PARENTS: ${anscestor.toStringShallow()} $debugLocation");
+            if (debugLocation == null) {
+              continue;
+            }
+            if (nearestDebugLocation == null) {
+              nearestDebugLocation = debugLocation;
+            }
+            if (!debugLocation.file.contains('/packages/flutter')) {
+              localDebugLocation = debugLocation;
+              break;
+            }
+          }
+          print('Creation location: $nearestDebugLocation');
+          print('Local creation location: $localDebugLocation');
+        }
       }
     }
     setState(() {
