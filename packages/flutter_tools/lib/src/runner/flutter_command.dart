@@ -160,9 +160,16 @@ abstract class FlutterCommand extends Command<Null> {
     final bool strongMode =  argParser.options.containsKey('strong')
         ? argResults['strong']
         : false;
+    final bool trackWidgetCreation = argParser.options.containsKey('track-widget-creation')
+        ? argResults['track-widget-creation']
+        : false;
     if (strongMode == true && previewDart2 == false) {
       throw new UsageException(
           '--strong is valid only when --preview-dart-2 is specified.', null);
+    }
+    if (trackWidgetCreation == true && previewDart2 == false) {
+      throw new UsageException(
+          '--track-widget-creation is valid only when --preview-dart-2 is specified.', null);
     }
 
     return new BuildInfo(getBuildMode(),
@@ -171,6 +178,7 @@ abstract class FlutterCommand extends Command<Null> {
         : null,
       previewDart2: previewDart2,
       strongMode: strongMode,
+      trackWidgetCreation: trackWidgetCreation,
       extraFrontEndOptions: argParser.options.containsKey(FlutterOptions.kExtraFrontEndOptions)
           ? argResults[FlutterOptions.kExtraFrontEndOptions]
           : null,

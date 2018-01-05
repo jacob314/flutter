@@ -38,12 +38,18 @@ class FlutterDevice {
 
   StreamSubscription<String> _loggingSubscription;
 
-  FlutterDevice(this.device,
-                { bool previewDart2 : false, bool strongMode : false }) {
-    if (previewDart2)
+  FlutterDevice(this.device, {
+    bool previewDart2: false,
+    bool strongMode: false,
+    bool trackWidgetCreation: false,
+  }) {
+    if (previewDart2) {
       generator = new ResidentCompiler(
         artifacts.getArtifactPath(Artifact.flutterPatchedSdkPath),
-        strongMode: strongMode);
+        strongMode: strongMode,
+        trackWidgetCreation: trackWidgetCreation,
+      );
+    }
   }
 
   String viewFilter;

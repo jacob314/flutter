@@ -417,7 +417,8 @@ class IOSSimulator extends Device {
       // produce kernel file for the application.
       flx.build(precompiledSnapshot: !buildInfo.previewDart2,
           previewDart2: buildInfo.previewDart2,
-          strongMode: buildInfo.strongMode);
+          strongMode: buildInfo.strongMode,
+          trackWidgetCreation: buildInfo.trackWidgetCreation);
 
   @override
   Future<bool> stopApp(ApplicationPackage app) async {

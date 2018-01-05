@@ -13,6 +13,7 @@ class BuildInfo {
   const BuildInfo(this.mode, this.flavor,
       {this.previewDart2,
       this.strongMode,
+      this.trackWidgetCreation,
       this.extraFrontEndOptions,
       this.extraGenSnapshotOptions,
       this.preferSharedLibrary});
@@ -31,6 +32,9 @@ class BuildInfo {
   
   // Whether build should use strong mode semantics.
   final bool strongMode;
+
+  /// Whether the build should track widget creation locations.
+  final bool trackWidgetCreation;
 
   /// Extra command-line options for front-end.
   final String extraFrontEndOptions;

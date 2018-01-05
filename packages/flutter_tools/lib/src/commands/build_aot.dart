@@ -338,9 +338,10 @@ Future<String> _buildAotSnapshot(
       sdkRoot: artifacts.getArtifactPath(Artifact.flutterPatchedSdkPath),
       mainPath: mainPath,
       extraFrontEndOptions: extraFrontEndOptions,
-      linkPlatformKernelIn : true,
-      aot : true,
+      linkPlatformKernelIn: true,
+      aot: true,
       strongMode: strongMode,
+      trackWidgetCreation: false,
     );
     if (mainPath == null) {
       printError('Compiler terminated unexpectedly.');
