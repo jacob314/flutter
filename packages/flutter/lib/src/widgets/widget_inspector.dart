@@ -410,7 +410,12 @@ class WidgetInspectorService {
   /// the `--track-widget-creation` flag is passed to `flutter_tool`. Dart 2.0
   /// is required as injecting creation locations requires a
   /// [Dart Kernel Transformer](https://github.com/dart-lang/sdk/wiki/Kernel-Documentation).
-  bool isWidgetCreationTracked() => new Widget() is _HasCreationLocation;
+  bool isWidgetCreationTracked() => new _WidgetForTypeTests() is _HasCreationLocation;
+}
+
+class _WidgetForTypeTests extends Widget {
+  @override
+  Element createElement() => null;
 }
 
 /// A widget that enables inspecting the child widget's structure.
@@ -1030,6 +1035,7 @@ const TextStyle _messageStyle = const TextStyle(
 /// `--track-widget-creation` flag is passed to `flutter_tool`. Dart 2.0 is
 /// required as injecting creation locations requires a
 /// [Dart Kernel Transformer](https://github.com/dart-lang/sdk/wiki/Kernel-Documentation).
+// ignore: unused_element
 abstract class _HasCreationLocation {
   _Location get _location;
 }
@@ -1074,7 +1080,7 @@ class _Location {
 
   @override
   String toString() {
-    List<String> parts = <String>[];
+    final List<String> parts = <String>[];
     if (name != null) {
       parts.add(name);
     }
