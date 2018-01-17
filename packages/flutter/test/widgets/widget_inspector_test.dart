@@ -29,7 +29,6 @@ void main() {
       new Directionality(
         textDirection: TextDirection.ltr,
         child: new WidgetInspector(
-          selectButtonBuilder: null,
           child: new Stack(
             children: const <Widget>[
               const Text('a', textDirection: TextDirection.ltr),
@@ -46,13 +45,9 @@ void main() {
 
   testWidgets('WidgetInspector interaction test', (WidgetTester tester) async {
     final List<String> log = <String>[];
-    final GlobalKey selectButtonKey = new GlobalKey();
     final GlobalKey inspectorKey = new GlobalKey();
     final GlobalKey topButtonKey = new GlobalKey();
 
-    Widget selectButtonBuilder(BuildContext context, VoidCallback onPressed) {
-      return new Material(child: new RaisedButton(onPressed: onPressed, key: selectButtonKey));
-    }
     // State type is private, hence using dynamic.
     dynamic getInspectorState() => inspectorKey.currentState;
     String paragraphText(RenderParagraph paragraph) => paragraph.text.text;
@@ -62,7 +57,6 @@ void main() {
         textDirection: TextDirection.ltr,
         child: new WidgetInspector(
           key: inspectorKey,
-          selectButtonBuilder: selectButtonBuilder,
           child: new Material(
             child: new ListView(
               children: <Widget>[
@@ -100,14 +94,14 @@ void main() {
     expect(log, equals(<String>['top']));
     log.clear();
 
+    getInspectorState().isSelectionEnabled = false;
     await tester.tap(find.text('BOTTOM'));
     expect(log, equals(<String>['bottom']));
     log.clear();
     // Ensure the inspector selection has not changed to bottom.
     expect(paragraphText(getInspectorState().selection.current), equals('TOP'));
 
-    await tester.tap(find.byKey(selectButtonKey));
-    await tester.pump();
+    getInspectorState().isSelectionEnabled = true;
 
     // We are now back in select mode so tapping the bottom button will have
     // not trigger a click but will cause it to be selected.
@@ -119,12 +113,8 @@ void main() {
 
   testWidgets('WidgetInspector scroll test', (WidgetTester tester) async {
     final Key childKey = new UniqueKey();
-    final GlobalKey selectButtonKey = new GlobalKey();
     final GlobalKey inspectorKey = new GlobalKey();
 
-    Widget selectButtonBuilder(BuildContext context, VoidCallback onPressed) {
-      return new Material(child: new RaisedButton(onPressed: onPressed, key: selectButtonKey));
-    }
     // State type is private, hence using dynamic.
     dynamic getInspectorState() => inspectorKey.currentState;
 
@@ -133,7 +123,6 @@ void main() {
         textDirection: TextDirection.ltr,
         child: new WidgetInspector(
           key: inspectorKey,
-          selectButtonBuilder: selectButtonBuilder,
           child: new ListView(
             children: <Widget>[
               new Container(
@@ -182,7 +171,6 @@ void main() {
       new Directionality(
         textDirection: TextDirection.ltr,
         child: new WidgetInspector(
-          selectButtonBuilder: null,
           child: new GestureDetector(
             onLongPress: () {
               expect(didLongPress, isFalse);
@@ -222,7 +210,6 @@ void main() {
         textDirection: TextDirection.ltr,
         child: new WidgetInspector(
           key: inspectorKey,
-          selectButtonBuilder: null,
           child: new Overlay(
             initialEntries: <OverlayEntry>[
               new OverlayEntry(

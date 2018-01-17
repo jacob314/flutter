@@ -12,6 +12,7 @@ import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 
 import 'basic.dart';
 import 'binding.dart';
@@ -86,6 +87,10 @@ List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain
 /// [WidgetInspectorService.selectionChangedCallback].
 typedef void InspectorSelectionChangedCallback();
 
+/// Signature for the selection mode change callback used by
+/// [WidgetInspectorService.selectionModeChangedCallback].
+typedef void InspectorSelectionModeChangedCallback(bool isSelectMode);
+
 /// Structure to help reference count Dart objects referenced by a GUI tool
 /// using [WidgetInspectorService].
 class _InspectorReferenceData {
@@ -134,6 +139,31 @@ class WidgetInspectorService {
   /// instead listens for `dart:developer` `inspect` events which also trigger
   /// when the inspection target changes on device.
   InspectorSelectionChangedCallback selectionChangedCallback;
+
+  /// Whether the inspector is in select mode.
+  ///
+  /// In select mode, pointer interactions trigger widget selection instead of
+  /// normal interactions. Otherwise the previously selected widget is
+  /// highlighted but the application can be interacted with normally.
+  bool get isSelectMode => _isSelectMode;
+  set isSelectMode(bool value) {
+    if (value == _isSelectMode)
+      return;
+    _isSelectMode = value;
+    if (selectionModeChangedCallback != null) {
+      selectionModeChangedCallback(value);
+    }
+  }
+
+  bool _isSelectMode = false;
+
+  /// Callback typically registered by the [WidgetInspector] to receive
+  /// notifications when [isSelectMode] changes.
+  ///
+  /// The Flutter IntelliJ Plugin does not need to listen for this event as it
+  /// instead listens for `dart:developer` `inspect` events which also trigger
+  /// when the inspection target changes on device.
+  InspectorSelectionModeChangedCallback selectionModeChangedCallback;
 
   /// The Observatory protocol does not keep alive object references so this
   /// class needs to manually manage groups of objects that should be kept
@@ -447,18 +477,11 @@ class WidgetInspector extends StatefulWidget {
   const WidgetInspector({
     Key key,
     @required this.child,
-    @required this.selectButtonBuilder,
   }) : assert(child != null),
        super(key: key);
 
   /// The widget that is being inspected.
   final Widget child;
-
-  /// A builder that is called to create the select button.
-  ///
-  /// The `onPressed` callback passed as an argument to the builder should be
-  /// hooked up to the returned widget.
-  final InspectorSelectButtonBuilder selectButtonBuilder;
 
   @override
   _WidgetInspectorState createState() => new _WidgetInspectorState();
@@ -467,7 +490,9 @@ class WidgetInspector extends StatefulWidget {
 class _WidgetInspectorState extends State<WidgetInspector>
     with WidgetsBindingObserver {
 
-  _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection;
+  _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection {
+    isSelectMode = WidgetInspectorService.instance.isSelectMode;
+  }
 
   Offset _lastPointerLocation;
 
@@ -478,7 +503,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   /// In select mode, pointer interactions trigger widget selection instead of
   /// normal interactions. Otherwise the previously selected widget is
   /// highlighted but the application can be interacted with normally.
-  bool isSelectMode = true;
+  bool isSelectMode;
 
   final GlobalKey _ignorePointerKey = new GlobalKey();
 
@@ -495,6 +520,14 @@ class _WidgetInspectorState extends State<WidgetInspector>
         // changed.
       });
     };
+    WidgetInspectorService.instance.selectionModeChangedCallback = (bool mode) {
+      if (mode != isSelectMode) {
+        setState(() {
+          isSelectMode = mode;
+        });
+      }
+    };
+
   }
 
   bool _hitTestHelper(
@@ -609,19 +642,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
       if (selection != null) {
         // Notify debuggers to open an inspector on the object.
         developer.inspect(selection.current);
+        print("XXX creation location = ${_getCreationLocation(selection.currentElement)}");
       }
     }
-    setState(() {
-      // Only exit select mode if there is a button to return to select mode.
-      if (widget.selectButtonBuilder != null)
-        isSelectMode = false;
-    });
-  }
-
-  void _handleEnableSelect() {
-    setState(() {
-      isSelectMode = true;
-    });
   }
 
   @override
@@ -638,19 +661,51 @@ class _WidgetInspectorState extends State<WidgetInspector>
         ignoring: isSelectMode,
         key: _ignorePointerKey,
         ignoringSemantics: false,
-        child: widget.child,
+        child: isSelectMode ? new DecoratedBox(decoration: new SelectedModeTargetDecoration(), child: widget.child, position: DecorationPosition.foreground) :  widget.child,
       ),
     ));
-    if (!isSelectMode && widget.selectButtonBuilder != null) {
-      children.add(new Positioned(
-        left: _kInspectButtonMargin,
-        bottom: _kInspectButtonMargin,
-        child:  widget.selectButtonBuilder(context, _handleEnableSelect)
-      ));
-    }
     children.add(new _InspectorOverlay(selection: selection));
     return new Stack(children: children);
   }
+}
+
+/// Decoration indicating that the ui is inspect select mode.
+class SelectedModeTargetDecoration extends Decoration {
+  @override
+  BoxPainter createBoxPainter([VoidCallback onChanged]) {
+    return new _SelectedModeTargetBoxPainter();
+  }
+}
+
+class _SelectedModeTargetBoxPainter extends BoxPainter {
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    // TODO: implement paint
+    final double targetSize = configuration.size.shortestSide / 10.0;
+    final Paint targetPaint = new Paint()
+         ..style = PaintingStyle.stroke
+         ..strokeWidth = 3.0
+         ..color = const Color.fromARGB(190, 100, 100, 100);
+    final path = new Path();
+
+    // Draw targets in each corner.
+    for (int sideX = 0; sideX < 2; sideX++) {
+      for (int sideY = 0; sideY < 2; sideY++) {
+        final double deltaY = sideY == 0 ? targetSize : -targetSize;
+        final double deltaX = sideX == 0 ? targetSize : -targetSize;
+        path
+          ..moveTo(
+              offset.dx + sideX * configuration.size.width + deltaX * 0.1,
+              offset.dy + sideY * configuration.size.height + deltaY + deltaY * 0.1,
+          )
+          ..relativeLineTo(deltaX, 0.0)
+          ..relativeLineTo(0.0, -deltaY);
+      }
+    }
+
+    canvas.drawPath(path, targetPaint);
+  }
+
 }
 
 /// Mutable selection state of the inspector.
@@ -888,7 +943,7 @@ class _InspectorOverlayLayer extends Layer {
     for (RenderObject candidate in selection.candidates) {
       if (candidate == selected || !candidate.attached)
         continue;
-      candidates.add(new _TransformedRect(candidate));
+      // XXX candidates.add(new _TransformedRect(candidate));
     }
 
     final _InspectorOverlayRenderState state = new _InspectorOverlayRenderState(
@@ -1015,7 +1070,6 @@ class _InspectorOverlayLayer extends Layer {
 
 const double _kScreenEdgeMargin = 10.0;
 const double _kTooltipPadding = 5.0;
-const double _kInspectButtonMargin = 10.0;
 
 /// Interpret pointer up events within with this margin as indicating the
 /// pointer is moving off the device.
