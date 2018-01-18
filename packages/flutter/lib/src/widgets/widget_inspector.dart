@@ -529,6 +529,8 @@ class _WidgetInspectorState extends State<WidgetInspector>
   static const double _kEdgeHitMargin = 2.0;
 
   InspectorSelectionChangedCallback _selectionChangedCallback;
+  InspectorSelectionModeChangedCallback _selectionModeChangedCallback;
+
   @override
   void initState() {
     super.initState();
@@ -539,6 +541,17 @@ class _WidgetInspectorState extends State<WidgetInspector>
         // changed.
       });
     };
+
+    _selectionModeChangedCallback = (bool mode) {
+      if (mode != isSelectMode) {
+        setState(() {
+          isSelectMode = mode;
+        });
+      }
+    };
+    assert(WidgetInspectorService.instance.selectionModeChangedCallback == null);
+    WidgetInspectorService.instance.selectionModeChangedCallback = _selectionModeChangedCallback;
+
     assert(WidgetInspectorService.instance.selectionChangedCallback == null);
     WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
   }
@@ -547,6 +560,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
   void dispose() {
     if (WidgetInspectorService.instance.selectionChangedCallback == _selectionChangedCallback) {
       WidgetInspectorService.instance.selectionChangedCallback = null;
+    }
+    if (WidgetInspectorService.instance.selectionModeChangedCallback == _selectionModeChangedCallback) {
+      WidgetInspectorService.instance.selectionModeChangedCallback = null;
     }
     super.dispose();
   }
