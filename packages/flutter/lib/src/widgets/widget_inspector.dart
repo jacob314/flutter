@@ -16,6 +16,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'basic.dart';
 import 'binding.dart';
+import 'container.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 
@@ -405,8 +406,18 @@ class WidgetInspectorService {
   /// Returns a JSON representation of the properties of the [DiagnosticsNode]
   /// object that `diagnosticsNodeId` references.
   String getProperties(String diagnosticsNodeId, String groupName) {
-    final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), groupName));
+    DiagnosticsNode node = toObject(diagnosticsNodeId);
+    List<DiagnosticsNode> properties = const <DiagnosticsNode>[];
+    if (node != null) {
+      // Recompute properties to avoid staleness.
+      final Object value = node.value;
+      if (value is Diagnosticable) {
+        node = value.toDiagnosticsNode(name: node.name, style: node.style);
+      }
+      properties = node.getProperties();
+    }
+
+    return JSON.encode(_nodesToJson(properties, groupName));
   }
 
   /// Returns a JSON representation of the children of the [DiagnosticsNode]
@@ -682,7 +693,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
         ignoring: isSelectMode,
         key: _ignorePointerKey,
         ignoringSemantics: false,
-        child: isSelectMode ? new DecoratedBox(decoration: new SelectedModeTargetDecoration(), child: widget.child, position: DecorationPosition.foreground) :  widget.child,
+        child: isSelectMode ? new DecoratedBox(decoration: new _SelectedModeTargetDecoration(), child: widget.child, position: DecorationPosition.foreground) :  widget.child,
       ),
     ));
     children.add(new _InspectorOverlay(selection: selection));
@@ -690,8 +701,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 }
 
-/// Decoration indicating that the ui is inspect select mode.
-class SelectedModeTargetDecoration extends Decoration {
+class _SelectedModeTargetDecoration extends Decoration {
   @override
   BoxPainter createBoxPainter([VoidCallback onChanged]) {
     return new _SelectedModeTargetBoxPainter();
@@ -699,32 +709,47 @@ class SelectedModeTargetDecoration extends Decoration {
 }
 
 class _SelectedModeTargetBoxPainter extends BoxPainter {
+
+  static final double targetFraction = 0.07;
+
+  static final double strokeWidth = 1.5;
+  static final double shadowWidth = 2.0;
+  static final double segmentWidth = 0.75;
+  static final double outsidePadding = 0.35;
+  static final Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
+  static final Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
+
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
-    // TODO: implement paint
-    final double targetSize = configuration.size.shortestSide / 10.0;
+    final double targetSize = configuration.size.shortestSide * targetFraction;
     final Paint targetPaint = new Paint()
-         ..style = PaintingStyle.stroke
-         ..strokeWidth = 3.0
-         ..color = const Color.fromARGB(190, 100, 100, 100);
-    final path = new Path();
+     ..style = PaintingStyle.stroke
+     ..strokeWidth = strokeWidth
+     ..color = strokeColor;
+     ..strokeCap = StrokeCap.round;
+    final Paint shadowPaint = new Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth + shadowWidth
+      ..color = shadowColor
+      ..strokeCap = StrokeCap.round;
+    final Path path = new Path();
 
-    // Draw targets in each corner.
+    // Draw targets on each corner.
     for (int sideX = 0; sideX < 2; sideX++) {
       for (int sideY = 0; sideY < 2; sideY++) {
         final double deltaY = sideY == 0 ? targetSize : -targetSize;
         final double deltaX = sideX == 0 ? targetSize : -targetSize;
+        final double cornerX = offset.dx + sideX * configuration.size.width + deltaX * outsidePadding;
+        final double cornerY = offset.dy + sideY * configuration.size.height + deltaY * outsidePadding;
         path
-          ..moveTo(
-              offset.dx + sideX * configuration.size.width + deltaX * 0.1,
-              offset.dy + sideY * configuration.size.height + deltaY + deltaY * 0.1,
-          )
-          ..relativeLineTo(deltaX, 0.0)
-          ..relativeLineTo(0.0, -deltaY);
+          ..moveTo(cornerX, cornerY + deltaY)
+          ..relativeLineTo(deltaX * segmentWidth, 0.0)
+          ..moveTo(cornerX + deltaX, cornerY)
+          ..relativeLineTo(0.0, deltaY * segmentWidth);
       }
     }
 
-    canvas.drawPath(path, targetPaint);
+    canvas..drawPath(path, shadowPaint)..drawPath(path, targetPaint);
   }
 
 }
@@ -964,7 +989,7 @@ class _InspectorOverlayLayer extends Layer {
     for (RenderObject candidate in selection.candidates) {
       if (candidate == selected || !candidate.attached)
         continue;
-      // XXX candidates.add(new _TransformedRect(candidate));
+      candidates.add(new _TransformedRect(candidate));
     }
 
     final _InspectorOverlayRenderState state = new _InspectorOverlayRenderState(
@@ -1045,16 +1070,17 @@ class _InspectorOverlayLayer extends Layer {
       _textPainter = new TextPainter()
         ..maxLines = _kMaxTooltipLines
         ..ellipsis = '...'
+        ..textAlign = TextAlign.center
         ..text = new TextSpan(style: _messageStyle, text: message)
         ..textDirection = textDirection
-        ..layout(maxWidth: maxWidth);
+        ..layout(maxWidth: maxWidth, minWidth: _kTooltipPadding * 4.0);
     }
 
-    final Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
+    Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
     final Offset tipOffset = positionDependentBox(
       size: size,
       childSize: tooltipSize,
-      target: target,
+      target: target.translate(tooltipSize.width / 2.0, 0.0),
       verticalOffset: verticalOffset,
       preferBelow: false,
     );
@@ -1076,8 +1102,8 @@ class _InspectorOverlayLayer extends Layer {
       wedgeY += tooltipSize.height;
 
     final double wedgeSize = _kTooltipPadding * 2;
-    double wedgeX = math.max(tipOffset.dx, target.dx) + wedgeSize * 2;
-    wedgeX = math.min(wedgeX, tipOffset.dx + tooltipSize.width - wedgeSize * 2);
+    double wedgeX = math.max(tipOffset.dx, target.dx) + wedgeSize * 1.5;
+    wedgeX = math.min(wedgeX, tipOffset.dx + tooltipSize.width - wedgeSize * 1.5);
     final List<Offset> wedge = <Offset>[
       new Offset(wedgeX - wedgeSize, wedgeY),
       new Offset(wedgeX + wedgeSize, wedgeY),
