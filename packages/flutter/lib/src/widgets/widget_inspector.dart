@@ -550,10 +550,10 @@ class _WidgetInspectorState extends State<WidgetInspector>
         });
       }
     };
-    assert(WidgetInspectorService.instance.selectionModeChangedCallback == null);
+//    assert(WidgetInspectorService.instance.selectionModeChangedCallback == null);
     WidgetInspectorService.instance.selectionModeChangedCallback = _selectionModeChangedCallback;
 
-    assert(WidgetInspectorService.instance.selectionChangedCallback == null);
+  //  assert(WidgetInspectorService.instance.selectionChangedCallback == null);
     WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
   }
 
@@ -718,30 +718,40 @@ class SelectedModeTargetDecoration extends Decoration {
 class _SelectedModeTargetBoxPainter extends BoxPainter {
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
-    // TODO: implement paint
-    final double targetSize = configuration.size.shortestSide / 10.0;
+    double targetFraction = 0.07;
+    double strokeWidth = 1.5;
+    double shadowWidth = 2.0;
+    final double targetSize = configuration.size.shortestSide * targetFraction;
     final Paint targetPaint = new Paint()
          ..style = PaintingStyle.stroke
-         ..strokeWidth = 3.0
-         ..color = const Color.fromARGB(190, 100, 100, 100);
-    final path = new Path();
+         ..strokeWidth = strokeWidth
+         ..color = const Color.fromARGB(150, 0, 0, 0)
+         ..strokeCap = StrokeCap.round;
+    final Paint shadowPaint = new Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth + shadowWidth
+      ..color = const Color.fromARGB(150, 255, 255, 255)
+      ..strokeCap = StrokeCap.round;
+    final Path path = new Path();
 
+    final double segmentWidth = 0.75;
+    final double outsidePadding = 0.35;
     // Draw targets in each corner.
     for (int sideX = 0; sideX < 2; sideX++) {
       for (int sideY = 0; sideY < 2; sideY++) {
         final double deltaY = sideY == 0 ? targetSize : -targetSize;
         final double deltaX = sideX == 0 ? targetSize : -targetSize;
+        final double cornerX = offset.dx + sideX * configuration.size.width + deltaX * outsidePadding;
+        final double cornerY = offset.dy + sideY * configuration.size.height + deltaY * outsidePadding;
         path
-          ..moveTo(
-              offset.dx + sideX * configuration.size.width + deltaX * 0.1,
-              offset.dy + sideY * configuration.size.height + deltaY + deltaY * 0.1,
-          )
-          ..relativeLineTo(deltaX, 0.0)
-          ..relativeLineTo(0.0, -deltaY);
+          ..moveTo(cornerX, cornerY + deltaY)
+          ..relativeLineTo(deltaX * segmentWidth, 0.0)
+          ..moveTo(cornerX + deltaX, cornerY)
+          ..relativeLineTo(0.0, deltaY * segmentWidth);
       }
     }
 
-    canvas.drawPath(path, targetPaint);
+    canvas..drawPath(path, shadowPaint)..drawPath(path, targetPaint);
   }
 
 }
