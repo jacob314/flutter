@@ -11,12 +11,12 @@ import 'globals.dart';
 /// Information about a build to be performed or used.
 class BuildInfo {
   const BuildInfo(this.mode, this.flavor,
-      {this.previewDart2,
+      {bool previewDart2,
       this.strongMode,
-      this.trackWidgetCreation,
+      bool trackWidgetCreation,
       this.extraFrontEndOptions,
       this.extraGenSnapshotOptions,
-      this.preferSharedLibrary});
+      this.preferSharedLibrary}) : previewDart2 = true, trackWidgetCreation = true;
 
   final BuildMode mode;
   /// Represents a custom Android product flavor or an Xcode scheme, null for

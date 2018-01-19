@@ -373,6 +373,7 @@ class AppDomain extends Domain {
         packagesFilePath: packagesFilePath,
         projectAssets: projectAssets,
         hostIsIde: true,
+        previewDart2: true,
       );
     } else {
       runner = new ColdRunner(

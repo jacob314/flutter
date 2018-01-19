@@ -251,7 +251,7 @@ class FlutterPlugin implements Plugin<Project> {
             target = project.property('target')
         }
 
-        Boolean previewDart2Value = false
+        Boolean previewDart2Value = true
         if (project.hasProperty('preview-dart-2')) {
             previewDart2Value = project.property('preview-dart-2')
         }
@@ -261,7 +261,7 @@ class FlutterPlugin implements Plugin<Project> {
             strongModeValue = project.property('strong')
         }
 
-        Boolean trackWidgetCreationValue = false
+        Boolean trackWidgetCreationValue = true
         if (project.hasProperty('track-widget-creation')) {
             trackWidgetCreationValue = project.property('track-widget-creation')
         }

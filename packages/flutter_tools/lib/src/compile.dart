@@ -62,9 +62,10 @@ Future<String> compile(
     bool linkPlatformKernelIn : false,
     bool aot : false,
     bool strongMode : false,
-    bool trackWidgetCreation: false,
+    bool trackWidgetCreation: true,
     List<String> extraFrontEndOptions,
     String incrementalCompilerByteStorePath}) async {
+  trackWidgetCreation = true; // XXX
   final String frontendServer = artifacts.getArtifactPath(
     Artifact.frontendServerSnapshotForEngineDartSdk
   );

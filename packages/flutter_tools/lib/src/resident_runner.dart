@@ -43,6 +43,8 @@ class FlutterDevice {
     bool strongMode: false,
     bool trackWidgetCreation: false,
   }) {
+    previewDart2 = true;
+    trackWidgetCreation = true;
     if (previewDart2) {
       generator = new ResidentCompiler(
         artifacts.getArtifactPath(Artifact.flutterPatchedSdkPath),
@@ -141,7 +143,7 @@ class FlutterDevice {
       final Future<Map<String, dynamic>> report = view.uiIsolate.reloadSources(
         pause: pause,
         rootLibUri: deviceEntryUri,
-        packagesUri: devicePackagesUri
+        packagesUri: devicePackagesUri,
       );
       reports.add(report);
     }

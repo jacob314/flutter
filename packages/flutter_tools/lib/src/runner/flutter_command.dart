@@ -156,13 +156,13 @@ abstract class FlutterCommand extends Command<Null> {
   BuildInfo getBuildInfo() {
     final bool previewDart2 = argParser.options.containsKey('preview-dart-2')
         ? argResults['preview-dart-2']
-        : false;
+        : true;
     final bool strongMode =  argParser.options.containsKey('strong')
         ? argResults['strong']
         : false;
     final bool trackWidgetCreation = argParser.options.containsKey('track-widget-creation')
         ? argResults['track-widget-creation']
-        : false;
+        : true;
     if (strongMode == true && previewDart2 == false) {
       throw new UsageException(
           '--strong is valid only when --preview-dart-2 is specified.', null);

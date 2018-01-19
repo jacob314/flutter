@@ -39,7 +39,7 @@ class HotRunner extends ResidentRunner {
     bool usesTerminalUI: true,
     this.benchmarkMode: false,
     this.applicationBinary,
-    this.previewDart2: false,
+    this.previewDart2: true,
     this.strongMode: false,
     this.hostIsIde: false,
     String projectRootPath,
