@@ -406,8 +406,18 @@ class WidgetInspectorService {
   /// Returns a JSON representation of the properties of the [DiagnosticsNode]
   /// object that `diagnosticsNodeId` references.
   String getProperties(String diagnosticsNodeId, String groupName) {
-    final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), groupName));
+    DiagnosticsNode node = toObject(diagnosticsNodeId);
+    List<DiagnosticsNode> properties = const <DiagnosticsNode>[];
+    if (node != null) {
+      // Recompute properties to avoid staleness.
+      final value = node.value;
+      if (value is Diagnosticable) {
+        node = value.toDiagnosticsNode(name: node.name, style: node.style);
+      }
+      properties = node.getProperties();
+    }
+
+    return JSON.encode(_nodesToJson(properties, groupName));
   }
 
   /// Returns a JSON representation of the children of the [DiagnosticsNode]
