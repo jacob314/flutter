@@ -709,7 +709,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
         ignoring: isSelectMode,
         key: _ignorePointerKey,
         ignoringSemantics: false,
-        child: isSelectMode ? new DecoratedBox(decoration: new _SelectedModeTargetDecoration(), child: widget.child, position: DecorationPosition.foreground) :  widget.child,
+        child: isSelectMode ? new DecoratedBox(decoration: new _SelectModeTargetDecoration(), child: widget.child, position: DecorationPosition.foreground) :  widget.child,
       ),
     ));
     children.add(new _InspectorOverlay(selection: selection));
@@ -717,31 +717,48 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 }
 
-class _SelectedModeTargetDecoration extends Decoration {
+class _SelectModeTargetDecoration extends Decoration {
   @override
   BoxPainter createBoxPainter([VoidCallback onChanged]) {
-    return new _SelectedModeTargetBoxPainter();
+    return new _SelectModeTargetBoxPainter();
   }
 }
 
-class _SelectedModeTargetBoxPainter extends BoxPainter {
-
-  static final double targetFraction = 0.07;
-
+/// Draws target markers in the four corners of the device to warn the user that
+/// the inspector is in select mode so touches will trigger the inspector
+/// instead of changing the apps behavior.
+///
+/// The target markers look generally like the following:
+/// ```
+///   ╷    ╷
+///  ─      ─
+///
+///
+///  ─      ─
+///   ╵    ╵
+/// ```
+class _SelectModeTargetBoxPainter extends BoxPainter {
+  /// Target marker size as a fraction of the width of the screen.
+  static final double markerFraction = 0.07;
   static final double strokeWidth = 1.5;
-  static final double shadowWidth = 2.0;
+  static final double shadowWidth = 3.0;
+  /// Length of the line segments in the target markers as a fraction of the
+  /// size of the icon. A value of 1.0 would cause the target marker line segments
+  /// to touch.
   static final double segmentWidth = 0.75;
+  /// Padding between the outside of the window and the edge of each target
+  /// icon as a fraction of the target icon's size.
   static final double outsidePadding = 0.35;
   static final Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
   static final Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
-    final double targetSize = configuration.size.shortestSide * targetFraction;
+    final double targetSize = configuration.size.shortestSide * markerFraction;
     final Paint targetPaint = new Paint()
      ..style = PaintingStyle.stroke
      ..strokeWidth = strokeWidth
-     ..color = strokeColor;
+     ..color = strokeColor
      ..strokeCap = StrokeCap.round;
     final Paint shadowPaint = new Paint()
       ..style = PaintingStyle.stroke
@@ -767,7 +784,6 @@ class _SelectedModeTargetBoxPainter extends BoxPainter {
 
     canvas..drawPath(path, shadowPaint)..drawPath(path, targetPaint);
   }
-
 }
 
 /// Mutable selection state of the inspector.
