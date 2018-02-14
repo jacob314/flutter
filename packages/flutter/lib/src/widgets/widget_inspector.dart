@@ -393,6 +393,24 @@ class WidgetInspectorService {
     return json;
   }
 
+  static Map<String, Object> nodeToJsonTree(DiagnosticsNode node) {
+    if (node == null)
+      return null;
+    final Map<String, Object> json = node.toJsonMap();
+
+    final Object value = node.value;
+    final _Location creationLocation = _getCreationLocation(value);
+    if (creationLocation != null) {
+      json['creationLocation'] = creationLocation.toJsonMap();
+    }
+
+    final List<DiagnosticsNode> children = node.getChildren();
+    if (children != null && children.isNotEmpty) {
+      json['children'] = children.map(nodeToJsonTree).toList();
+    }
+    return json;
+  }
+
   String _serialize(DiagnosticsNode node, String groupName) {
     return JSON.encode(_nodeToJson(node, groupName));
   }

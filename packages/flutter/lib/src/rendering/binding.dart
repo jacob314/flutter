@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'dart:ui' as ui show window;
@@ -12,6 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import 'box.dart';
 import 'debug.dart';
@@ -308,7 +310,10 @@ abstract class RendererBinding extends BindingBase with ServicesBinding, Schedul
 
 /// Prints a textual representation of the entire render tree.
 void debugDumpRenderTree() {
-  debugPrint(RendererBinding.instance?.renderView?.toStringDeep() ?? 'Render tree unavailable.');
+  final JsonEncoder encoder = new JsonEncoder.withIndent(' ');
+  for (var line in encoder.convert(WidgetInspectorService.nodeToJsonTree(RendererBinding.instance?.renderView?.toDiagnosticsNode())).split('\n')) {
+    print(line);
+  };
 }
 
 /// Prints a textual representation of the entire layer tree.

@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:ui' show AppLifecycleState, Locale;
 import 'dart:ui' as ui show window;
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -16,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'focus_manager.dart';
 import 'framework.dart';
+import 'widget_inspector.dart';
 
 export 'dart:ui' show AppLifecycleState, Locale;
 
@@ -707,7 +709,10 @@ void debugDumpApp() {
   assert(() { mode = 'CHECKED MODE'; return true; }());
   debugPrint('${WidgetsBinding.instance.runtimeType} - $mode');
   if (WidgetsBinding.instance.renderViewElement != null) {
-    debugPrint(WidgetsBinding.instance.renderViewElement.toStringDeep());
+    final JsonEncoder encoder = new JsonEncoder.withIndent(' ');
+    for (var line in encoder.convert(WidgetInspectorService.nodeToJsonTree(WidgetsBinding.instance.renderViewElement.toDiagnosticsNode())).split('\n')) {
+      print(line);
+    };
   } else {
     debugPrint('<no tree currently mounted>');
   }
