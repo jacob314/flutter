@@ -738,22 +738,24 @@ class _SelectModeTargetDecoration extends Decoration {
 ///   ╵    ╵
 /// ```
 class _SelectModeTargetBoxPainter extends BoxPainter {
-  /// Target marker size as a fraction of the width of the screen.
-  static final double markerFraction = 0.07;
-  static final double strokeWidth = 1.5;
-  static final double shadowWidth = 3.0;
-  /// Length of the line segments in the target markers as a fraction of the
-  /// size of the icon. A value of 1.0 would cause the target marker line segments
-  /// to touch.
-  static final double segmentWidth = 0.75;
-  /// Padding between the outside of the window and the edge of each target
-  /// icon as a fraction of the target icon's size.
-  static final double outsidePadding = 0.35;
-  static final Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
-  static final Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
-
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final Color strokeColor = const Color(0xA0B71C1C);
+
+    final Color shadowColor = const Color.fromARGB(230, 255, 255, 255);
+    /// Target marker size as a fraction of the width of the screen.
+    final double markerFraction = 0.07;
+    final double strokeWidth = 1.5;
+    final double shadowWidth = 3.0;
+    /// Length of the line segments in the target markers as a fraction of the
+    /// size of the icon. A value of 1.0 would cause the target marker line segments
+    /// to touch.
+    final double segmentWidth = 0.75;
+    /// Padding between the outside of the window and the edge of each target
+    /// icon as a fraction of the target icon's size.
+    final double outsidePadding = 0.35;
+
+
     final double targetSize = configuration.size.shortestSide * markerFraction;
     final Paint targetPaint = new Paint()
      ..style = PaintingStyle.stroke
