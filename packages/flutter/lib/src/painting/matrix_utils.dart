@@ -63,7 +63,7 @@ class MatrixUtils {
         values[13] == 0.0 &&
         values[14] == 0.0 &&
         values[15] == 1.0 &&
-        values[0] == values[5]) { // uniform scale
+        values[0].toStringAsPrecision(4) == values[5].toStringAsPrecision(4)) { // uniform scale
       return values[0];
     }
     return null;
@@ -281,6 +281,18 @@ class TransformProperty extends DiagnosticsProperty<Matrix4> {
 
   @override
   String valueToString({ TextTreeConfiguration parentConfiguration }) {
+    if (MatrixUtils.isIdentity(value)) {
+      return 'Matrix4.identity()';
+    }
+    final double scale = MatrixUtils.getAsScale(value);
+    if (scale != null) {
+      return 'Matrix4.scale(${scale.toStringAsFixed(3)})';
+    }
+    final Offset offset = MatrixUtils.getAsTranslation(value);
+    if (offset != null) {
+      return 'Matrix4.translate(${offset.dx.toStringAsFixed(1)}, ${offset.dy.toStringAsFixed(1)})';
+    }
+
     if (parentConfiguration != null && !parentConfiguration.lineBreakProperties) {
       // Format the value on a single line to be compatible with the parent's
       // style.
