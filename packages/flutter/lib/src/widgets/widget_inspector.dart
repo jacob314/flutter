@@ -52,37 +52,6 @@ class _DiagnosticsPathNode {
   final int childIndex;
 }
 
-List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain, {
-  String name,
-  DiagnosticsTreeStyle style,
-}) {
-  final List<_DiagnosticsPathNode> path = <_DiagnosticsPathNode>[];
-  if (chain.isEmpty)
-    return path;
-  DiagnosticsNode diagnostic = chain.first.toDiagnosticsNode(name: name, style: style);
-  for (int i = 1; i < chain.length; i += 1) {
-    final Diagnosticable target = chain[i];
-    bool foundMatch = false;
-    final List<DiagnosticsNode> children = diagnostic.getChildren();
-    for (int j = 0; j < children.length; j += 1) {
-      final DiagnosticsNode child = children[j];
-      if (child.value == target) {
-        foundMatch = true;
-        path.add(new _DiagnosticsPathNode(
-          node: diagnostic,
-          children: children,
-          childIndex: j,
-        ));
-        diagnostic = child;
-        break;
-      }
-    }
-    assert(foundMatch);
-  }
-  path.add(new _DiagnosticsPathNode(node: diagnostic, children: diagnostic.getChildren()));
-  return path;
-}
-
 /// Signature for the selection change callback used by
 /// [WidgetInspectorService.selectionChangedCallback].
 typedef void InspectorSelectionChangedCallback();
@@ -324,7 +293,7 @@ class WidgetInspectorService {
   ///
   /// The JSON contains all information required to display a tree view with
   /// all nodes other than nodes along the path collapsed.
-  String getParentChain(String id, String groupName) {
+  String getParentChain(String id, String groupName, {@required int minDepth}) {
     final Object value = toObject(id);
     List<_DiagnosticsPathNode> path;
     if (value is RenderObject)
@@ -334,24 +303,42 @@ class WidgetInspectorService {
     else
       throw new FlutterError('Cannot get parent chain for node of type ${value.runtimeType}');
 
-    return json.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(node, groupName)).toList());
+    return JSON.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(node, groupName, minDepth: minDepth)).toList());
   }
 
-  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, String groupName) {
+  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, String groupName, {@required int minDepth}) {
     if (pathNode == null)
       return null;
     return <String, Object>{
       'node': _nodeToJson(pathNode.node, groupName),
-      'children': _nodesToJson(pathNode.children, groupName),
+      'children': _nodesToJson(pathNode.children, groupName, minDepth: minDepth != null ? 0 : null), // TODO(jacobr): be smarter about this.
       'childIndex': pathNode.childIndex,
     };
   }
 
-  List<_DiagnosticsPathNode> _getElementParentChain(Element element, String groupName) {
-    return _followDiagnosticableChain(element?.debugGetDiagnosticChain()?.reversed?.toList()) ?? const <_DiagnosticsPathNode>[];
+  List<Element> _getRawElementParentChain(Element element, {int numLocalParents}) {
+    List<Element> elements = element?.debugGetDiagnosticChain();
+    if (numLocalParents != null) {
+      for (int i = 1; i < elements.length; i += 1) {
+        if (_isValueCreatedByLocalProject(elements[i])) {
+          numLocalParents--;
+          if (numLocalParents <= 0) {
+            elements = elements.take(i + 1).toList();
+            break;
+          }
+        }
+      }
+    }
+    return elements?.reversed?.toList();
   }
 
-  List<_DiagnosticsPathNode> _getRenderObjectParentChain(RenderObject renderObject, String groupName) {
+  List<_DiagnosticsPathNode> _getElementParentChain(Element element, String groupName, {int numLocalParents}) {
+    return _followDiagnosticableChain(
+      _getRawElementParentChain(element, numLocalParents: numLocalParents),
+    ) ?? const <_DiagnosticsPathNode>[];
+  }
+
+  List<_DiagnosticsPathNode> _getRenderObjectParentChain(RenderObject renderObject, String groupName, {int maxparents}) {
     final List<RenderObject> chain = <RenderObject>[];
     while (renderObject != null) {
       chain.add(renderObject);
@@ -360,7 +347,14 @@ class WidgetInspectorService {
     return _followDiagnosticableChain(chain.reversed.toList());
   }
 
-  Map<String, Object> _nodeToJson(DiagnosticsNode node, String groupName) {
+  Map<String, Object> _nodeToJson(
+    DiagnosticsNode node,
+    String groupName, {
+    bool deep: false,
+    int minDepth,
+    Iterable<Diagnosticable> pathToInclude,
+    bool omitChildren: false,
+  }) {
     if (node == null)
       return null;
     final Map<String, Object> json = node.toJsonMap();
@@ -376,7 +370,34 @@ class WidgetInspectorService {
         json['createdByLocalProject'] = true;
       }
     }
+
+    if (!omitChildren) {
+      if (deep ||
+          (minDepth != null && (minDepth > 0 || !_shouldShow(node))) ||
+          (pathToInclude != null && pathToInclude.isNotEmpty)) {
+        int minDepthChild = minDepth;
+        if (pathToInclude == null && minDepth != null) {
+          minDepthChild = minDepth - 1;
+        }
+        json['children'] = _nodesToJson(
+            _getChildrenHelper(node, minDepth: minDepthChild), groupName,
+            deep: deep, minDepth: minDepthChild, pathToInclude: pathToInclude);
+      }
+    }
+
+    if (minDepth != null) {
+      json['full'] = true;
+    }
+
     return json;
+  }
+
+  bool _isValueCreatedByLocalProject(Object value) {
+    final _Location creationLocation = _getCreationLocation(value);
+    if (creationLocation == null) {
+      return false;
+    }
+    return _isLocalCreationLocation(creationLocation);
   }
 
   bool _isLocalCreationLocation(_Location location) {
@@ -392,14 +413,48 @@ class WidgetInspectorService {
     return false;
   }
 
-  String _serialize(DiagnosticsNode node, String groupName) {
-    return json.encode(_nodeToJson(node, groupName));
+  String _serialize(
+    DiagnosticsNode node,
+    String groupName, {
+    bool deep,
+    int minDepth,
+    Iterable<Diagnosticable> pathToInclude,
+  }) {
+    return JSON.encode(_nodeToJson(
+      node,
+      groupName,
+      deep: deep,
+      minDepth: minDepth,
+      pathToInclude: pathToInclude,
+    ));
   }
 
-  List<Map<String, Object>> _nodesToJson(Iterable<DiagnosticsNode> nodes, String groupName) {
+  List<Map<String, Object>> _nodesToJson(
+    Iterable<DiagnosticsNode> nodes,
+    String groupName, {
+    bool deep: false,
+    int minDepth,
+    Iterable<Diagnosticable> pathToInclude,
+  }) {
     if (nodes == null)
       return <Map<String, Object>>[];
-    return nodes.map<Map<String, Object>>((DiagnosticsNode node) => _nodeToJson(node, groupName)).toList();
+    return nodes.map<Map<String, Object>>(
+      (DiagnosticsNode node) {
+        if (pathToInclude != null && pathToInclude.isNotEmpty) {
+          if (pathToInclude.first == node.value) {
+            return _nodeToJson(
+              node,
+              groupName,
+              deep: deep,
+              minDepth: minDepth,
+              pathToInclude: pathToInclude.skip(1),
+            );
+          } else {
+            return _nodeToJson(node, groupName,  deep: deep, minDepth: minDepth, omitChildren: true);
+          }
+        }
+        return _nodeToJson(node, groupName, deep: deep, minDepth: minDepth);
+      }).toList();
   }
 
   /// Returns a JSON representation of the properties of the [DiagnosticsNode]
@@ -413,19 +468,129 @@ class WidgetInspectorService {
   /// object that `diagnosticsNodeId` references.
   String getChildren(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getChildren(), groupName));
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node), groupName));
+  }
+
+  /// Returns a JSON representation of the children of the [DiagnosticsNode]
+  /// object that `diagnosticsNodeId` references using the tree appropriate for
+  /// the details subtree view rather than the main tree view.
+  String getChildrenDetailsSubtree(String diagnosticsNodeId, String groupName) {
+    final DiagnosticsNode node = toObject(diagnosticsNodeId);
+    // This value of minDepth we only expand one extra level of important nodes.
+    final int minDepth = 1;
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, minDepth: minDepth), groupName, minDepth: minDepth));
+  }
+
+  List<DiagnosticsNode> _getChildrenHelper(DiagnosticsNode node, {Diagnosticable neverGroup, int minDepth}) {
+    return _getChildrenFiltered(node, minDepth: minDepth).toList();
+  }
+
+  bool _shouldShow(DiagnosticsNode node, {Diagnosticable neverFilter}) {
+    final Object value = node.value;
+    if (value is! Diagnosticable) {
+      return true;
+    }
+    return _shouldShowDiagnosticable(value, neverFilter: neverFilter);
+  }
+
+
+  bool _shouldShowDiagnosticable(Diagnosticable diagnosticable, {Diagnosticable neverFilter}) {
+    if (diagnosticable is! Element) {
+      // Filtering the render tree doesn't make sense.
+      return true;
+    }
+    return _isValueCreatedByLocalProject(diagnosticable) || (neverFilter != null && diagnosticable == neverFilter);
+  }
+
+
+  List<DiagnosticsNode> _getChildrenFiltered(
+    DiagnosticsNode node, {
+    @required int minDepth,
+    Diagnosticable neverFilter,
+  }) {
+    final List<DiagnosticsNode> children = <DiagnosticsNode>[];
+    for (DiagnosticsNode child in node.getChildren()) {
+      if (minDepth != null || _shouldShow(child, neverFilter: neverFilter)) {
+        children.add(child);
+      } else {
+        children.addAll(_getChildrenFiltered(child, neverFilter: neverFilter, minDepth: minDepth));
+      }
+    }
+    return children;
+  }
+
+  /// TODO(jacobr): remove this method once XXX version of the intellij has been live for XXX weeks
+  /// The small performance benefits of this method are not worth the added complexity.
+  List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain, {
+    String name,
+    DiagnosticsTreeStyle style,
+    int minDepth,
+  }) {
+    final Diagnosticable neverGroup = chain.last;
+    final List<_DiagnosticsPathNode> path = <_DiagnosticsPathNode>[];
+
+    chain = chain.where((Diagnosticable node) =>_shouldShowDiagnosticable(node, neverFilter: neverGroup)).toList();
+    if (chain.isEmpty)
+      return path;
+
+    DiagnosticsNode diagnostic = chain.first.toDiagnosticsNode(name: name, style: style);
+    // If we group the last item in the chain it will be less clear to the user what they selected.
+
+    for (int i = 1; i < chain.length; i += 1) {
+      if (!_shouldShow(diagnostic)) {
+        continue;
+      }
+      final Diagnosticable target = chain[i];
+      bool foundMatch = false;
+      final List<DiagnosticsNode> children = _getChildrenFiltered(diagnostic, neverFilter: neverGroup, minDepth: minDepth);
+
+      for (int j = 0; j < children.length; j += 1) {
+        final DiagnosticsNode child = children[j];
+        if (child.value == target) {
+          foundMatch = true;
+          path.add(new _DiagnosticsPathNode(
+            node: diagnostic,
+            children: children,
+            childIndex: j,
+          ));
+          diagnostic = child;
+          break;
+        }
+      }
+      assert(foundMatch);
+    }
+    path.add(new _DiagnosticsPathNode(node: diagnostic, children: _getChildrenHelper(diagnostic, neverGroup: neverGroup, minDepth: minDepth)));
+    return path;
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [Element].
   String getRootWidget(String groupName) {
-    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), groupName);
+    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), groupName, deep: true);
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [RenderObject].
   String getRootRenderObject(String groupName) {
     return _serialize(RendererBinding.instance?.renderView?.toDiagnosticsNode(), groupName);
+  }
+
+  String getDetailsSubtree(String id, String groupName) {
+    DiagnosticsNode root = toObject(id);
+    if (root == null) {
+      return null;
+    }
+    final Object value = root.value;
+    Iterable<Diagnosticable> pathToInclude;
+    if (value is Element) {
+      // Backtrack up the chain to the first local parent to give the user
+      // better context of where they are.
+      pathToInclude = _getRawElementParentChain(value, numLocalParents: 5);
+      root = pathToInclude.first.toDiagnosticsNode();
+      pathToInclude = pathToInclude.skip(1);
+    }
+
+    return _serialize(root, groupName, minDepth: 3, pathToInclude: pathToInclude);
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected
@@ -451,13 +616,42 @@ class WidgetInspectorService {
     return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
   }
 
+  /// Returns a [DiagnosticsNode] representing the currently selected [Element].
+  ///
+  /// If the currently selected [Element] is identical to the [Element]
+  /// referenced by `previousSelectionId` then the previous [DiagnosticNode] is
+  /// reused.
+  String getSelectedLocalWidget(String previousSelectionId, String groupName) {
+    if (!isWidgetCreationTracked()) {
+      return getSelectedWidget(previousSelectionId, groupName);
+    }
+    final DiagnosticsNode previousSelection = toObject(previousSelectionId);
+    Element current = selection?.currentElement;
+    if (current != null && !_isValueCreatedByLocalProject(current)) {
+      Element firstLocal = null;
+      for (Element candidate in current.debugGetDiagnosticChain()) {
+        if (_isValueCreatedByLocalProject(candidate)) {
+          firstLocal = candidate;
+          break;
+        }
+      }
+      current = firstLocal;
+    }
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+  }
+
   /// Returns whether [Widget] creation locations are available.
   ///
   /// [Widget] creation locations are only available for debug mode builds when
   /// the `--track-widget-creation` flag is passed to `flutter_tool`. Dart 2.0
   /// is required as injecting creation locations requires a
   /// [Dart Kernel Transformer](https://github.com/dart-lang/sdk/wiki/Kernel-Documentation).
-  bool isWidgetCreationTracked() => new _WidgetForTypeTests() is _HasCreationLocation;
+  bool isWidgetCreationTracked() {
+    _widgetCreationTracked ??= new _WidgetForTypeTests() is _HasCreationLocation;
+    return _widgetCreationTracked;
+  }
+
+  bool _widgetCreationTracked;
 }
 
 class _WidgetForTypeTests extends Widget {

@@ -441,7 +441,7 @@ void main() {
     service.disposeAllGroups();
     final Element elementB = find.text('b').evaluate().first;
     final String bId = service.toId(elementB, group);
-    final Object jsonList = json.decode(service.getParentChain(bId, group));
+    final Object jsonList = JSON.decode(service.getParentChain(bId, group, minDepth: null));
     expect(jsonList, isList);
     final List<Object> chainElements = jsonList;
     final List<Element> expectedChain = elementB.debugGetDiagnosticChain()?.reversed?.toList();
@@ -476,6 +476,8 @@ void main() {
       }
     }
   });
+
+  // TODO(jacobr): add tests for minDepth and friends.
 
   test('WidgetInspectorService getProperties', () {
     final DiagnosticsNode diagnostic = const Text('a', textDirection: TextDirection.ltr).toDiagnosticsNode();
