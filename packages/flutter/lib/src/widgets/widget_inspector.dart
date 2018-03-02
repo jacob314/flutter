@@ -18,6 +18,7 @@ import 'basic.dart';
 import 'binding.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
+import 'icon_data.dart';
 
 /// Signature for the builder callback used by
 /// [WidgetInspector.selectButtonBuilder].
@@ -94,6 +95,34 @@ class _InspectorReferenceData {
 
   final Object object;
   int count = 1;
+}
+
+class _SerializeConfig {
+  _SerializeConfig({
+    @required this.groupName,
+    this.summaryTree: false,
+    this.subtreeDepth : 1,
+    this.pathToInclude,
+    this.includeProperties: false,
+  });
+
+  _SerializeConfig.merge(
+    _SerializeConfig base, {
+    int subtreeDepth,
+    bool omitChildren,
+    Iterable<Diagnosticable> pathToInclude,
+  }) :
+    groupName = base.groupName,
+    summaryTree = base.summaryTree,
+    subtreeDepth = subtreeDepth ?? base.subtreeDepth,
+    pathToInclude = pathToInclude ?? base.pathToInclude,
+    includeProperties = base.includeProperties;
+
+  final String groupName;
+  final bool summaryTree;
+  final int subtreeDepth;
+  final Iterable<Diagnosticable> pathToInclude;
+  final bool includeProperties;
 }
 
 /// Service used by GUI tools to interact with the [WidgetInspector].
@@ -334,24 +363,45 @@ class WidgetInspectorService {
     else
       throw new FlutterError('Cannot get parent chain for node of type ${value.runtimeType}');
 
-    return json.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(node, groupName)).toList());
+    return JSON.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(
+      node,
+      new _SerializeConfig(groupName: groupName),
+    )).toList());
   }
 
-  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, String groupName) {
+  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, _SerializeConfig config) {
     if (pathNode == null)
       return null;
     return <String, Object>{
-      'node': _nodeToJson(pathNode.node, groupName),
-      'children': _nodesToJson(pathNode.children, groupName),
+      'node': _nodeToJson(pathNode.node, config),
+      'children': _nodesToJson(pathNode.children, config),
       'childIndex': pathNode.childIndex,
     };
   }
 
-  List<_DiagnosticsPathNode> _getElementParentChain(Element element, String groupName) {
-    return _followDiagnosticableChain(element?.debugGetDiagnosticChain()?.reversed?.toList()) ?? const <_DiagnosticsPathNode>[];
+  List<Element> _getRawElementParentChain(Element element, {int numLocalParents}) {
+    List<Element> elements = element?.debugGetDiagnosticChain();
+    if (numLocalParents != null) {
+      for (int i = 0; i < elements.length; i += 1) {
+        if (_isValueCreatedByLocalProject(elements[i])) {
+          numLocalParents--;
+          if (numLocalParents <= 0) {
+            elements = elements.take(i + 1).toList();
+            break;
+          }
+        }
+      }
+    }
+    return elements?.reversed?.toList();
   }
 
-  List<_DiagnosticsPathNode> _getRenderObjectParentChain(RenderObject renderObject, String groupName) {
+  List<_DiagnosticsPathNode> _getElementParentChain(Element element, String groupName, {int numLocalParents}) {
+    return _followDiagnosticableChain(
+      _getRawElementParentChain(element, numLocalParents: numLocalParents),
+    ) ?? const <_DiagnosticsPathNode>[];
+  }
+
+  List<_DiagnosticsPathNode> _getRenderObjectParentChain(RenderObject renderObject, String groupName, {int maxparents}) {
     final List<RenderObject> chain = <RenderObject>[];
     while (renderObject != null) {
       chain.add(renderObject);
@@ -360,23 +410,70 @@ class WidgetInspectorService {
     return _followDiagnosticableChain(chain.reversed.toList());
   }
 
-  Map<String, Object> _nodeToJson(DiagnosticsNode node, String groupName) {
+  Map<String, Object> _nodeToJson(
+    DiagnosticsNode node,
+    _SerializeConfig config,
+  ) {
     if (node == null)
       return null;
     final Map<String, Object> json = node.toJsonMap();
 
-    json['objectId'] = toId(node, groupName);
+    json['objectId'] = toId(node, config.groupName);
     final Object value = node.value;
-    json['valueId'] = toId(value, groupName);
+    json['valueId'] = toId(value, config.groupName);
+
+    if (config.summaryTree) {
+      json['summaryTree'] = true;
+    }
 
     final _Location creationLocation = _getCreationLocation(value);
+    bool createdByLocalProject = false;
     if (creationLocation != null) {
       json['creationLocation'] = creationLocation.toJsonMap();
       if (_isLocalCreationLocation(creationLocation)) {
+        createdByLocalProject = true;
         json['createdByLocalProject'] = true;
       }
     }
+
+    if (config.subtreeDepth > 0 ||
+        (config.pathToInclude != null && config.pathToInclude.isNotEmpty)) {
+      json['children'] = _nodesToJson(_getChildrenHelper(node, config), config);
+    }
+
+    if (config.includeProperties) {
+      json['properties'] = _nodesToJson(
+        node.getProperties().where(
+          (DiagnosticsNode node) => !node.isFiltered(createdByLocalProject ? DiagnosticLevel.fine : DiagnosticLevel.info),
+        ),
+        new _SerializeConfig(groupName: config.groupName, subtreeDepth: 0),
+      );
+    }
+
+    if (node is DiagnosticsProperty) {
+      final Object value = node.value;
+      if (value is Color) {
+        json['valueProperties'] = <String, Object>{
+          'red': value.red,
+          'green': value.green,
+          'blue': value.blue,
+          'alpha': value.alpha,
+        };
+      } else if (value is IconData) {
+        json['valueProperties'] = <String, Object>{
+          'codePoint': value.codePoint,
+        };
+      }
+    }
     return json;
+  }
+
+  bool _isValueCreatedByLocalProject(Object value) {
+    final _Location creationLocation = _getCreationLocation(value);
+    if (creationLocation == null) {
+      return false;
+    }
+    return _isLocalCreationLocation(creationLocation);
   }
 
   bool _isLocalCreationLocation(_Location location) {
@@ -392,40 +489,144 @@ class WidgetInspectorService {
     return false;
   }
 
-  String _serialize(DiagnosticsNode node, String groupName) {
-    return json.encode(_nodeToJson(node, groupName));
+  String _serialize(
+    DiagnosticsNode node,
+    _SerializeConfig config,
+  ) {
+    return JSON.encode(_nodeToJson(node, config));
   }
 
-  List<Map<String, Object>> _nodesToJson(Iterable<DiagnosticsNode> nodes, String groupName) {
+  List<Map<String, Object>> _nodesToJson(
+    Iterable<DiagnosticsNode> nodes,
+    _SerializeConfig config,
+  ) {
     if (nodes == null)
       return <Map<String, Object>>[];
-    return nodes.map<Map<String, Object>>((DiagnosticsNode node) => _nodeToJson(node, groupName)).toList();
+    return nodes.map<Map<String, Object>>(
+      (DiagnosticsNode node) {
+        if (config.pathToInclude != null && config.pathToInclude.isNotEmpty) {
+          if (config.pathToInclude.first == node.value) {
+            return _nodeToJson(
+              node,
+              new _SerializeConfig.merge(config, pathToInclude: config.pathToInclude.skip(1)),
+            );
+          } else {
+            return _nodeToJson(node, new _SerializeConfig.merge(config, omitChildren: true));
+          }
+        }
+        // Heuristic is in the details tree we should never stop on a node
+        // that is hidden from the summary tree so we don't let the depth reach
+        // zero until we get to that point.
+        return _nodeToJson(
+          node,
+          config.summaryTree || config.subtreeDepth > 1 || _shouldShowInSummaryTree(node) ?
+              new _SerializeConfig.merge(config, subtreeDepth: config.subtreeDepth - 1) : config,
+        );
+      }).toList();
   }
 
   /// Returns a JSON representation of the properties of the [DiagnosticsNode]
   /// object that `diagnosticsNodeId` references.
   String getProperties(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), groupName));
+    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), new _SerializeConfig(groupName: groupName)));
   }
 
   /// Returns a JSON representation of the children of the [DiagnosticsNode]
   /// object that `diagnosticsNodeId` references.
   String getChildren(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getChildren(), groupName));
+    final _SerializeConfig config = new _SerializeConfig(groupName: groupName);
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, config), config));
+  }
+
+  /// Returns a JSON representation of the children of the [DiagnosticsNode]
+  /// object that `diagnosticsNodeId` references.
+  String getChildrenSummaryTree(String diagnosticsNodeId, String groupName) {
+    final DiagnosticsNode node = toObject(diagnosticsNodeId);
+    final _SerializeConfig config = new _SerializeConfig(groupName: groupName, summaryTree: true);
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, config), config));
+  }
+
+  /// Returns a JSON representation of the children of the [DiagnosticsNode]
+  /// object that `diagnosticsNodeId` references using the tree appropriate for
+  /// the details subtree view rather than the main tree view.
+  String getChildrenDetailsSubtree(String diagnosticsNodeId, String groupName) {
+    final DiagnosticsNode node = toObject(diagnosticsNodeId);
+    // With this value of minDepth we only expand one extra level of important nodes.
+    final _SerializeConfig config = new _SerializeConfig(groupName: groupName, subtreeDepth: 1,  includeProperties: true);
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, config), config));
+  }
+
+  List<DiagnosticsNode> _getChildrenHelper(DiagnosticsNode node, _SerializeConfig config) {
+    return _getChildrenFiltered(node, config).toList();
+  }
+
+  bool _shouldShowInSummaryTree(DiagnosticsNode node) {
+    final Object value = node.value;
+    if (value is! Diagnosticable) {
+      return true;
+    }
+    return _shouldShowDiagnosticable(value);
+  }
+
+
+  bool _shouldShowDiagnosticable(Diagnosticable diagnosticable) {
+    if (diagnosticable is! Element) {
+      // Filtering the render tree doesn't make sense.
+      return true;
+    }
+    return _isValueCreatedByLocalProject(diagnosticable);
+  }
+
+
+  List<DiagnosticsNode> _getChildrenFiltered(
+    DiagnosticsNode node,
+    _SerializeConfig config,
+  ) {
+    final List<DiagnosticsNode> children = <DiagnosticsNode>[];
+    for (DiagnosticsNode child in node.getChildren()) {
+      if (!config.summaryTree || _shouldShowInSummaryTree(child)) {
+        children.add(child);
+      } else {
+        children.addAll(_getChildrenFiltered(child, config));
+      }
+    }
+    return children;
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [Element].
   String getRootWidget(String groupName) {
-    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), groupName);
+    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+  /// Returns a JSON representation of the [DiagnosticsNode] for the root
+  /// [Element] showing only nodes that should be included in a summary tree.
+  String getRootWidgetSummaryTree(String groupName) {
+    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, subtreeDepth: 1000000, summaryTree: true));
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [RenderObject].
   String getRootRenderObject(String groupName) {
-    return _serialize(RendererBinding.instance?.renderView?.toDiagnosticsNode(), groupName);
+    return _serialize(RendererBinding.instance?.renderView?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+  String getDetailsSubtree(String id, String groupName) {
+    final DiagnosticsNode root = toObject(id);
+    if (root == null) {
+      return null;
+    }
+    return _serialize(
+      root,
+      new _SerializeConfig(
+        groupName: groupName,
+        summaryTree: false,
+        subtreeDepth: 2,
+        includeProperties: true,
+      ),
+    );
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected
@@ -437,7 +638,7 @@ class WidgetInspectorService {
   String getSelectedRenderObject(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final RenderObject current = selection?.current;
-    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected [Element].
@@ -448,7 +649,31 @@ class WidgetInspectorService {
   String getSelectedWidget(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final Element current = selection?.currentElement;
-    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+  /// Returns a [DiagnosticsNode] representing the currently selected [Element].
+  ///
+  /// If the currently selected [Element] is identical to the [Element]
+  /// referenced by `previousSelectionId` then the previous [DiagnosticNode] is
+  /// reused.
+  String getSelectedLocalWidget(String previousSelectionId, String groupName) {
+    if (!isWidgetCreationTracked()) {
+      return getSelectedWidget(previousSelectionId, groupName);
+    }
+    final DiagnosticsNode previousSelection = toObject(previousSelectionId);
+    Element current = selection?.currentElement;
+    if (current != null && !_isValueCreatedByLocalProject(current)) {
+      Element firstLocal;
+      for (Element candidate in current.debugGetDiagnosticChain()) {
+        if (_isValueCreatedByLocalProject(candidate)) {
+          firstLocal = candidate;
+          break;
+        }
+      }
+      current = firstLocal;
+    }
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns whether [Widget] creation locations are available.
@@ -457,7 +682,12 @@ class WidgetInspectorService {
   /// the `--track-widget-creation` flag is passed to `flutter_tool`. Dart 2.0
   /// is required as injecting creation locations requires a
   /// [Dart Kernel Transformer](https://github.com/dart-lang/sdk/wiki/Kernel-Documentation).
-  bool isWidgetCreationTracked() => new _WidgetForTypeTests() is _HasCreationLocation;
+  bool isWidgetCreationTracked() {
+    _widgetCreationTracked ??= new _WidgetForTypeTests() is _HasCreationLocation;
+    return _widgetCreationTracked;
+  }
+
+  bool _widgetCreationTracked;
 }
 
 class _WidgetForTypeTests extends Widget {
