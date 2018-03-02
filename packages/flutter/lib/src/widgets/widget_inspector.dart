@@ -52,37 +52,6 @@ class _DiagnosticsPathNode {
   final int childIndex;
 }
 
-List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain, {
-  String name,
-  DiagnosticsTreeStyle style,
-}) {
-  final List<_DiagnosticsPathNode> path = <_DiagnosticsPathNode>[];
-  if (chain.isEmpty)
-    return path;
-  DiagnosticsNode diagnostic = chain.first.toDiagnosticsNode(name: name, style: style);
-  for (int i = 1; i < chain.length; i += 1) {
-    final Diagnosticable target = chain[i];
-    bool foundMatch = false;
-    final List<DiagnosticsNode> children = diagnostic.getChildren();
-    for (int j = 0; j < children.length; j += 1) {
-      final DiagnosticsNode child = children[j];
-      if (child.value == target) {
-        foundMatch = true;
-        path.add(new _DiagnosticsPathNode(
-          node: diagnostic,
-          children: children,
-          childIndex: j,
-        ));
-        diagnostic = child;
-        break;
-      }
-    }
-    assert(foundMatch);
-  }
-  path.add(new _DiagnosticsPathNode(node: diagnostic, children: diagnostic.getChildren()));
-  return path;
-}
-
 /// Signature for the selection change callback used by
 /// [WidgetInspectorService.selectionChangedCallback].
 typedef void InspectorSelectionChangedCallback();
@@ -377,6 +346,15 @@ class WidgetInspectorService {
     return json;
   }
 
+  bool _isCreatedByLocalProject(DiagnosticsNode node) {
+    final Object value = node.value;
+    final _Location creationLocation = _getCreationLocation(value);
+    if (creationLocation == null) {
+      return false;
+    }
+    return _isLocalCreationLocation(creationLocation);
+  }
+
   bool _isLocalCreationLocation(_Location location) {
     if (_pubRootDirectories == null || location == null || location.file == null) {
       return false;
@@ -411,8 +389,96 @@ class WidgetInspectorService {
   /// object that `diagnosticsNodeId` references.
   String getChildren(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getChildren(), groupName));
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node), groupName));
   }
+
+  List<DiagnosticsNode> _getChildrenHelper(DiagnosticsNode node, {Diagnosticable neverGroup}) {
+    return node.getChildren().map((DiagnosticsNode node) => _maybeGroupNode(node, neverGroup: neverGroup)).toList();
+  }
+
+  /// Aggregate chains of nodes each with a single child into a single node
+  /// to keep the tree size more manageable.
+  DiagnosticsNode _maybeGroupNode(DiagnosticsNode node, {Diagnosticable neverGroup}) {
+    if (!clusterPlatformWidgets /*|| _isCreatedByLocalProject(node) || node.value == neverGroup*/) {
+      return node;
+    }
+
+    final List<DiagnosticsNode> chain = <DiagnosticsNode>[node];
+    while (true) {
+      final List<DiagnosticsNode> children = node.getChildren();
+      if (children.length != 1) {
+        break;
+      }
+      final DiagnosticsNode child = children.first;
+      if (child.value == neverGroup || _isCreatedByLocalProject(child) || child.getChildren().length > 1) {
+        break;
+      }
+
+      chain.add(child);
+      node = child;
+    }
+
+    if (chain.length == 1) {
+      return node;
+    }
+
+    // TODO(jacobr): consider alternate name.
+    final String name = chain.first.name;
+    final DiagnosticsTreeStyle style = chain.first.style;
+    return new _NodeGroup(chain).toDiagnosticsNode(name: name, style: style);
+  }
+
+  List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain, {
+    String name,
+    DiagnosticsTreeStyle style,
+  }) {
+    final List<_DiagnosticsPathNode> path = <_DiagnosticsPathNode>[];
+    if (chain.isEmpty)
+      return path;
+    DiagnosticsNode diagnostic = chain.first.toDiagnosticsNode(name: name, style: style);
+    // If we group the last item in the chain it will be less clear to the user what they selected.
+    final Diagnosticable neverGroup = chain.last;
+    DiagnosticsNode groupedDiagnostic = _maybeGroupNode(diagnostic, neverGroup: neverGroup);
+
+    for (int i = 1; i < chain.length; i += 1) {
+      if (groupedDiagnostic != diagnostic) {
+        final _DiagnosticsNodeGroup grouped = groupedDiagnostic;
+        final List<DiagnosticsNode> groupChain = grouped.value.chain;
+        for (int j = 0; j < groupChain.length; j += 1) {
+          assert(chain[i + j - 1] == groupChain[j].value);
+        }
+        // We need to skip ahead so the node that has chain[i]
+        // as its child.
+        i += grouped.value.chain.length - 1;
+        diagnostic = groupedDiagnostic;
+      }
+      final Diagnosticable target = chain[i];
+      bool foundMatch = false;
+      final List<DiagnosticsNode> children = diagnostic.getChildren();;
+      final List<DiagnosticsNode> groupedChildren = children.map(
+            (DiagnosticsNode child) => _maybeGroupNode(child, neverGroup: neverGroup)).toList();
+
+      for (int j = 0; j < children.length; j += 1) {
+        final DiagnosticsNode child = children[j];
+        if (child.value == target) {
+          foundMatch = true;
+          path.add(new _DiagnosticsPathNode(
+            node: diagnostic,
+            children: groupedChildren,
+            childIndex: j,
+          ));
+          diagnostic = child;
+          groupedDiagnostic = groupedChildren[j];
+          break;
+        }
+      }
+      assert(foundMatch);
+    }
+    path.add(new _DiagnosticsPathNode(node: diagnostic, children: _getChildrenHelper(diagnostic, neverGroup: neverGroup)));
+    return path;
+  }
+
+  bool get clusterPlatformWidgets => true;
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [Element].
@@ -461,6 +527,92 @@ class WidgetInspectorService {
 class _WidgetForTypeTests extends Widget {
   @override
   Element createElement() => null;
+}
+
+/// Convenience class that treats of a chain of nodes (parents with a single
+/// child) as a single Diagnosticable node.
+class _NodeGroup extends DiagnosticableTree {
+  _NodeGroup(this.chain);
+  final List<DiagnosticsNode> chain;
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    properties.emptyBodyDescription = chain.first.emptyBodyDescription;
+    for (DiagnosticsNode node in chain) {
+      properties.add(new DiagnosticsNode.message('Properties for ${node.toDescription()}'));
+      node.getProperties().forEach(properties.add);
+    }
+  }
+
+  @override
+  DiagnosticsNode toDiagnosticsNode({String name, DiagnosticsTreeStyle style}) {
+    // TODO: implement toDiagnosticsNode
+    return new _DiagnosticsNodeGroup(name: name, value: this, style: style);
+  }
+
+  @override
+  String toStringShort() {
+    /// XXX wrong. describe identity on all the nodes, etc?
+    return toDiagnosticsNode().toString();
+  }
+
+  @override
+  List<DiagnosticsNode> debugDescribeChildren() => chain.last.getChildren();
+}
+
+class _DiagnosticsNodeGroup extends DiagnosticableNode<_NodeGroup> {
+  _DiagnosticsNodeGroup({
+    String name,
+    @required _NodeGroup value,
+    @required DiagnosticsTreeStyle style,
+  }) : assert(value != null),
+       super(name: name, value: value, style: style);
+
+  List<DiagnosticsNode> get chain => value.chain;
+
+  @override
+  String toDescription({ TextTreeConfiguration parentConfiguration }) {
+    return chain.map((DiagnosticsNode node) => node.toDescription(parentConfiguration: parentConfiguration)).join(', ');
+  }
+
+  @override
+  bool get showSeparator => chain.first.showSeparator;
+
+  @override
+  bool isFiltered(DiagnosticLevel minLevel) {
+    return chain.any((DiagnosticsNode node) => node.level.index < minLevel.index);
+  }
+
+  @override
+  DiagnosticLevel get level {
+    DiagnosticLevel best  = chain.first.level;
+    for (int i = 1; i < chain.length; ++i) {
+      final DiagnosticsNode node = chain[i];
+      if (node.level.index < best.index) {
+        best = node.level;
+      }
+    }
+    return best;
+  }
+
+  @override
+  List<DiagnosticsNode> getChildren() => value.debugDescribeChildren();
+
+  @override
+  bool get showName => chain.first.showName;
+
+  @override
+  String get emptyBodyDescription => chain.first.emptyBodyDescription;
+
+  String get _separator => showSeparator ? ':' : '';
+
+  @override
+  Map<String, Object> toJsonMap() {
+    final Map<String, Object> data = super.toJsonMap();
+    data['isChain'] = 'true';
+    // TODO(jacobr): provide some other useful chain specific data.
+    return data;
+  }
 }
 
 /// A widget that enables inspecting the child widget's structure.
@@ -1161,6 +1313,10 @@ class _Location {
 ///
 /// Currently creation locations are only available for [Widget] and [Element]
 _Location _getCreationLocation(Object object) {
+  if (object is _NodeGroup) {
+    _NodeGroup nodeGroup = object;
+    object = nodeGroup.chain.first.value;
+  }
   final Object candidate =  object is Element ? object.widget : object;
   return candidate is _HasCreationLocation ? candidate._location : null;
 }
