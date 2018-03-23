@@ -10,6 +10,7 @@ import 'dart:ui' as ui show window, Picture, SceneBuilder, PictureRecorder;
 import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -563,7 +564,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   /// normal interactions. Otherwise the previously selected widget is
   /// highlighted but the application can be interacted with normally.
   bool get isSelectMode => _isSelectMode;
-  void set isSelectMode(bool value) {
+  set isSelectMode(bool value) {
     if (value != _isSelectMode) {
       _isSelectMode = value;
       selectModeController?.animateTo(_isSelectMode ? 1.0 : 0.0);
@@ -745,7 +746,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
       if (selection != null) {
         // Notify debuggers to open an inspector on the object.
         developer.inspect(selection.current);
-        print("XXX creation location = ${_getCreationLocation(selection.currentElement)}");
+        print('XXX creation location = ${_getCreationLocation(selection.currentElement)}');
       }
     }
   }
@@ -753,6 +754,30 @@ class _WidgetInspectorState extends State<WidgetInspector>
   @override
   Widget build(BuildContext context) {
     final List<Widget> children = <Widget>[];
+    final InspectorTree summaryTree = const InspectorTree(
+      summaryTree: true,
+      treeType: InspectorTreeType.widget,
+    );
+    final InspectorTree detailsTree = const InspectorTree(
+      summaryTree: false,
+      treeType: InspectorTreeType.widget,
+    );
+    final Widget summaryTreeContainer = new ScaleTransition(
+      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      child: summaryTree,
+      alignment: Alignment.topLeft,
+    );
+    final Widget detailsTreeContainer = new ScaleTransition(
+      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      child: detailsTree,
+      alignment: Alignment.topRight,
+    );
+    final PropertyPanel propertyPanel = new PropertyPanel(selection.currentElement);
+    final Widget propertyPanelContainer = new ScaleTransition(
+      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      child: propertyPanel,
+      alignment: Alignment.bottomRight,
+    );
     children.add(new GestureDetector(
       onTap: _handleTap,
       onPanDown: _handlePanDown,
@@ -765,13 +790,27 @@ class _WidgetInspectorState extends State<WidgetInspector>
         ignoringSemantics: false,
         child: new Stack(
           fit: StackFit.expand,
-          key: _stackKey,
           children: <Widget>[
-            widget.child,
-            new FadeTransition(opacity: selectModeController,
-              child: new ScaleTransition(
-                scale: new Tween<double>(begin: 1.0, end: 0.97).animate(touchAnimationController),
-                child: new DecoratedBox(decoration: new _SelectModeTargetDecoration(), position: DecorationPosition.foreground),
+            summaryTreeContainer,
+            detailsTreeContainer,
+            propertyPanelContainer,
+            new ScaleTransition(
+              scale:  new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+              alignment: Alignment.bottomLeft,
+              child: new Stack(
+                fit: StackFit.expand,
+                key: _stackKey,
+                children: <Widget>[
+                  widget.child,
+                  new IgnorePointer(
+                    child: new FadeTransition(opacity: selectModeController,
+                      child: new ScaleTransition(
+                        scale: new Tween<double>(begin: 1.0, end: 0.97).animate(touchAnimationController),
+                        child: new DecoratedBox(decoration: new _SelectModeTargetDecoration(), position: DecorationPosition.foreground),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -780,6 +819,47 @@ class _WidgetInspectorState extends State<WidgetInspector>
     ));
     children.add(new _InspectorOverlay(selection: selection));
     return new Stack(children: children);
+  }
+}
+
+class ScaleUserApp extends StatefulWidget {
+  final Widget _child;
+
+  ScaleUserApp({Widget child}) : _child = child;
+  @override
+  _ScaleUserAppState createState() => new _ScaleUserAppState();
+}
+
+class _ScaleUserAppState extends State<ScaleUserApp> with SingleTickerProviderStateMixin {
+  AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = new AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return new AnimatedBuilder(
+      animation: _controller,
+      child: widget._child,
+      builder: (BuildContext context, Widget child) {
+        return new Transform(
+          transform: new Matrix4.identity()..scale(0.5, 0.5, 1.0),
+          child: child,
+        );
+      },
+    );
   }
 }
 
@@ -1305,4 +1385,83 @@ class _Location {
 _Location _getCreationLocation(Object object) {
   final Object candidate =  object is Element ? object.widget : object;
   return candidate is _HasCreationLocation ? candidate._location : null;
+}
+
+
+enum InspectorTreeType {
+  widget,
+  renderObject,
+}
+
+class PropertyPanel extends StatefulWidget {
+  final Diagnosticable current;
+  PropertyPanel(this.current) {
+  }
+
+
+  @override
+  _PropertyPanelState createState() => new _PropertyPanelState();
+}
+
+class _PropertyPanelState extends State<PropertyPanel> {
+  @override
+  Widget build(BuildContext context) {
+    // TODO: implement build
+    return new Container(
+      width: 300.0,
+      height: 200.0,
+      color: Colors.blue,
+    );
+  }
+}
+
+class InspectorTree extends StatefulWidget {
+  final bool summaryTree;
+  final InspectorTreeType treeType;
+
+  /// Creates a widget that enables inspection for the child.
+  ///
+  /// The [child] argument must not be null.
+  const InspectorTree({
+    Key key,
+    @required this.summaryTree,
+    @required this.treeType,
+  }) : super(key: key);
+
+  @override
+  _InspectorTreeState createState() => new _InspectorTreeState();
+}
+
+class _InspectorTreeState extends State<InspectorTree>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+
+  _InspectorTreeState() {
+/// XXX      : selection = WidgetInspectorService.instance.selection {
+  }
+
+  DiagnosticsNode root;
+  DiagnosticsNode subtreeRoot;
+  DiagnosticsNode selection;
+
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // TODO: implement build
+    return new Container(
+      width: 200.0,
+      height: 200.0,
+      color: widget.summaryTree ? Colors.green : Colors.redAccent,
+    );
+  }
+
 }
