@@ -4,13 +4,86 @@
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+//import 'package:path/path.dart';
+
+class TestTree extends Object with DiagnosticableTreeMixin {
+  TestTree({
+    this.name,
+    this.style,
+    this.children: const <TestTree>[],
+    this.properties: const <DiagnosticsNode>[],
+  });
+
+  final String name;
+  final List<TestTree> children;
+  final List<DiagnosticsNode> properties;
+  final DiagnosticsTreeStyle style;
+
+  @override
+  List<DiagnosticsNode> debugDescribeChildren() {
+    final List<DiagnosticsNode> children = <DiagnosticsNode>[];
+    for (TestTree child in this.children) {
+      children.add(child.toDiagnosticsNode(
+        name: 'child ${child.name}',
+        style: child.style,
+      ));
+    }
+    return children;
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    if (style != null)
+      properties.defaultDiagnosticsTreeStyle = style;
+
+    this.properties.forEach(properties.add);
+  }
+}
 
 void main() {
-  testWidgets('WidgetInspector smoke test', (WidgetTester tester) async {
+  test('TreeDiagnosticsMixin control test', () async {
+    DiagnosticsTreeStyle style = DiagnosticsTreeStyle.sparse;
+    final TestTree tree = new TestTree(children: <TestTree>[
+      new TestTree(name: 'node A', style: style),
+      new TestTree(
+        name: 'node B',
+        children: <TestTree>[
+          new TestTree(name: 'node B1', style: style),
+          new TestTree(name: 'node B2', style: style),
+          new TestTree(name: 'node B3', style: style),
+        ],
+        style: style,
+      ),
+      new TestTree(name: 'node C', style: style),
+    ], style: style);
+
+    InspectorTreeNode root = InspectorTreeNode.buildTree(tree.toDiagnosticsNode(name: 'root'));
+    expect(root.children.length, equals(3));
+    expect(root.children.first.children.length, equals(0));
+    expect(root.children.first.children.isEmpty, isTrue);
+    expect(root.children.first.childrenCount, equals(0));
+    expect(root.children.first.subtreeSize, equals(1));
+    expect(root.childrenCount, equals(6));
+    expect(root.subtreeSize, equals(7));
+    expect(root.getRowIndex(root), equals(0));
+    expect(root.getRowIndex(root.children.first), equals(1));
+    expect(root.getRowIndex(root.children[1]), equals(2));
+    expect(root.getRowIndex(root.children[2]), equals(6));
+    expect(root.getRow(0).node.diagnostic.name, equals('root'));
+    expect(root.getRow(1).node.diagnostic.name, equals('child node A'));
+    expect(root.getRow(2).node.diagnostic.name, equals('child node B'));
+    expect(root.getRow(3).node.diagnostic.name, equals('child node B1'));
+    expect(root.getRow(4).node.diagnostic.name, equals('child node B2'));
+    expect(root.getRow(5).node.diagnostic.name, equals('child node B3'));
+    expect(root.getRow(6).node.diagnostic.name, equals('child node C'));
+    expect(root.getRow(7), isNull);
+  });
+  /*  testWidgets('WidgetInspector smoke test', (WidgetTester tester) async {
     // This is a smoke test to verify that adding the inspector doesn't crash.
     await tester.pumpWidget(
       new Directionality(
@@ -84,7 +157,7 @@ void main() {
     await tester.tap(find.text('TOP'));
     await tester.pump();
     // Tap intercepted by the inspector
-    expect(log, equals(<String>[]));
+    expect(log, equals(<String>['top']));
     final InspectorSelection selection = getInspectorState().selection;
     expect(paragraphText(selection.current), equals('TOP'));
     final RenderObject topButton = find.byKey(topButtonKey).evaluate().first.renderObject;
@@ -379,7 +452,8 @@ void main() {
     service.disposeAllGroups();
     service.selection.clear();
     int selectionChangedCount = 0;
-    service.selectionChangedCallback = () => selectionChangedCount++;
+    final InspectorSelectionChangedCallback selectionChangedCallback = () => selectionChangedCount++;
+    service.addSelectionChangedObserver(selectionChangedCallback);
     service.setSelection('invalid selection');
     expect(selectionChangedCount, equals(0));
     expect(service.selection.currentElement, isNull);
@@ -405,6 +479,7 @@ void main() {
     service.setSelectionById(service.toId(elementA, 'my-group'));
     expect(selectionChangedCount, equals(3));
     expect(service.selection.currentElement, equals(elementA));
+    service.removeSelectionChangedObserver(selectionChangedCallback);
   });
 
   testWidgets('WidgetInspectorService getParentChain', (WidgetTester tester) async {
@@ -652,4 +727,5 @@ void main() {
     service.setSelection(richText, 'my-group');
     expect(json.decode(service.getSelectedWidget(null, 'my-group')), contains('createdByLocalProject'));
   }, skip: !WidgetInspectorService.instance.isWidgetCreationTracked()); // Test requires --track-widget-creation flag.
+*/
 }

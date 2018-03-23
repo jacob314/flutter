@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
@@ -22,6 +23,8 @@ import 'framework.dart';
 import 'gesture_detector.dart';
 import 'ticker_provider.dart';
 import 'transitions.dart';
+
+bool _debugInspector = true;
 
 /// Signature for the builder callback used by
 /// [WidgetInspector.selectButtonBuilder].
@@ -142,7 +145,14 @@ class WidgetInspectorService {
   /// The Flutter IntelliJ Plugin does not need to listen for this event as it
   /// instead listens for `dart:developer` `inspect` events which also trigger
   /// when the inspection target changes on device.
-  InspectorSelectionChangedCallback selectionChangedCallback;
+  final Set<InspectorSelectionChangedCallback> _selectionChangedCallbacks = new Set<InspectorSelectionChangedCallback>.identity();
+  bool addSelectionChangedObserver(InspectorSelectionChangedCallback callback) {
+    return _selectionChangedCallbacks.add(callback);
+  }
+  bool removeSelectionChangedObserver(InspectorSelectionChangedCallback callback) {
+    return _selectionChangedCallbacks.add(callback);
+  }
+
 
   /// Whether the inspector is in select mode.
   ///
@@ -335,14 +345,19 @@ class WidgetInspectorService {
         }
         selection.current = object;
       }
-      if (selectionChangedCallback != null) {
+      void selectionChangedCallbackHelper() {
+        for (InspectorSelectionChangedCallback callback in _selectionChangedCallbacks) {
+          callback();
+        }
+      }
+      if (_selectionChangedCallbacks.isNotEmpty) {
         if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
-          selectionChangedCallback();
+          selectionChangedCallbackHelper();
         } else {
           // It isn't safe to trigger the selection change callback if we are in
           // the middle of rendering the frame.
           SchedulerBinding.instance.scheduleTask(
-            selectionChangedCallback,
+            selectionChangedCallbackHelper,
             Priority.touch,
           );
         }
@@ -606,8 +621,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
     assert(WidgetInspectorService.instance.selectionModeChangedCallback == null);
     WidgetInspectorService.instance.selectionModeChangedCallback = _selectionModeChangedCallback;
 
-    assert(WidgetInspectorService.instance.selectionChangedCallback == null);
-    WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
+    WidgetInspectorService.instance.addSelectionChangedObserver(_selectionChangedCallback);
 
     touchAnimationController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
@@ -616,9 +630,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   @override
   void dispose() {
-    if (WidgetInspectorService.instance.selectionChangedCallback == _selectionChangedCallback) {
-      WidgetInspectorService.instance.selectionChangedCallback = null;
-    }
+    WidgetInspectorService.instance.removeSelectionChangedObserver(_selectionChangedCallback);
     if (WidgetInspectorService.instance.selectionModeChangedCallback == _selectionModeChangedCallback) {
       WidgetInspectorService.instance.selectionModeChangedCallback = null;
     }
@@ -707,6 +719,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
     final List<RenderObject> selected = hitTest(position, userRender);
 
     setState(() {
+      WidgetInspectorService.instance.setSelection(selected.isNotEmpty ? selected.first : null);
       selection.candidates = selected;
     });
   }
@@ -763,18 +776,18 @@ class _WidgetInspectorState extends State<WidgetInspector>
       treeType: InspectorTreeType.widget,
     );
     final Widget summaryTreeContainer = new ScaleTransition(
-      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      scale: new Tween<double>(begin: 0.0, end: 0.5).animate(selectModeController),
       child: summaryTree,
       alignment: Alignment.topLeft,
     );
     final Widget detailsTreeContainer = new ScaleTransition(
-      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      scale: new Tween<double>(begin: 0.0, end: 0.5).animate(selectModeController),
       child: detailsTree,
       alignment: Alignment.topRight,
     );
     final PropertyPanel propertyPanel = new PropertyPanel(selection.currentElement);
     final Widget propertyPanelContainer = new ScaleTransition(
-      scale: new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+      scale: new Tween<double>(begin: 0.0, end: 0.5).animate(selectModeController),
       child: propertyPanel,
       alignment: Alignment.bottomRight,
     );
@@ -785,81 +798,40 @@ class _WidgetInspectorState extends State<WidgetInspector>
       onPanUpdate: _handlePanUpdate,
       behavior: HitTestBehavior.opaque,
       excludeFromSemantics: true,
-      child: new IgnorePointer(
-        ignoring: isSelectMode,
-        ignoringSemantics: false,
-        child: new Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            summaryTreeContainer,
-            detailsTreeContainer,
-            propertyPanelContainer,
-            new ScaleTransition(
-              scale:  new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
-              alignment: Alignment.bottomLeft,
-              child: new Stack(
-                fit: StackFit.expand,
-                key: _stackKey,
-                children: <Widget>[
-                  widget.child,
-                  new IgnorePointer(
-                    child: new FadeTransition(opacity: selectModeController,
-                      child: new ScaleTransition(
-                        scale: new Tween<double>(begin: 1.0, end: 0.97).animate(touchAnimationController),
-                        child: new DecoratedBox(decoration: new _SelectModeTargetDecoration(), position: DecorationPosition.foreground),
-                      ),
+      child: new Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          new ScaleTransition(
+            scale:  new Tween<double>(begin: 1.0, end: 0.5).animate(selectModeController),
+            alignment: Alignment.bottomLeft,
+            child: new Stack(
+              fit: StackFit.expand,
+              key: _stackKey,
+              children: <Widget>[
+                new IgnorePointer(
+                  ignoring: isSelectMode,
+                  ignoringSemantics: false,
+                  child: widget.child,
+                ),
+                new IgnorePointer(
+                  child: new FadeTransition(opacity: selectModeController,
+                    child: new ScaleTransition(
+                      scale: new Tween<double>(begin: 1.0, end: 0.97).animate(touchAnimationController),
+                      child: new DecoratedBox(decoration: new _SelectModeTargetDecoration(), position: DecorationPosition.foreground),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          summaryTreeContainer,
+          detailsTreeContainer,
+          propertyPanelContainer,
+        ],
       ),
     ));
     children.add(new _InspectorOverlay(selection: selection));
     return new Stack(children: children);
-  }
-}
-
-class ScaleUserApp extends StatefulWidget {
-  final Widget _child;
-
-  ScaleUserApp({Widget child}) : _child = child;
-  @override
-  _ScaleUserAppState createState() => new _ScaleUserAppState();
-}
-
-class _ScaleUserAppState extends State<ScaleUserApp> with SingleTickerProviderStateMixin {
-  AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = new AnimationController(
-      duration: const Duration(milliseconds: 100),
-      vsync: this,
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return new AnimatedBuilder(
-      animation: _controller,
-      child: widget._child,
-      builder: (BuildContext context, Widget child) {
-        return new Transform(
-          transform: new Matrix4.identity()..scale(0.5, 0.5, 1.0),
-          child: child,
-        );
-      },
-    );
   }
 }
 
@@ -885,18 +857,18 @@ class _SelectModeTargetDecoration extends Decoration {
 /// ```
 class _SelectModeTargetBoxPainter extends BoxPainter {
   /// Target marker size as a fraction of the width of the screen.
-  static final double markerFraction = 0.07;
-  static final double strokeWidth = 1.5;
-  static final double shadowWidth = 3.0;
+  static const double markerFraction = 0.07;
+  static const double strokeWidth = 1.5;
+  static const double shadowWidth = 3.0;
   /// Length of the line segments in the target markers as a fraction of the
   /// size of the icon. A value of 1.0 would cause the target marker line segments
   /// to touch.
-  static final double segmentWidth = 0.75;
+  static const double segmentWidth = 0.75;
   /// Padding between the outside of the window and the edge of each target
   /// icon as a fraction of the target icon's size.
-  static final double outsidePadding = 0.35;
-  static final Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
-  static final Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
+  static const double outsidePadding = 0.35;
+  static const Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
+  static const Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
@@ -1254,7 +1226,7 @@ class _InspectorOverlayLayer extends Layer {
         ..layout(maxWidth: maxWidth, minWidth: _kTooltipPadding * 4.0);
     }
 
-    Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
+    final Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
     final Offset tipOffset = positionDependentBox(
       size: size,
       childSize: tooltipSize,
@@ -1387,7 +1359,6 @@ _Location _getCreationLocation(Object object) {
   return candidate is _HasCreationLocation ? candidate._location : null;
 }
 
-
 enum InspectorTreeType {
   widget,
   renderObject,
@@ -1395,8 +1366,7 @@ enum InspectorTreeType {
 
 class PropertyPanel extends StatefulWidget {
   final Diagnosticable current;
-  PropertyPanel(this.current) {
-  }
+  const PropertyPanel(this.current);
 
 
   @override
@@ -1415,6 +1385,207 @@ class _PropertyPanelState extends State<PropertyPanel> {
   }
 }
 
+class InspectorTreeNode {
+  static InspectorTreeNode buildTree(
+    DiagnosticsNode d, {
+    InspectorTreeNode parent,
+    bool summaryTree: false,
+    bool includeChildren: true,
+    Diagnosticable selectedValue,
+    void selectedValueCallback(InspectorTreeNode node),
+  }) {
+    InspectorTreeNode treeNode; // Null if filtered.
+    final Diagnosticable value = d.value;
+    final bool isCreatedByLocalProject =  WidgetInspectorService.instance._isLocalCreationLocation(_getCreationLocation(value));
+    if (!summaryTree || parent == null || isCreatedByLocalProject) {
+      treeNode = new InspectorTreeNode(
+        diagnostic: d,
+        parent: parent,
+        isCreatedByLocalProject: isCreatedByLocalProject,
+        isProperty: false,
+      );
+      if (parent != null) {
+        parent.children.add(treeNode);
+      }
+    }
+    if (selectedValue != null && identical(value, selectedValue)) {
+      selectedValueCallback(treeNode ?? parent);
+    }
+    if (summaryTree == false) {
+      // XXX be more lazy about properties for performance?
+      final List<DiagnosticsNode> properties = d.getProperties();
+      final Map<String, DiagnosticsNode> propertyMap = <String, DiagnosticsNode>{};
+      for (DiagnosticsNode property in properties) {
+        propertyMap[property.name] = property;
+      }
+      for (DiagnosticsNode property in properties) {
+        if (property.isFiltered(isCreatedByLocalProject ? DiagnosticLevel.fine : DiagnosticLevel.info)) {
+          continue;
+        }
+        InspectorTreeNode propertyTreeNode = new InspectorTreeNode(
+          diagnostic: property,
+          parent: treeNode,
+          isProperty: true,
+          isCreatedByLocalProject: false, // XXX infer local properties and bold.
+        );
+        final propertyValue = property.value;
+        propertyTreeNode.expanded = false;
+        if (propertyValue is RenderObject) {
+          for (DiagnosticsNode renderObjectProperty in propertyValue.toDiagnosticsNode().getProperties()) {
+            if (renderObjectProperty.isFiltered(DiagnosticLevel.info)) {
+              continue;
+            }
+            final String name = renderObjectProperty.name;
+            if (propertyMap.containsKey(name) && propertyMap[name].value == renderObjectProperty.value) {
+// skip dupes.... maybe a bad idea.
+              continue;
+            }
+            propertyTreeNode.children.add(new InspectorTreeNode(
+              diagnostic: renderObjectProperty,
+              parent: treeNode,
+              isProperty: true,
+              isCreatedByLocalProject: false, // XXX infer local properties and bold.
+            ));
+          }
+        }
+        treeNode.children.add(propertyTreeNode);
+      }
+    }
+    if (includeChildren) {
+      for (DiagnosticsNode child in d.getChildren()) {
+        buildTree(
+          child,
+          parent: treeNode ?? parent,
+          summaryTree: summaryTree,
+          selectedValue: selectedValue,
+          selectedValueCallback: selectedValueCallback,
+        );
+      }
+    }
+    return treeNode;
+  }
+
+  InspectorTreeNode({
+    @required this.diagnostic,
+    this.parent,
+    @required this.isCreatedByLocalProject,
+    this.isProperty: false,
+  }) :
+    children = <InspectorTreeNode>[];
+  final DiagnosticsNode diagnostic;
+  final InspectorTreeNode parent;
+  final List<InspectorTreeNode> children;
+  final bool isCreatedByLocalProject;
+  final bool isProperty;
+  bool expanded = true;
+  bool stale = false;
+
+  void dirty() {
+    _childrenCount = null;
+    if (parent != null) {
+      parent.dirty();
+    }
+  }
+
+  int get childrenCount {
+    if (!expanded) {
+      return 0;
+    }
+    if (_childrenCount != null) {
+      return _childrenCount;
+    }
+    int count = 0;
+    for (InspectorTreeNode child in children) {
+      count += child.subtreeSize;
+    }
+    _childrenCount = count;
+    return _childrenCount;
+  }
+  int _childrenCount;
+
+  int get subtreeSize => childrenCount + 1;
+
+  // XXX on wrong class
+  int getRowIndex(InspectorTreeNode node) {
+    int index = 0;
+    while(true) {
+      final InspectorTreeNode parent = node.parent;
+      if (parent == null) {
+        break;
+      }
+      for (InspectorTreeNode sibling in parent.children) {
+        if (sibling == node) {
+          break;
+        }
+        index += sibling.subtreeSize;
+      }
+      index += 1; // For parent itself.
+      node = parent;
+    }
+    return index;
+  }
+
+  /// XXXon wrong class.
+  TreeRow getRow(int index, {InspectorTreeNode selection, InspectorTreeNode highlightedRoot}) {
+    final List<int> ticks = <int>[];
+    int highlightDepth = null;
+    InspectorTreeNode node = this;
+    if (subtreeSize <= index) {
+      return null;
+    }
+    int current = 0;
+    int depth = 0;
+    while (node != null) {
+      if (highlightedRoot == node) {
+        highlightDepth = depth;
+      }
+      if (current == index) {
+        return new TreeRow(
+          node: node,
+          ticks: ticks,
+          depth: depth,
+          isSelected: selection == node,
+          highlightDepth: highlightDepth,
+          lineToParent: !node.isProperty,
+        );
+      }
+      assert(index > current);
+      current++;
+      final List<InspectorTreeNode> children = node.children;
+      int i;
+      for (i = 0; i < children.length; ++i) {
+        InspectorTreeNode child = children[i];
+        final int subtreeSize = child.subtreeSize;
+        if (current + subtreeSize > index) {
+          node = child;
+          if (children.length > 1 && i + 1 != children.length && !children.last.isProperty) {
+            ticks.add(depth);
+          }
+          break;
+        }
+        current += subtreeSize;
+      }
+      assert(i < children.length);
+      depth++;
+    }
+    assert(false);// internal error.
+    return null;
+  }
+}
+
+/// A row in the tree with all information required to render it.
+class TreeRow {
+  const TreeRow({this.node, this.ticks, this.depth, this.lineToParent: true, this.isSelected, this.highlightDepth});
+
+  final InspectorTreeNode node;
+  /// Column indexes.
+  final List<int> ticks;
+  final int depth;
+  final bool lineToParent;
+  final bool isSelected;
+  final int highlightDepth;
+}
+
 class InspectorTree extends StatefulWidget {
   final bool summaryTree;
   final InspectorTreeType treeType;
@@ -1426,6 +1597,7 @@ class InspectorTree extends StatefulWidget {
     Key key,
     @required this.summaryTree,
     @required this.treeType,
+
   }) : super(key: key);
 
   @override
@@ -1433,25 +1605,164 @@ class InspectorTree extends StatefulWidget {
 }
 
 class _InspectorTreeState extends State<InspectorTree>
-    with WidgetsBindingObserver, TickerProviderStateMixin {
+    with TickerProviderStateMixin {
 
   _InspectorTreeState() {
-/// XXX      : selection = WidgetInspectorService.instance.selection {
+    _onSelectionChangedCallback = _onSelectionChanged;
   }
 
-  DiagnosticsNode root;
-  DiagnosticsNode subtreeRoot;
-  DiagnosticsNode selection;
+  InspectorTreeNode root;
+  DiagnosticsNode subtreeRoot; // Optional.
+  InspectorTreeNode selection;
+  InspectorTreeNode highlightedRoot;
+  ScrollController scrollControllerX;
+  ScrollController scrollControllerY;
+  Diagnosticable selectedValue;
 
+  double get scrollOffsetX => widget.summaryTree ? 150.0 : 0.0;
+  double get scrollOffsetY => widget.summaryTree ? 150.0 : 0.0;
 
+  InspectorSelectionChangedCallback _onSelectionChangedCallback;
   @override
   void initState() {
     super.initState();
+    WidgetInspectorService.instance.addSelectionChangedObserver(_onSelectionChangedCallback);
+    scrollControllerX = new ScrollController();
+    scrollControllerY = new ScrollController();
+    scrollControllerY.addListener(_scrollChanged);
   }
 
+  double getRowOffset(int index) {
+    return (root.getRow(index)?.depth ?? 0) * columnWidth;
+  }
+
+  Future<void> _scrollChanged() async {
+    if (root == null) {
+      return null;
+    }
+    if (animateX == null) {
+      pendingXScrollToView = false;
+      final ScrollPosition position = scrollControllerY.position;
+      double y = position.pixels;
+      double row = ((y - scrollOffsetY) / rowHeight) - 1; // XXX off by 1 errors /?.
+      row = row.clamp(0.0, root.subtreeSize.toDouble() - 1.0);
+      int rowIndex = row.floor();
+      final double fraction = row - rowIndex;
+      double target = new Tween<double>(
+        begin: getRowOffset(rowIndex),
+        end: getRowOffset(rowIndex+1),
+      ).lerp(fraction);
+      target = math.max(0.0, target - scrollOffsetX);
+      print("XXX target = $target");
+      // if ((target -  scrollControllerX.position.pixels).abs() > 30.0)
+      {
+        scrollControllerX.animateTo(
+            target, duration: const Duration(milliseconds: 500),
+            curve: Curves.linear);
+      }
+    } else if (!pendingXScrollToView){
+      pendingXScrollToView = true;
+      await animateX;
+      _scrollChanged();
+    }
+  }
   @override
   void dispose() {
     super.dispose();
+    WidgetInspectorService.instance.removeSelectionChangedObserver(_onSelectionChangedCallback);
+  }
+
+  Future<Null> animateX;
+  Future<Null> animateY;
+  bool pendingXScrollToView = false;
+
+  void _onSelectionChanged() {
+    setState(() {
+      final WidgetInspectorService service = WidgetInspectorService.instance;
+      selectedValue = widget.treeType == InspectorTreeType.widget ? service.selection.currentElement : service.selection.current;
+      _rebuildTree();
+      if (selection != null) {
+        final int selectionIndex = root.getRowIndex(selection);
+        final TreeRow row = root.getRow(selectionIndex);
+        if (row == null) {
+          return;
+        }
+        if (row.node != selection) {
+          print("MISMATCH ${row.node.diagnostic}, ${selection.diagnostic}, isSummary. index=$selectionIndex ${widget.summaryTree}");
+        }
+
+        double x = math.max(0.0, getDepthIndent(row.depth) - scrollOffsetX);
+        double y = math.max(0.0, (selectionIndex + 1) * rowHeight - scrollOffsetY); // XXX off by one error. why?
+        if (widget.summaryTree && false) { // XXX boring selection
+          scrollControllerX.jumpTo(x);
+          scrollControllerY.jumpTo(y);
+        } else {
+          animateX = scrollControllerX.animateTo(
+              x, duration: const Duration(milliseconds: 500),
+              curve: Curves.linear);
+          animateY = scrollControllerY.animateTo(
+              y, duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut);
+          animateX.then(
+            (_) {
+              animateX = null;
+            }, onError: () {
+              animateX = null;
+            },
+            );
+          animateY.then(
+            (_) {
+              animateY = null;
+            },
+            onError: () {
+              animateY = null;
+            },
+          );
+        }
+      }
+    });
+  }
+
+  void _rebuildTree() {
+    DiagnosticsNode rootDiagnostic;
+    switch(widget.treeType) {
+      case InspectorTreeType.widget:
+        rootDiagnostic =
+            WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode();
+        break;
+      case InspectorTreeType.renderObject:
+        rootDiagnostic =
+            RendererBinding.instance?.renderView?.toDiagnosticsNode();
+        break;
+    }
+    final bool summaryTree = widget.summaryTree;
+    selection = null;
+    root = InspectorTreeNode.buildTree(
+      rootDiagnostic,
+      parent: null,
+      summaryTree: summaryTree,
+      selectedValue: selectedValue,
+      selectedValueCallback: (InspectorTreeNode n) { selection = n; },
+    );
+    highlightedRoot = selection;
+    if (!summaryTree) {
+      while (highlightedRoot != null && !highlightedRoot.isCreatedByLocalProject) {
+        highlightedRoot = highlightedRoot.parent;
+      }
+    }
+  }
+
+  static const double columnWidth = 12.0;
+  static const double rowHeight = 20.0; // XXX compute from font size, etc.
+  static final TextStyle grayStyle = new TextStyle(color: Colors.black54);
+
+  /// Split text into two groups, word characters at the start of a string
+  /// and all other characters. Skip an <code>-</code> or <code>#</code> between
+  /// the two groups.
+  static final RegExp primaryDescriptionRegExp = new RegExp(r'(\w+)[-#]?(.*)');
+
+  static double getDepthIndent(int depth) {
+    return depth.toDouble() * columnWidth;
   }
 
   @override
@@ -1460,8 +1771,194 @@ class _InspectorTreeState extends State<InspectorTree>
     return new Container(
       width: 200.0,
       height: 200.0,
-      color: widget.summaryTree ? Colors.green : Colors.redAccent,
+      color: const Color(0xD3FFFFFF),
+        child: new SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          controller: scrollControllerX,
+          child: new Container(
+            // XXX don't hardcode.
+            padding: new EdgeInsets.fromLTRB(columnWidth, 0.0, columnWidth, 0.0),
+            width: 5000.0, //??
+            height: 500.0, // ??
+            child: new ListView.builder(
+              key: new Key(widget.summaryTree ? 'summary' : 'details'),
+              itemCount: (root?.subtreeSize ?? 0) + 53, // 53 is hack so you can scroll down.
+              controller: scrollControllerY,
+              itemExtent: rowHeight,
+              itemBuilder: (BuildContext context, int index) {
+                final TreeRow row = root?.getRow(index, selection: selection, highlightedRoot: highlightedRoot);
+                if (row == null) {
+                  return new Container(width: 0.0, height: 0.0);// XXX  cleanup... row past end of list.
+                }
+                final InspectorTreeNode node = row.node;
+                final DiagnosticsNode diagnostic = node.diagnostic;
+
+                final List<TextSpan> textSpans = <TextSpan>[];
+                final String name = diagnostic.name;
+
+                // XXXSimpleTextAttributes textAttributes = textAttributesForLevel(node.getLevel());
+                Color rowColor = Colors.black;
+                if (node.isProperty) {
+                  rowColor = Colors.black54;
+                  if (name != null && name.isNotEmpty && diagnostic.showName) {
+                    textSpans.add(new TextSpan(text: name));
+
+                    if (diagnostic.showSeparator) {
+                      textSpans.add(const TextSpan(text: ': '));
+                    } else {
+                      textSpans.add(const TextSpan(text: ' '));
+                    }
+                  }
+                  textSpans.add(new TextSpan(text: diagnostic.toDescription()));
+                } else {
+                  // Not a property.
+                  if (name != null && name.isNotEmpty &&
+                      diagnostic.showName) {
+                    // color in name?
+                    if (name == 'child' || name.startsWith('child ')) {
+                      textSpans.add(
+                          new TextSpan(text: name, style: grayStyle));
+                    }
+                    else {
+                      textSpans.add(new TextSpan(text: name));
+                    }
+
+                    if (diagnostic.showSeparator) {
+                      textSpans.add(
+                          new TextSpan(text: ':', style: grayStyle));
+                    }
+                  }
+
+                  final TextStyle mainStyle = node.isCreatedByLocalProject
+                      ? new TextStyle(fontWeight: FontWeight.bold)
+                      : null;
+
+                  // TODO(jacobr): custom display for units, colors, iterables, and icons.
+                  final String description = diagnostic.toDescription();
+                  if (textSpans.isNotEmpty) {
+                    textSpans.add(const TextSpan(text: ' '));
+                  }
+
+                  final Match match = primaryDescriptionRegExp.firstMatch(
+                      description);
+                  if (match != null) {
+                    textSpans.add(
+                        new TextSpan(text: match[1], style: mainStyle));
+                    textSpans.add(const TextSpan(text: ' '));
+                    textSpans.add(
+                        new TextSpan(text: match[2], style: grayStyle));
+                  } else if (description.isNotEmpty) {
+                    textSpans.add(const TextSpan(text: ' '));
+                    textSpans.add(
+                        new TextSpan(text: description, style: mainStyle));
+                  }
+                }
+                final RichText title = new RichText(
+                  text: new TextSpan(
+                    style: DefaultTextStyle.of(context).style.apply(color: rowColor),
+                    children: textSpans,
+                  ),
+                );
+
+                bool isSelected = node == selection;
+                bool isHighlightedSubtree = isSelected;
+                InspectorTreeNode parent = node;
+                while (parent != null) {
+                  if (parent == selection) {
+                    isHighlightedSubtree = true;
+                  }
+                  parent = parent.parent;
+                }
+                return  new GestureDetector(
+                  onTap: () {
+                    final Object value  =row?.node?.diagnostic?.value;
+                    if (value != null) {
+                      // XXX causing loops due to delay.
+                      // Need to force a one way process.
+                      developer.inspect(value); // TODO(jacobr): have inspector dispatch an event.
+                      WidgetInspectorService.instance.setSelection(value);
+                    }
+                  },
+                  child: new Container(
+                    width: 500.0,
+                    height: rowHeight,
+                    padding: new EdgeInsets.only(left: row.depth.toDouble() * columnWidth),
+                    child:
+                    title,
+                    decoration: new ChartLineDecoration(row),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+   // ),
     );
   }
 
+}
+
+class ChartLineDecoration extends Decoration {
+  final TreeRow row;
+  const ChartLineDecoration(TreeRow this.row);
+  @override
+  BoxPainter createBoxPainter([VoidCallback onChanged]) {
+    return new _ChartLinePainter(row);
+  }
+}
+
+/// Draws target markers in the four corners of the device to warn the user that
+/// the inspector is in select mode so touches will trigger the inspector
+/// instead of changing the apps behavior.
+///
+/// The target markers look generally like the following:
+/// ```
+///   ╷    ╷
+///  ─      ─
+///
+///
+///  ─      ─
+///   ╵    ╵
+/// ```
+class _ChartLinePainter extends BoxPainter {
+  static double chartLineStrokeWidth = 1.0;
+  final TreeRow row;
+  _ChartLinePainter(this.row);
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final Paint targetPaint = new Paint()
+     ..style = PaintingStyle.stroke
+     ..strokeWidth = chartLineStrokeWidth
+     ..color = Colors.black38;
+    final Path path = new Path();
+
+    // Draw targets on each corner.
+    for (int tick in row.ticks) {
+      double x = _InspectorTreeState.getDepthIndent(tick) + _InspectorTreeState.columnWidth * 0.25;
+      path
+        ..moveTo(x, 0.0)
+        ..relativeLineTo(0.0, _InspectorTreeState.rowHeight);
+    }
+    if (row.lineToParent) {
+      double x = _InspectorTreeState.getDepthIndent(row.depth - 1) + _InspectorTreeState.columnWidth * 0.25;
+      path
+        ..moveTo(x, 0.0)
+        ..relativeLineTo(0.0, _InspectorTreeState.rowHeight * 0.5)
+        ..relativeLineTo(_InspectorTreeState.columnWidth * 0.5, 0.0);
+    }
+    if (row.highlightDepth != null) {
+      final Paint highlightPaint = new Paint()..color = Colors.white;
+      double x = _InspectorTreeState.getDepthIndent(row.highlightDepth) - _InspectorTreeState.columnWidth * 0.5;
+      canvas.drawRect(new Rect.fromLTRB(
+          x, 0.0, configuration.size.width, configuration.size.height),
+          highlightPaint);
+    }
+    if (row.isSelected) {
+      double x = _InspectorTreeState.getDepthIndent(row.depth) - _InspectorTreeState.columnWidth * 0.15;
+      final Paint selectionPaint = new Paint()..color = Colors.blueAccent;
+      canvas.drawRect(new Rect.fromLTRB(x, 0.0, configuration.size.width, configuration.size.height), selectionPaint);
+
+    }
+    canvas.drawPath(path, targetPaint);
+  }
 }
