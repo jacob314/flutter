@@ -17,6 +17,7 @@ import 'package:flutter/scheduler.dart';
 import 'basic.dart';
 import 'binding.dart';
 import 'framework.dart';
+import 'icon_data.dart';
 import 'gesture_detector.dart';
 
 /// Signature for the builder callback used by
@@ -63,6 +64,37 @@ class _InspectorReferenceData {
 
   final Object object;
   int count = 1;
+}
+
+class _SerializeConfig {
+  _SerializeConfig({
+    @required this.groupName,
+    this.deep: false,
+    this.minDepth,
+    this.pathToInclude,
+    this.omitChildren: false,
+    this.includeProperties: false,
+  });
+
+  _SerializeConfig.merge(
+    _SerializeConfig base, {
+    int minDepth,
+    bool omitChildren,
+    Iterable<Diagnosticable> pathToInclude,
+  }) :
+    groupName = base.groupName,
+    deep = base.deep,
+    minDepth = minDepth ?? base.minDepth,
+    pathToInclude = pathToInclude ?? base.pathToInclude,
+    omitChildren = omitChildren ?? base.omitChildren,
+    includeProperties = base.includeProperties;
+
+  final String groupName;
+  final bool deep;
+  final int minDepth;
+  final Iterable<Diagnosticable> pathToInclude;
+  final bool omitChildren;
+  final bool includeProperties;
 }
 
 /// Service used by GUI tools to interact with the [WidgetInspector].
@@ -303,15 +335,18 @@ class WidgetInspectorService {
     else
       throw new FlutterError('Cannot get parent chain for node of type ${value.runtimeType}');
 
-    return JSON.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(node, groupName, minDepth: minDepth)).toList());
+    return JSON.encode(path.map((_DiagnosticsPathNode node) => _pathNodeToJson(
+      node,
+      new _SerializeConfig(groupName: groupName, minDepth: minDepth),
+    )).toList());
   }
 
-  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, String groupName, {@required int minDepth}) {
+  Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, _SerializeConfig config) {
     if (pathNode == null)
       return null;
     return <String, Object>{
-      'node': _nodeToJson(pathNode.node, groupName),
-      'children': _nodesToJson(pathNode.children, groupName, minDepth: minDepth != null ? 0 : null), // TODO(jacobr): be smarter about this.
+      'node': _nodeToJson(pathNode.node, config),
+      'children': _nodesToJson(pathNode.children, config), // TODO(jacobr): be smarter about this.
       'childIndex': pathNode.childIndex,
     };
   }
@@ -319,7 +354,7 @@ class WidgetInspectorService {
   List<Element> _getRawElementParentChain(Element element, {int numLocalParents}) {
     List<Element> elements = element?.debugGetDiagnosticChain();
     if (numLocalParents != null) {
-      for (int i = 1; i < elements.length; i += 1) {
+      for (int i = 0; i < elements.length; i += 1) {
         if (_isValueCreatedByLocalProject(elements[i])) {
           numLocalParents--;
           if (numLocalParents <= 0) {
@@ -349,46 +384,63 @@ class WidgetInspectorService {
 
   Map<String, Object> _nodeToJson(
     DiagnosticsNode node,
-    String groupName, {
-    bool deep: false,
-    int minDepth,
-    Iterable<Diagnosticable> pathToInclude,
-    bool omitChildren: false,
-  }) {
+    _SerializeConfig config,
+  ) {
     if (node == null)
       return null;
     final Map<String, Object> json = node.toJsonMap();
 
-    json['objectId'] = toId(node, groupName);
+    json['objectId'] = toId(node, config.groupName);
     final Object value = node.value;
-    json['valueId'] = toId(value, groupName);
+    json['valueId'] = toId(value, config.groupName);
 
     final _Location creationLocation = _getCreationLocation(value);
+    bool createdByLocalProject = false;
     if (creationLocation != null) {
       json['creationLocation'] = creationLocation.toJsonMap();
       if (_isLocalCreationLocation(creationLocation)) {
+        createdByLocalProject = true;
         json['createdByLocalProject'] = true;
       }
     }
 
-    if (!omitChildren) {
-      if (deep ||
-          (minDepth != null && (minDepth > 0 || !_shouldShow(node))) ||
-          (pathToInclude != null && pathToInclude.isNotEmpty)) {
-        int minDepthChild = minDepth;
-        if (pathToInclude == null && minDepth != null) {
-          minDepthChild = minDepth - 1;
-        }
-        json['children'] = _nodesToJson(
-            _getChildrenHelper(node, minDepth: minDepthChild), groupName,
-            deep: deep, minDepth: minDepthChild, pathToInclude: pathToInclude);
+    if (!config.omitChildren) {
+      if (config.deep ||
+          (config.minDepth != null && (config.minDepth > 0 || !_shouldShow(node))) ||
+          (config.pathToInclude != null && config.pathToInclude.isNotEmpty)) {
+        int minDepthChild = config.minDepth;
+        _SerializeConfig childConfig = (config.pathToInclude == null && config.minDepth != null) ?
+            new _SerializeConfig.merge(config, minDepth: config.minDepth - 1) : config;
+        json['children'] = _nodesToJson(_getChildrenHelper(node, childConfig), childConfig);
       }
     }
 
-    if (minDepth != null) {
+    if (config.includeProperties) {
+      json['properties'] = _nodesToJson(
+        node.getProperties().where(
+          (DiagnosticsNode node) => !node.isFiltered(createdByLocalProject ? DiagnosticLevel.fine : DiagnosticLevel.info),
+        ),
+        new _SerializeConfig(groupName: config.groupName, omitChildren: true),
+      );
+    }
+
+    if (config.minDepth != null) {
       json['full'] = true;
     }
 
+    if (node is DiagnosticsProperty) {
+      final Object value = node.value;
+      if (value is Color) {
+        json['valueProperties'] = {
+          'red': value.red,
+          'green': value.green,
+          'blue': value.blue,
+          'alpha': value.alpha,
+        };
+      } else if (value is IconData) {
+        json['valueProperties'] = {'codePoint': value.codePoint};
+      }
+    }
     return json;
   }
 
@@ -415,45 +467,30 @@ class WidgetInspectorService {
 
   String _serialize(
     DiagnosticsNode node,
-    String groupName, {
-    bool deep,
-    int minDepth,
-    Iterable<Diagnosticable> pathToInclude,
-  }) {
-    return JSON.encode(_nodeToJson(
-      node,
-      groupName,
-      deep: deep,
-      minDepth: minDepth,
-      pathToInclude: pathToInclude,
-    ));
+    _SerializeConfig config,
+  ) {
+    return JSON.encode(_nodeToJson(node, config));
   }
 
   List<Map<String, Object>> _nodesToJson(
     Iterable<DiagnosticsNode> nodes,
-    String groupName, {
-    bool deep: false,
-    int minDepth,
-    Iterable<Diagnosticable> pathToInclude,
-  }) {
+    _SerializeConfig config,
+  ) {
     if (nodes == null)
       return <Map<String, Object>>[];
     return nodes.map<Map<String, Object>>(
       (DiagnosticsNode node) {
-        if (pathToInclude != null && pathToInclude.isNotEmpty) {
-          if (pathToInclude.first == node.value) {
+        if (config.pathToInclude != null && config.pathToInclude.isNotEmpty) {
+          if (config.pathToInclude.first == node.value) {
             return _nodeToJson(
               node,
-              groupName,
-              deep: deep,
-              minDepth: minDepth,
-              pathToInclude: pathToInclude.skip(1),
+              new _SerializeConfig.merge(config, pathToInclude: config.pathToInclude.skip(1)),
             );
           } else {
-            return _nodeToJson(node, groupName,  deep: deep, minDepth: minDepth, omitChildren: true);
+            return _nodeToJson(node, new _SerializeConfig.merge(config, omitChildren: true));
           }
         }
-        return _nodeToJson(node, groupName, deep: deep, minDepth: minDepth);
+        return _nodeToJson(node, config);
       }).toList();
   }
 
@@ -461,14 +498,15 @@ class WidgetInspectorService {
   /// object that `diagnosticsNodeId` references.
   String getProperties(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), groupName));
+    return json.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : node.getProperties(), new _SerializeConfig(groupName: groupName)));
   }
 
   /// Returns a JSON representation of the children of the [DiagnosticsNode]
   /// object that `diagnosticsNodeId` references.
   String getChildren(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
-    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node), groupName));
+    final config = new _SerializeConfig(groupName: groupName);
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, config), config));
   }
 
   /// Returns a JSON representation of the children of the [DiagnosticsNode]
@@ -477,43 +515,42 @@ class WidgetInspectorService {
   String getChildrenDetailsSubtree(String diagnosticsNodeId, String groupName) {
     final DiagnosticsNode node = toObject(diagnosticsNodeId);
     // This value of minDepth we only expand one extra level of important nodes.
-    final int minDepth = 1;
-    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, minDepth: minDepth), groupName, minDepth: minDepth));
+    final config = new _SerializeConfig(groupName: groupName, minDepth: 1,  includeProperties: true);
+    return JSON.encode(_nodesToJson(node == null ? const <DiagnosticsNode>[] : _getChildrenHelper(node, config), config));
   }
 
-  List<DiagnosticsNode> _getChildrenHelper(DiagnosticsNode node, {Diagnosticable neverGroup, int minDepth}) {
-    return _getChildrenFiltered(node, minDepth: minDepth).toList();
+  List<DiagnosticsNode> _getChildrenHelper(DiagnosticsNode node, _SerializeConfig config) {
+    return _getChildrenFiltered(node, config).toList();
   }
 
-  bool _shouldShow(DiagnosticsNode node, {Diagnosticable neverFilter}) {
+  bool _shouldShow(DiagnosticsNode node) {
     final Object value = node.value;
     if (value is! Diagnosticable) {
       return true;
     }
-    return _shouldShowDiagnosticable(value, neverFilter: neverFilter);
+    return _shouldShowDiagnosticable(value);
   }
 
 
-  bool _shouldShowDiagnosticable(Diagnosticable diagnosticable, {Diagnosticable neverFilter}) {
+  bool _shouldShowDiagnosticable(Diagnosticable diagnosticable) {
     if (diagnosticable is! Element) {
       // Filtering the render tree doesn't make sense.
       return true;
     }
-    return _isValueCreatedByLocalProject(diagnosticable) || (neverFilter != null && diagnosticable == neverFilter);
+    return _isValueCreatedByLocalProject(diagnosticable);
   }
 
 
   List<DiagnosticsNode> _getChildrenFiltered(
-    DiagnosticsNode node, {
-    @required int minDepth,
-    Diagnosticable neverFilter,
-  }) {
+    DiagnosticsNode node,
+    _SerializeConfig config,
+  ) {
     final List<DiagnosticsNode> children = <DiagnosticsNode>[];
     for (DiagnosticsNode child in node.getChildren()) {
-      if (minDepth != null || _shouldShow(child, neverFilter: neverFilter)) {
+      if (config.minDepth != null || _shouldShow(child)) {
         children.add(child);
       } else {
-        children.addAll(_getChildrenFiltered(child, neverFilter: neverFilter, minDepth: minDepth));
+        children.addAll(_getChildrenFiltered(child, config));
       }
     }
     return children;
@@ -526,10 +563,9 @@ class WidgetInspectorService {
     DiagnosticsTreeStyle style,
     int minDepth,
   }) {
-    final Diagnosticable neverGroup = chain.last;
     final List<_DiagnosticsPathNode> path = <_DiagnosticsPathNode>[];
-
-    chain = chain.where((Diagnosticable node) =>_shouldShowDiagnosticable(node, neverFilter: neverGroup)).toList();
+    final _SerializeConfig config = new _SerializeConfig(groupName: null); // XXX??
+    chain = chain.where((Diagnosticable node) =>_shouldShowDiagnosticable(node)).toList();
     if (chain.isEmpty)
       return path;
 
@@ -542,7 +578,7 @@ class WidgetInspectorService {
       }
       final Diagnosticable target = chain[i];
       bool foundMatch = false;
-      final List<DiagnosticsNode> children = _getChildrenFiltered(diagnostic, neverFilter: neverGroup, minDepth: minDepth);
+      final List<DiagnosticsNode> children = _getChildrenFiltered(diagnostic, config);
 
       for (int j = 0; j < children.length; j += 1) {
         final DiagnosticsNode child = children[j];
@@ -559,20 +595,21 @@ class WidgetInspectorService {
       }
       assert(foundMatch);
     }
-    path.add(new _DiagnosticsPathNode(node: diagnostic, children: _getChildrenHelper(diagnostic, neverGroup: neverGroup, minDepth: minDepth)));
+    path.add(new _DiagnosticsPathNode(node: diagnostic, children: _getChildrenHelper(diagnostic, config)));
     return path;
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [Element].
   String getRootWidget(String groupName) {
-    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), groupName, deep: true);
+    /// XXX can't change the def like this.. add a V2 method.
+    return _serialize(WidgetsBinding.instance?.renderViewElement?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, deep: true));
   }
 
   /// Returns a JSON representation of the [DiagnosticsNode] for the root
   /// [RenderObject].
   String getRootRenderObject(String groupName) {
-    return _serialize(RendererBinding.instance?.renderView?.toDiagnosticsNode(), groupName);
+    return _serialize(RendererBinding.instance?.renderView?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   String getDetailsSubtree(String id, String groupName) {
@@ -585,12 +622,12 @@ class WidgetInspectorService {
     if (value is Element) {
       // Backtrack up the chain to the first local parent to give the user
       // better context of where they are.
-      pathToInclude = _getRawElementParentChain(value, numLocalParents: 5);
+      pathToInclude = _getRawElementParentChain(value, numLocalParents: 0);
       root = pathToInclude.first.toDiagnosticsNode();
       pathToInclude = pathToInclude.skip(1);
     }
 
-    return _serialize(root, groupName, minDepth: 3, pathToInclude: pathToInclude);
+    return _serialize(root, new _SerializeConfig(groupName: groupName, minDepth: 1, pathToInclude: pathToInclude, includeProperties: true));
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected
@@ -602,7 +639,7 @@ class WidgetInspectorService {
   String getSelectedRenderObject(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final RenderObject current = selection?.current;
-    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected [Element].
@@ -613,7 +650,7 @@ class WidgetInspectorService {
   String getSelectedWidget(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final Element current = selection?.currentElement;
-    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected [Element].
@@ -637,7 +674,7 @@ class WidgetInspectorService {
       }
       current = firstLocal;
     }
-    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), groupName);
+    return _serialize(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns whether [Widget] creation locations are available.
