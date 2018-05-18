@@ -162,7 +162,6 @@ class WidgetsApp extends StatefulWidget {
     this.showSemanticsDebugger = false,
     this.debugShowWidgetInspector = false,
     this.debugShowCheckedModeBanner = true,
-    this.inspectorSelectButtonBuilder,
   }) : assert(navigatorObservers != null),
        assert(routes != null),
        assert(
@@ -650,16 +649,8 @@ class WidgetsApp extends StatefulWidget {
   /// checked mode.
   final bool debugShowWidgetInspector;
 
-  /// Builds the widget the [WidgetInspector] uses to switch between view and
-  /// inspect modes.
-  ///
-  /// This lets [MaterialApp] to use a material button to toggle the inspector
-  /// select mode without requiring [WidgetInspector] to depend on the
-  /// material package.
-  final InspectorSelectButtonBuilder inspectorSelectButtonBuilder;
 
-  /// {@template flutter.widgets.widgetsApp.debugShowCheckedModeBanner}
-  /// Turns on a little "DEBUG" banner in checked mode to indicate
+  /// Turns on a "DEBUG" little banner in checked mode to indicate
   /// that the app is in checked mode. This is on by default (in
   /// checked mode), to turn it off, set the constructor argument to
   /// false. In release mode this has no effect.
@@ -1139,10 +1130,7 @@ class _WidgetsAppState extends State<WidgetsApp> implements WidgetsBindingObserv
 
     assert(() {
       if (widget.debugShowWidgetInspector || WidgetsApp.debugShowWidgetInspectorOverride) {
-        result = WidgetInspector(
-          child: result,
-          selectButtonBuilder: widget.inspectorSelectButtonBuilder,
-        );
+        result = new WidgetInspector(child: result);
       }
       if (widget.debugShowCheckedModeBanner && WidgetsApp.debugAllowBannerOverride) {
         result = CheckedModeBanner(

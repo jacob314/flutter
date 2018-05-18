@@ -8,20 +8,8 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' as ui
-    show
-        window,
-        ClipOp,
-        EngineLayer,
-        Image,
-        ImageByteFormat,
-        Paragraph,
-        Picture,
-        PictureRecorder,
-        PointMode,
-        SceneBuilder,
-        Vertices;
-import 'dart:ui' show Canvas, Offset;
+import 'dart:ui' as ui;
+import 'dart:ui' show ImageByteFormat, Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
@@ -33,12 +21,16 @@ import 'app.dart';
 import 'basic.dart';
 import 'binding.dart';
 import 'debug.dart';
+import 'container.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 import 'icon_data.dart';
+import 'ticker_provider.dart';
+import 'transitions.dart';
 
 /// Signature for the builder callback used by
 /// [WidgetInspector.selectButtonBuilder].
+@deprecated
 typedef InspectorSelectButtonBuilder = Widget Function(BuildContext context, VoidCallback onPressed);
 
 typedef _RegisterServiceExtensionCallback = void Function({
@@ -685,6 +677,7 @@ class _SerializeConfig {
     this.pathToInclude,
     this.includeProperties = false,
     this.expandPropertyValues = true,
+    this.includeBoundingBox = false,
   });
 
   _SerializeConfig.merge(
@@ -696,7 +689,8 @@ class _SerializeConfig {
        subtreeDepth = subtreeDepth ?? base.subtreeDepth,
        pathToInclude = pathToInclude ?? base.pathToInclude,
        includeProperties = base.includeProperties,
-       expandPropertyValues = base.expandPropertyValues;
+       expandPropertyValues = base.expandPropertyValues,
+       includeBoundingBox = base.includeBoundingBox;
 
   /// Optional object group name used to manage manage lifetimes of object
   /// references in the returned JSON.
@@ -723,6 +717,9 @@ class _SerializeConfig {
   /// Expand children of properties that have values that are themselves
   /// Diagnosticable objects.
   final bool expandPropertyValues;
+
+  /// Include the bounding box if available.
+  final bool includeBoundingBox;
 
   /// Whether to include object references to the [DiagnosticsNode] and
   /// [DiagnosticsNode.value] objects in the JSON payload.
@@ -776,13 +773,23 @@ mixin WidgetInspectorService {
   /// displayed on the device.
   final InspectorSelection selection = InspectorSelection();
 
-  /// Callback typically registered by the [WidgetInspector] to receive
-  /// notifications when [selection] changes.
+  WidgetInspectorClient client;
+
+  /// Whether the inspector is in select mode.
   ///
-  /// The Flutter IntelliJ Plugin does not need to listen for this event as it
-  /// instead listens for `dart:developer` `inspect` events which also trigger
-  /// when the inspection target changes on device.
-  InspectorSelectionChangedCallback selectionChangedCallback;
+  /// In select mode, pointer interactions trigger widget selection instead of
+  /// normal interactions. Otherwise the previously selected widget is
+  /// highlighted but the application can be interacted with normally.
+  bool get isSelectMode => _isSelectMode;
+  bool _isSelectMode = true;
+  set isSelectMode(bool value) {
+    if (value == _isSelectMode)
+      return;
+    _isSelectMode = value;
+    if (client != null) {
+      client.isSelectMode = value;
+    }
+  }
 
   /// The Observatory protocol does not keep alive object references so this
   /// class needs to manually manage groups of objects that should be kept
@@ -947,6 +954,27 @@ mixin WidgetInspectorService {
     );
   }
 
+  /// Registers a service extension method with the given name (full
+  /// name "ext.flutter.inspector.name"), that takes arguments
+  /// "x", "y", and "objectGroup".
+  void _registerServiceExtensionOffset({
+    @required String name,
+    @required FutureOr<Object> callback(double x, double y, String objectGroup),
+  }) {
+    registerServiceExtension(
+      name: name,
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('objectGroup'));
+        assert(parameters.containsKey('x'));
+        assert(parameters.containsKey('y'));
+         return <String, Object>{
+          'result': await callback(double.parse(parameters['x']), double.parse(parameters['y']), parameters['objectGroup']),
+        };
+      },
+    );
+  }
+
+
   /// Cause the entire tree to be rebuilt. This is used by development tools
   /// when the application code has changed and is being hot-reloaded, to cause
   /// the widget tree to pick up any changed implementations.
@@ -1044,6 +1072,12 @@ mixin WidgetInspectorService {
       );
     }
 
+    _registerBoolServiceExtension(
+      name: 'showSelection',
+      getter: () async => selection.showSelection,
+      setter: (value) { showSelection(value); },
+    );
+
     _registerSignalServiceExtension(
       name: 'disposeAllGroups',
       callback: disposeAllGroups,
@@ -1095,10 +1129,17 @@ mixin WidgetInspectorService {
       name: 'getRootWidget',
       callback: _getRootWidget,
     );
+
     _registerObjectGroupServiceExtension(
       name: 'getRootRenderObject',
       callback: _getRootRenderObject,
     );
+
+    _registerObjectGroupServiceExtension(
+      name: 'getRenderObjectForScreenshot',
+      callback: _getRenderObjectForScreenshot,
+    );
+
     _registerObjectGroupServiceExtension(
       name: 'getRootWidgetSummaryTree',
       callback: _getRootWidgetSummaryTree,
@@ -1107,14 +1148,32 @@ mixin WidgetInspectorService {
       name: 'getDetailsSubtree',
       callback: _getDetailsSubtree,
     );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedRenderObject',
       callback: _getSelectedRenderObject,
     );
+
+    _registerServiceExtensionWithArg(
+      name: 'getRenderObject',
+      callback: _getRenderObject,
+    );
+
+    _registerServiceExtensionWithArg(
+      name: 'getWidget',
+      callback: _getWidget,
+    );
+
+    _registerServiceExtensionWithArg(
+      name: 'getSummaryWidget',
+      callback: _getSummaryWidget,
+    );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedWidget',
       callback: _getSelectedWidget,
     );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedSummaryWidget',
       callback: _getSelectedSummaryWidget,
@@ -1124,6 +1183,12 @@ mixin WidgetInspectorService {
       name: 'isWidgetCreationTracked',
       callback: isWidgetCreationTracked,
     );
+
+    _registerServiceExtensionOffset(
+      name: 'inspectAt',
+      callback: inspectAt,
+    );
+
     registerServiceExtension(
       name: 'screenshot',
       callback: (Map<String, String> parameters) async {
@@ -1150,6 +1215,11 @@ mixin WidgetInspectorService {
           'result': base64.encoder.convert(Uint8List.view(byteData.buffer)),
         };
       },
+    );
+
+    _registerServiceExtensionOffset(
+      name: 'hitTest',
+      callback: hitTest,
     );
   }
 
@@ -1190,6 +1260,29 @@ mixin WidgetInspectorService {
       assert(id != null);
       _idToReferenceData.remove(id);
     }
+  }
+
+  String getCreationLocation(Object object, [String groupName]) {
+    return _safeJsonEncode(
+      _getCreationLocation(object is DiagnosticsNode ? object.value : object)?.toJsonMap());
+  }
+
+  /// Returns a map of data useful for debuggers displaying information about
+  /// Flutter objects.
+  Map<String, Object> getDebuggerMetadata(Object object, [String groupName]) {
+    Map<String, Object> properties = _getGraphicalDisplayProperties(object);
+    if (object is Widget || object is Element || object is RenderObject) {
+      if (properties == null) {
+        properties = <String, Object>{};
+      }
+      properties['isInspectable'] = true;
+      if (object is Element) {
+        properties['widget'] = object.widget;
+        properties['renderObject'] = object.renderObject;
+        properties['isElement'] = true;
+      }
+    }
+    return properties;
   }
 
   /// Returns a unique id for [object] that will remain live at least until
@@ -1312,7 +1405,29 @@ mixin WidgetInspectorService {
   /// API surface of methods called from the Flutter IntelliJ Plugin.
   @protected
   bool setSelection(Object object, [String groupName]) {
-    if (object is Element || object is RenderObject) {
+    /*
+    if (object is List<Widget>) {
+      List<Element> matches = _findElementsContainingWidgets(object);
+      if (matches.isNotEmpty) {
+        selection.candidates = matches.map((Element e) => e.renderObject).where((RenderObject obj) => obj != null).toList();
+        selection.currentElement = matches.first;
+        _scheduleSelectionChanged();
+        return true;
+      }
+      return false;
+    }
+    if (object is Widget) {
+      List<Element> matches = _findElementsContainingWidget(object);
+      if (matches.isNotEmpty) {
+        selection.candidates = matches.map((Element e) => e.renderObject).where((RenderObject obj) => obj != null).toList();
+        selection.currentElement = matches.first;
+        _scheduleSelectionChanged();
+        return true;
+      }
+      return false;
+    }
+    */
+    if (object is Element || object is RenderObject || object == null) {
       if (object is Element) {
         if (object == selection.currentElement) {
           return false;
@@ -1324,14 +1439,14 @@ mixin WidgetInspectorService {
         }
         selection.current = object;
       }
-      if (selectionChangedCallback != null) {
+      if (client != null) {
         if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
-          selectionChangedCallback();
+          client.onSelectionChanged();
         } else {
           // It isn't safe to trigger the selection change callback if we are in
           // the middle of rendering the frame.
           SchedulerBinding.instance.scheduleTask(
-            selectionChangedCallback,
+            () => client?.onSelectionChanged(),
             Priority.touch,
           );
         }
@@ -1365,6 +1480,36 @@ mixin WidgetInspectorService {
       node,
       _SerializeConfig(groupName: groupName),
     )).toList();
+  }
+
+  /// Set the [WidgetInspector] selection to the specified `object` if it is
+  /// a valid object to set as the inspector selection.
+  ///
+  /// Returns `true` if the selection was changed.
+  ///
+  /// The `groupName` parameter is not needed but is specified to regularize the
+  /// API surface of methods called from the Flutter IntelliJ Plugin.
+  @protected
+  void showSelection(bool value, [String groupName]) {
+    if (value != selection.showSelection) {
+      selection.showSelection = value;
+      if (client != null) {
+        if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+          client.onSelectionChanged();
+        } else {
+          // It isn't safe to trigger the selection change callback if we are in
+          // the middle of rendering the frame.
+          SchedulerBinding.instance.scheduleTask(
+                () {
+              if (client != null) {
+                client.onSelectionChanged();
+              }
+            },
+            Priority.touch,
+          );
+        }
+      }
+    }
   }
 
   Map<String, Object> _pathNodeToJson(_DiagnosticsPathNode pathNode, _SerializeConfig config) {
@@ -1458,20 +1603,21 @@ mixin WidgetInspectorService {
       );
     }
 
+    if (config.includeBoundingBox) {
+      if (value is RenderObject && value.attached) {
+        final Rect bounds = value.semanticBounds;
+        final Matrix4 transform = value.getTransformTo(null);
+        final Rect rect = MatrixUtils.transformRect(transform, bounds);
+        json['boundingBox'] = {'left': rect.left, 'top': rect.top, 'width': rect.width, 'height': rect.height};
+      }
+    }
+
     if (node is DiagnosticsProperty) {
       // Add additional information about properties needed for graphical
       // display of properties.
-      if (value is Color) {
-        json['valueProperties'] = <String, Object>{
-          'red': value.red,
-          'green': value.green,
-          'blue': value.blue,
-          'alpha': value.alpha,
-        };
-      } else if (value is IconData) {
-        json['valueProperties'] = <String, Object>{
-          'codePoint': value.codePoint,
-        };
+      var valueProperties = _getGraphicalDisplayProperties(value);
+      if (valueProperties != null) {
+        json['valueProperties'] = valueProperties;
       }
       if (config.expandPropertyValues && value is Diagnosticable) {
         json['properties'] = _nodesToJson(
@@ -1486,6 +1632,25 @@ mixin WidgetInspectorService {
       }
     }
     return json;
+  }
+
+  Map<String, Object> _getGraphicalDisplayProperties(Object value) {
+    if (value is Color) {
+      return <String, Object>{
+        'className': 'Color',
+        'red': value.red,
+        'green': value.green,
+        'blue': value.blue,
+        'alpha': value.alpha,
+      };
+    }
+    if (value is IconData) {
+      return <String, Object>{
+        'className': 'IconData',
+        'codePoint': value.codePoint,
+      };
+    }
+    return null;
   }
 
   bool _isValueCreatedByLocalProject(Object value) {
@@ -1519,7 +1684,7 @@ mixin WidgetInspectorService {
   // TODO(jacobr): Replace this with a better solution once
   // https://github.com/dart-lang/sdk/issues/32919 is fixed.
   String _safeJsonEncode(Object object) {
-    final String jsonString = json.encode(object);
+    final String jsonString = object == null ? null : json.encode(object);
     _serializeRing[_serializeRingIndex] = jsonString;
     _serializeRingIndex = (_serializeRingIndex + 1)  % _serializeRing.length;
     return jsonString;
@@ -1685,6 +1850,15 @@ mixin WidgetInspectorService {
     return _nodeToJson(RendererBinding.instance?.renderView?.toDiagnosticsNode(), _SerializeConfig(groupName: groupName));
   }
 
+  @protected
+  String getRenderObjectForScreenshot(String groupName) {
+    return _safeJsonEncode(_getRenderObjectForScreenshot(groupName));
+  }
+
+  Map<String, Object> _getRenderObjectForScreenshot(String groupName) {
+    return _nodeToJson(client?.findRenderForScreenshot()?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
   /// Returns a JSON representation of the subtree rooted at the
   /// [DiagnosticsNode] object that `diagnosticsNodeId` references providing
   /// information needed for the details subtree view.
@@ -1727,7 +1901,10 @@ mixin WidgetInspectorService {
   Map<String, Object> _getSelectedRenderObject(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final RenderObject current = selection?.current;
-    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), _SerializeConfig(groupName: groupName));
+    return _nodeToJson(
+      current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(),
+      _SerializeConfig(groupName: groupName, includeBoundingBox: true),
+    );
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected [Element].
@@ -1811,6 +1988,71 @@ mixin WidgetInspectorService {
     );
   }
 
+  Map<String, Object> inspectAt(double x, double y, String groupName) {
+    if (client == null) {
+      return null;
+    }
+    RenderObject renderObject = client.inspectAt(x, y , true);
+    if (renderObject != null) {
+      // XXX make this not be needed.
+      developer.inspect(renderObject);
+    }
+    if (renderObject == null) {
+      return null;
+    }
+    return _nodeToJson(renderObject.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
+  @protected
+  Map<String, Object> hitTest(double x, double y, String groupName) {
+    if (client == null) {
+      return null;
+    }
+    RenderObject renderObject = client.inspectAt(x, y , false);
+    if (renderObject == null) {
+      return null;
+    }
+    return _nodeToJson(renderObject.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
+
+  String getRenderObject(String id, String groupName) {
+    return _safeJsonEncode(_getRenderObject(id, groupName));
+  }
+
+  Map<String, Object> _getRenderObject(String id, String groupName) {
+    final Object node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findRenderObject(node is DiagnosticsNode ? node.value : node)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
+  String getWidget(String id, String groupName) {
+    return _safeJsonEncode(_getWidget(id, groupName));
+  }
+
+  Map<String, Object> _getWidget(String id, String groupName) {
+    final DiagnosticsNode node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findElement(node.value)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+
+  String getSummaryWidget(String id, String groupName) {
+    return _safeJsonEncode(_getSummaryWidget(id, groupName));
+  }
+
+  Map<String, Object> _getSummaryWidget(String id, String groupName) {
+    final DiagnosticsNode node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findSummaryElement(node.value)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
   Map<String, Object> _getSelectedWidget(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final Element current = selection?.currentElement;
@@ -1834,18 +2076,21 @@ mixin WidgetInspectorService {
       return _getSelectedWidget(previousSelectionId, groupName);
     }
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
-    Element current = selection?.currentElement;
-    if (current != null && !_isValueCreatedByLocalProject(current)) {
-      Element firstLocal;
-      for (Element candidate in current.debugGetDiagnosticChain()) {
+    Element current = _findSummaryElement(selection?.currentElement);
+    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+  Element _findSummaryElement(Object object) {
+    final Element element = _findElement(object);
+
+    if (element != null && !_isValueCreatedByLocalProject(element)) {
+      for (Element candidate in element.debugGetDiagnosticChain()) {
         if (_isValueCreatedByLocalProject(candidate)) {
-          firstLocal = candidate;
-          break;
+          return candidate;
         }
       }
-      current = firstLocal;
     }
-    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), _SerializeConfig(groupName: groupName));
+    return element;
   }
 
   /// Returns whether [Widget] creation locations are available.
@@ -2132,7 +2377,7 @@ class WidgetInspector extends StatefulWidget {
   const WidgetInspector({
     Key key,
     @required this.child,
-    @required this.selectButtonBuilder,
+    @deprecated this.selectButtonBuilder,
   }) : assert(child != null),
        super(key: key);
 
@@ -2141,18 +2386,34 @@ class WidgetInspector extends StatefulWidget {
 
   /// A builder that is called to create the select button.
   ///
-  /// The `onPressed` callback passed as an argument to the builder should be
-  /// hooked up to the returned widget.
+  /// This builder is no longer used by the code has been left temporarily to
+  /// avoid a breaking change.
+  @deprecated
   final InspectorSelectButtonBuilder selectButtonBuilder;
 
   @override
   _WidgetInspectorState createState() => _WidgetInspectorState();
 }
 
-class _WidgetInspectorState extends State<WidgetInspector>
-    with WidgetsBindingObserver {
+abstract class WidgetInspectorClient {
+  set isSelectMode(bool value);
+  void onSelectionChanged();
 
-  _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection;
+  // XXX rename to hit test
+  RenderObject inspectAt(double x, double y, bool apply);
+
+  /// RenderObject to use to take a screenshot of the entire running user
+  /// application without including any UI from the widget inspector.
+  RenderObject findRenderForScreenshot();
+}
+
+class _WidgetInspectorState extends State<WidgetInspector>
+    with WidgetsBindingObserver, TickerProviderStateMixin
+    implements WidgetInspectorClient {
+
+  _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection {
+    isSelectMode = WidgetInspectorService.instance.isSelectMode;
+  }
 
   Offset _lastPointerLocation;
 
@@ -2163,83 +2424,88 @@ class _WidgetInspectorState extends State<WidgetInspector>
   /// In select mode, pointer interactions trigger widget selection instead of
   /// normal interactions. Otherwise the previously selected widget is
   /// highlighted but the application can be interacted with normally.
-  bool isSelectMode = true;
+  bool get isSelectMode => _isSelectMode;
+  @override
+  bool _isSelectMode;
+  set isSelectMode(bool value) {
+    if (value != _isSelectMode) {
+      _isSelectMode = value;
+      selectModeController?.animateTo(_isSelectMode ? 1.0 : 0.0);
+    }
+  }
 
-  final GlobalKey _ignorePointerKey = GlobalKey();
+  bool get isShowShowSelection => _isShowShowSelection;
+  set isShowShowSelection(bool value) {
+    if (value != _isShowShowSelection) {
+      _isShowShowSelection = value;
+      showSelectionController?.animateTo(_isShowShowSelection ? 1.0 : 0.0);
+    }
+  }
 
-  /// Distance from the edge of of the bounding box for an element to consider
-  /// as selecting the edge of the bounding box.
-  static const double _edgeHitMargin = 2.0;
+  bool _isShowShowSelection;
 
-  InspectorSelectionChangedCallback _selectionChangedCallback;
+  AnimationController touchAnimationController;
+  AnimationController selectModeController;
+  AnimationController showSelectionController;
+
+  final GlobalKey _repaintBoundaryKey = new GlobalKey();
+
+  @override
+  void onSelectionChanged() {
+    setState(() {
+      // The [selection] property which the build method depends on has
+      // changed.
+      isShowShowSelection = selection.showSelection;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
 
-    _selectionChangedCallback = () {
+    WidgetInspectorService.instance.client = this;
+    touchAnimationController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    selectModeController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    selectModeController.value = _isSelectMode ? 1.0 : 0.0;
+    showSelectionController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    showSelectionController.value = selection.showSelection ? 1.0 : 0.0;
+
+  }
+
+  @override
+  RenderObject inspectAt(double x, double y, bool apply) {
+    // Coordinates are relative to the render object used to compute screenshots
+    // for the user.
+    final RenderObject userRender = findRenderForScreenshot();
+    if (userRender == null) {
+      return null;
+    }
+    Rect bounds = userRender.semanticBounds;
+    Matrix4 transform = userRender.getTransformTo(null);
+    x = new Tween(begin: bounds.left, end: bounds.right).lerp(x);
+    y = new Tween(begin: bounds.top, end: bounds.bottom).lerp(y);
+    final Offset localPosition = MatrixUtils.transformPoint(transform, new Offset(x, y));
+    List<RenderObject> selected = _inspectAtHelper(localPosition);
+
+    if (apply) {
       setState(() {
-        // The [selection] property which the build method depends on has
-        // changed.
+        selection.candidates = selected;
       });
-    };
-    assert(WidgetInspectorService.instance.selectionChangedCallback == null);
-    WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
+    }
+    return selected.isNotEmpty ? selected.first : null;
   }
 
   @override
   void dispose() {
-    if (WidgetInspectorService.instance.selectionChangedCallback == _selectionChangedCallback) {
-      WidgetInspectorService.instance.selectionChangedCallback = null;
+    if (WidgetInspectorService.instance.client == this) {
+      WidgetInspectorService.instance.client = null;
     }
     super.dispose();
   }
 
-  bool _hitTestHelper(
-    List<RenderObject> hits,
-    List<RenderObject> edgeHits,
-    Offset position,
-    RenderObject object,
-    Matrix4 transform,
-  ) {
-    bool hit = false;
-    final Matrix4 inverse = Matrix4.tryInvert(transform);
-    if (inverse == null) {
-      // We cannot invert the transform. That means the object doesn't appear on
-      // screen and cannot be hit.
-      return false;
-    }
-    final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
-
-    final List<DiagnosticsNode> children = object.debugDescribeChildren();
-    for (int i = children.length - 1; i >= 0; i -= 1) {
-      final DiagnosticsNode diagnostics = children[i];
-      assert(diagnostics != null);
-      if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
-          diagnostics.value is! RenderObject)
-        continue;
-      final RenderObject child = diagnostics.value;
-      final Rect paintClip = object.describeApproximatePaintClip(child);
-      if (paintClip != null && !paintClip.contains(localPosition))
-        continue;
-
-      final Matrix4 childTransform = transform.clone();
-      object.applyPaintTransform(child, childTransform);
-      if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
-        hit = true;
-    }
-
-    final Rect bounds = object.semanticBounds;
-    if (bounds.contains(localPosition)) {
-      hit = true;
-      // Hits that occur on the edge of the bounding box of an object are
-      // given priority to provide a way to select objects that would
-      // otherwise be hard to select.
-      if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
-        edgeHits.add(object);
-    }
-    if (hit)
-      hits.add(object);
-    return hit;
+  @override
+  RenderRepaintBoundary findRenderForScreenshot() {
+    return _repaintBoundaryKey.currentContext.findRenderObject();
   }
 
   /// Returns the list of render objects located at the given position ordered
@@ -2253,34 +2519,43 @@ class _WidgetInspectorState extends State<WidgetInspector>
     final List<RenderObject> regularHits = <RenderObject>[];
     final List<RenderObject> edgeHits = <RenderObject>[];
 
-    _hitTestHelper(regularHits, edgeHits, position, root, root.getTransformTo(null));
+    _hitTestHelper(
+        regularHits, edgeHits, position, root, root.getTransformTo(null));
     // Order matches by the size of the hit area.
     double _area(RenderObject object) {
       final Size size = object.semanticBounds?.size;
       return size == null ? double.maxFinite : size.width * size.height;
     }
-    regularHits.sort((RenderObject a, RenderObject b) => _area(a).compareTo(_area(b)));
+    regularHits.sort((RenderObject a, RenderObject b) =>
+        _area(a).compareTo(_area(b)));
     final Set<RenderObject> hits = LinkedHashSet<RenderObject>();
     hits..addAll(edgeHits)..addAll(regularHits);
     return hits.toList();
   }
 
+  RenderObject findUserRender() {
+    return findRenderForScreenshot().child;
+  }
+
   void _inspectAt(Offset position) {
     if (!isSelectMode)
       return;
-
-    final RenderIgnorePointer ignorePointer = _ignorePointerKey.currentContext.findRenderObject();
-    final RenderObject userRender = ignorePointer.child;
-    final List<RenderObject> selected = hitTest(position, userRender);
+    List<RenderObject> selected = _inspectAtHelper(position);
 
     setState(() {
       selection.candidates = selected;
+      isShowShowSelection = selection.showSelection;
     });
+  }
+
+  List<RenderObject>  _inspectAtHelper(Offset position) {
+    return _inspectorHitTest(position, findUserRender());
   }
 
   void _handlePanDown(DragDownDetails event) {
     _lastPointerLocation = event.globalPosition;
     _inspectAt(event.globalPosition);
+    touchAnimationController.animateTo(1.0);
   }
 
   void _handlePanUpdate(DragUpdateDetails event) {
@@ -2289,6 +2564,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   void _handlePanEnd(DragEndDetails details) {
+    touchAnimationController.animateTo(0.0);
     // If the pan ends on the edge of the window assume that it indicates the
     // pointer is being dragged off the edge of the display not a regular touch
     // on the edge of the display. If the pointer is being dragged off the edge
@@ -2313,17 +2589,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
         developer.inspect(selection.current);
       }
     }
-    setState(() {
-      // Only exit select mode if there is a button to return to select mode.
-      if (widget.selectButtonBuilder != null)
-        isSelectMode = false;
-    });
-  }
-
-  void _handleEnableSelect() {
-    setState(() {
-      isSelectMode = true;
-    });
   }
 
   @override
@@ -2334,29 +2599,189 @@ class _WidgetInspectorState extends State<WidgetInspector>
       onPanDown: _handlePanDown,
       onPanEnd: _handlePanEnd,
       onPanUpdate: _handlePanUpdate,
-      behavior: HitTestBehavior.opaque,
+      behavior: isSelectMode ? HitTestBehavior.opaque : HitTestBehavior.translucent,
       excludeFromSemantics: true,
       child: IgnorePointer(
         ignoring: isSelectMode,
-        key: _ignorePointerKey,
         ignoringSemantics: false,
-        child: widget.child,
+        child: new Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            new  RepaintBoundary(
+              key: _repaintBoundaryKey,
+              child: widget.child,
+            ),
+          new IgnorePointer(
+            ignoring: true,
+            child: new FadeTransition(opacity: selectModeController,
+              child: new ScaleTransition(
+                scale: new Tween<double>(begin: 1.0, end: 0.97).animate(touchAnimationController),
+                child: new DecoratedBox(decoration: new _SelectModeTargetDecoration(), position: DecorationPosition.foreground),
+              ),
+            ),
+          ),
+          ],
+        ),
       ),
     ));
-    if (!isSelectMode && widget.selectButtonBuilder != null) {
-      children.add(Positioned(
-        left: _kInspectButtonMargin,
-        bottom: _kInspectButtonMargin,
-        child: widget.selectButtonBuilder(context, _handleEnableSelect)
-      ));
+    children.add(
+      new FadeTransition(
+        opacity: showSelectionController,
+        child: _InspectorOverlay(selection: selection),
+      )
+    );
+    return new Stack(children: children);
+  }
+}
+
+/// Returns the list of render objects located at the given position ordered
+/// by priority.
+///
+/// All render objects that are not offstage that match the location are
+/// included in the list of matches. Priority is given to matches that occur
+/// on the edge of a render object's bounding box and to matches found by
+/// [RenderBox.hitTest].
+List<RenderObject> _inspectorHitTest(Offset position, RenderObject root) {
+  final List<RenderObject> regularHits = <RenderObject>[];
+  final List<RenderObject> edgeHits = <RenderObject>[];
+
+  _hitTestHelper(regularHits, edgeHits, position, root, root.getTransformTo(null));
+  // Order matches by the size of the hit area.
+  double _area(RenderObject object) {
+    final Size size = object.semanticBounds?.size;
+    return size == null ? double.maxFinite : size.width * size.height;
+  }
+  regularHits.sort((RenderObject a, RenderObject b) => _area(a).compareTo(_area(b)));
+  final Set<RenderObject> hits = new LinkedHashSet<RenderObject>();
+  hits..addAll(edgeHits)..addAll(regularHits);
+  return hits.toList();
+}
+
+/// Distance from the edge of of the bounding box for an element to consider
+/// as selecting the edge of the bounding box.
+const double _edgeHitMargin = 2.0;
+
+bool _hitTestHelper(
+  List<RenderObject> hits,
+  List<RenderObject> edgeHits,
+  Offset position,
+  RenderObject object,
+  Matrix4 transform,
+) {
+  bool hit = false;
+  final Matrix4 inverse = Matrix4.tryInvert(transform);
+  if (inverse == null) {
+    // We cannot invert the transform. That means the object doesn't appear on
+    // screen and cannot be hit.
+    return false;
+  }
+  final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
+
+  final List<DiagnosticsNode> children = object.debugDescribeChildren();
+  for (int i = children.length - 1; i >= 0; i -= 1) {
+    final DiagnosticsNode diagnostics = children[i];
+    assert(diagnostics != null);
+    if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
+        diagnostics.value is! RenderObject)
+      continue;
+    final RenderObject child = diagnostics.value;
+    final Rect paintClip = object.describeApproximatePaintClip(child);
+    if (paintClip != null && !paintClip.contains(localPosition))
+      continue;
+
+    final Matrix4 childTransform = transform.clone();
+    object.applyPaintTransform(child, childTransform);
+    if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
+      hit = true;
+  }
+
+  final Rect bounds = object.semanticBounds;
+  if (bounds.contains(localPosition)) {
+    hit = true;
+    // Hits that occur on the edge of the bounding box of an object are
+    // given priority to provide a way to select objects that would
+    // otherwise be hard to select.
+    if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
+      edgeHits.add(object);
+  }
+  if (hit)
+    hits.add(object);
+  return hit;
+}
+
+class _SelectModeTargetDecoration extends Decoration {
+  @override
+  BoxPainter createBoxPainter([VoidCallback onChanged]) {
+    return new _SelectModeTargetBoxPainter();
+  }
+}
+
+/// Draws target markers in the four corners of the device to warn the user that
+/// the inspector is in select mode so touches will trigger the inspector
+/// instead of changing the apps behavior.
+///
+/// The target markers look generally like the following:
+/// ```
+///   ╷    ╷
+///  ─      ─
+///
+///
+///  ─      ─
+///   ╵    ╵
+/// ```
+class _SelectModeTargetBoxPainter extends BoxPainter {
+  /// Target marker size as a fraction of the width of the screen.
+  static const double markerFraction = 0.07;
+  static const double strokeWidth = 1.5;
+  static const double shadowWidth = 3.0;
+  /// Length of the line segments in the target markers as a fraction of the
+  /// size of the icon. A value of 1.0 would cause the target marker line segments
+  /// to touch.
+  static const double segmentWidth = 0.75;
+  /// Padding between the outside of the window and the edge of each target
+  /// icon as a fraction of the target icon's size.
+  static const double outsidePadding = 0.35;
+  static const Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
+  static const Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final double targetSize = configuration.size.shortestSide * markerFraction;
+    final Paint targetPaint = new Paint()
+     ..style = PaintingStyle.stroke
+     ..strokeWidth = strokeWidth
+     ..color = strokeColor
+     ..strokeCap = StrokeCap.round;
+    final Paint shadowPaint = new Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth + shadowWidth
+      ..color = shadowColor
+      ..strokeCap = StrokeCap.round;
+    final Path path = new Path();
+
+    // Draw targets on each corner.
+    for (int sideX = 0; sideX < 2; sideX++) {
+      for (int sideY = 0; sideY < 2; sideY++) {
+        final double deltaY = sideY == 0 ? targetSize : -targetSize;
+        final double deltaX = sideX == 0 ? targetSize : -targetSize;
+        final double cornerX = offset.dx + sideX * configuration.size.width + deltaX * outsidePadding;
+        final double cornerY = offset.dy + sideY * configuration.size.height + deltaY * outsidePadding;
+        path
+          ..moveTo(cornerX, cornerY + deltaY)
+          ..relativeLineTo(deltaX * segmentWidth, 0.0)
+          ..moveTo(cornerX + deltaX, cornerY)
+          ..relativeLineTo(0.0, deltaY * segmentWidth);
+      }
     }
-    children.add(_InspectorOverlay(selection: selection));
-    return Stack(children: children);
+
+    canvas..drawPath(path, shadowPaint)..drawPath(path, targetPaint);
   }
 }
 
 /// Mutable selection state of the inspector.
 class InspectorSelection {
+  bool _show = true;
+
   /// Render objects that are candidates to be selected.
   ///
   /// Tools may wish to iterate through the list of candidates.
@@ -2393,7 +2818,10 @@ class InspectorSelection {
   set current(RenderObject value) {
     if (_current != value) {
       _current = value;
-      _currentElement = value.debugCreator.element;
+      _currentElement = value != null ? value.debugCreator.element : null;
+    }
+    if (value != null) {
+      showSelection = true;
     }
   }
 
@@ -2409,12 +2837,18 @@ class InspectorSelection {
       _currentElement = element;
       _current = element.findRenderObject();
     }
+    if (element != null) {
+      showSelection = true;
+    }
   }
 
   void _computeCurrent() {
     if (_index < candidates.length) {
       _current = candidates[index];
       _currentElement = _current.debugCreator.element;
+      if (_current != null) {
+        showSelection = true;
+      }
     } else {
       _current = null;
       _currentElement = null;
@@ -2424,6 +2858,12 @@ class InspectorSelection {
   /// Whether the selected render object is attached to the tree or has gone
   /// out of scope.
   bool get active => _current != null && _current.attached;
+
+  bool get showSelection => _show;
+
+  set showSelection(bool value) {
+    _show = value;
+  }
 }
 
 class _InspectorOverlay extends LeafRenderObjectWidget {
@@ -2675,16 +3115,17 @@ class _InspectorOverlayLayer extends Layer {
       _textPainter = TextPainter()
         ..maxLines = _kMaxTooltipLines
         ..ellipsis = '...'
-        ..text = TextSpan(style: _messageStyle, text: message)
+        ..textAlign = TextAlign.center
+        ..text = new TextSpan(style: _messageStyle, text: message)
         ..textDirection = textDirection
-        ..layout(maxWidth: maxWidth);
+        ..layout(maxWidth: maxWidth, minWidth: _kTooltipPadding * 4.0);
     }
 
-    final Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
+    Size tooltipSize = _textPainter.size + const Offset(_kTooltipPadding * 2, _kTooltipPadding * 2);
     final Offset tipOffset = positionDependentBox(
       size: size,
       childSize: tooltipSize,
-      target: target,
+      target: target.translate(tooltipSize.width / 2.0, 0.0),
       verticalOffset: verticalOffset,
       preferBelow: false,
     );
@@ -2706,8 +3147,8 @@ class _InspectorOverlayLayer extends Layer {
       wedgeY += tooltipSize.height;
 
     const double wedgeSize = _kTooltipPadding * 2;
-    double wedgeX = math.max(tipOffset.dx, target.dx) + wedgeSize * 2;
-    wedgeX = math.min(wedgeX, tipOffset.dx + tooltipSize.width - wedgeSize * 2);
+    double wedgeX = math.max(tipOffset.dx, target.dx) + wedgeSize * 1.5;
+    wedgeX = math.min(wedgeX, tipOffset.dx + tooltipSize.width - wedgeSize * 1.5);
     final List<Offset> wedge = <Offset>[
       Offset(wedgeX - wedgeSize, wedgeY),
       Offset(wedgeX + wedgeSize, wedgeY),
@@ -2724,7 +3165,6 @@ class _InspectorOverlayLayer extends Layer {
 
 const double _kScreenEdgeMargin = 10.0;
 const double _kTooltipPadding = 5.0;
-const double _kInspectButtonMargin = 10.0;
 
 /// Interpret pointer up events within with this margin as indicating the
 /// pointer is moving off the device.
@@ -2832,4 +3272,24 @@ int _toLocationId(_Location location) {
   _locations.add(location);
   _locationToId[location] = id;
   return id;
+}
+
+RenderObject _findRenderObject(Object object) {
+  if (object is RenderObject) {
+    return object;
+  }
+  if (object is Element) {
+    return object.findRenderObject();
+  }
+  return null;
+}
+
+Element _findElement(Object object) {
+  if (object is Element) {
+    return object;
+  }
+  if (object is RenderObject) {
+    return object.debugCreator.element;
+  }
+  return null;
 }

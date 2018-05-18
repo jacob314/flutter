@@ -191,6 +191,38 @@ void main() {
   TestWidgetInspectorService.runTests();
 }
 
+
+class MockWidgetInspectorClient implements WidgetInspectorClient {
+  int inspectAtCount = 0;
+  @override
+  RenderObject inspectAt(double x, double y, bool apply) {
+    inspectAtCount++;
+    return null;
+  }
+
+  int isSelectModeCount = 0;
+  @override
+  set isSelectMode(bool value) {
+    isSelectModeCount++;
+  }
+
+  int selectionChangedCount = 0;
+
+  @override
+  void onSelectionChanged() {
+    selectionChangedCount++;
+  }
+
+  int takeScreenshotCount = 0;
+
+  @override
+  RenderObject findRenderForScreenshot() {
+    takeScreenshotCount++;
+    return null;
+  }
+
+}
+
 class TestWidgetInspectorService extends Object with WidgetInspectorService {
   final Map<String, InspectorServiceExtensionCallback> extensions = <String, InspectorServiceExtensionCallback>{};
 
@@ -270,7 +302,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         Directionality(
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
-            selectButtonBuilder: null,
             child: Stack(
               children: const <Widget>[
                 Text('a', textDirection: TextDirection.ltr),
@@ -291,9 +322,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
       final GlobalKey inspectorKey = GlobalKey();
       final GlobalKey topButtonKey = GlobalKey();
 
-      Widget selectButtonBuilder(BuildContext context, VoidCallback onPressed) {
-        return Material(child: RaisedButton(onPressed: onPressed, key: selectButtonKey));
-      }
       // State type is private, hence using dynamic.
       dynamic getInspectorState() => inspectorKey.currentState;
       String paragraphText(RenderParagraph paragraph) => paragraph.text.text;
@@ -303,7 +331,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: selectButtonBuilder,
             child: Material(
               child: ListView(
                 children: <Widget>[
@@ -363,7 +390,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         Directionality(
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
-            selectButtonBuilder: null,
             child: Transform(
               transform: Matrix4.identity()..scale(0.0),
               child: Stack(
@@ -385,12 +411,8 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
     testWidgets('WidgetInspector scroll test', (WidgetTester tester) async {
       final Key childKey = UniqueKey();
-      final GlobalKey selectButtonKey = GlobalKey();
       final GlobalKey inspectorKey = GlobalKey();
 
-      Widget selectButtonBuilder(BuildContext context, VoidCallback onPressed) {
-        return Material(child: RaisedButton(onPressed: onPressed, key: selectButtonKey));
-      }
       // State type is private, hence using dynamic.
       dynamic getInspectorState() => inspectorKey.currentState;
 
@@ -399,7 +421,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: selectButtonBuilder,
             child: ListView(
               dragStartBehavior: DragStartBehavior.down,
               children: <Widget>[
@@ -449,7 +470,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         Directionality(
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
-            selectButtonBuilder: null,
             child: GestureDetector(
               onLongPress: () {
                 expect(didLongPress, isFalse);
@@ -489,7 +509,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: null,
             child: Overlay(
               initialEntries: <OverlayEntry>[
                 OverlayEntry(
@@ -628,32 +647,32 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      int selectionChangedCount = 0;
-      service.selectionChangedCallback = () => selectionChangedCount++;
+      var mockClient = MockWidgetInspectorClient();
+      service.client = mockClient;
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(0));
+      expect(mockClient.selectionChangedCount, equals(0));
       expect(service.selection.currentElement, isNull);
       service.setSelection(elementA);
-      expect(selectionChangedCount, equals(1));
+      expect(mockClient.selectionChangedCount, equals(1));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelection(elementB.renderObject);
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
       expect(service.selection.currentElement, equals(elementB.renderObject.debugCreator.element));
 
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
     });
 
@@ -945,32 +964,32 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      int selectionChangedCount = 0;
-      service.selectionChangedCallback = () => selectionChangedCount++;
+      var mockClient = new MockWidgetInspectorClient();
+      service.client = mockClient;
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(0));
+      expect(mockClient.selectionChangedCount, equals(0));
       expect(service.selection.currentElement, isNull);
       service.setSelection(elementA);
-      expect(selectionChangedCount, equals(1));
+      expect(mockClient.selectionChangedCount, equals(1));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelection(elementB.renderObject);
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
       expect(service.selection.currentElement, equals(elementB.renderObject.debugCreator.element));
 
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
 
       await service.testExtension('setSelectionById', <String, String>{'arg' : service.toId(elementA, 'my-group'), 'objectGroup': 'my-group'});
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
     });
 

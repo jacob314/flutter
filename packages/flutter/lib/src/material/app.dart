@@ -8,8 +8,6 @@ import 'package:flutter/widgets.dart';
 
 import 'arc.dart';
 import 'colors.dart';
-import 'floating_action_button.dart';
-import 'icons.dart';
 import 'material_localizations.dart';
 import 'page.dart';
 import 'theme.dart';
@@ -434,14 +432,7 @@ class _MaterialAppState extends State<MaterialApp> {
         checkerboardOffscreenLayers: widget.checkerboardOffscreenLayers,
         showSemanticsDebugger: widget.showSemanticsDebugger,
         debugShowCheckedModeBanner: widget.debugShowCheckedModeBanner,
-        inspectorSelectButtonBuilder: (BuildContext context, VoidCallback onPressed) {
-          return FloatingActionButton(
-            child: const Icon(Icons.search),
-            onPressed: onPressed,
-            mini: true,
-          );
-        },
-      ),
+      )
     );
 
     assert(() {
