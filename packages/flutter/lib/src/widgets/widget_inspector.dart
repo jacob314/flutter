@@ -501,6 +501,11 @@ class WidgetInspectorService {
     }
   }
 
+  String getCreationLocation(Object object, [String groupName]) {
+    return _safeJsonEncode(
+      _getCreationLocation(object is DiagnosticsNode ? object.value : object)?.toJsonMap());
+  }
+
   /// Returns a unique id for [object] that will remain live at least until
   /// [disposeGroup] is called on [groupName] or [dispose] is called on the id
   /// returned by this method.
