@@ -75,7 +75,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         new Directionality(
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
-            selectButtonBuilder: null,
             child: new Stack(
               children: const <Widget>[
                 const Text('a', textDirection: TextDirection.ltr),
@@ -108,7 +107,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: selectButtonBuilder,
             child: new Material(
               child: new ListView(
                 children: <Widget>[
@@ -168,7 +166,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         new Directionality(
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
-            selectButtonBuilder: null,
             child: new Transform(
               transform: new Matrix4.identity()..scale(0.0),
               child: new Stack(
@@ -193,9 +190,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
       final GlobalKey selectButtonKey = new GlobalKey();
       final GlobalKey inspectorKey = new GlobalKey();
 
-      Widget selectButtonBuilder(BuildContext context, VoidCallback onPressed) {
-        return new Material(child: new RaisedButton(onPressed: onPressed, key: selectButtonKey));
-      }
       // State type is private, hence using dynamic.
       dynamic getInspectorState() => inspectorKey.currentState;
 
@@ -204,7 +198,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: selectButtonBuilder,
             child: new ListView(
               children: <Widget>[
                 new Container(
@@ -253,7 +246,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
         new Directionality(
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
-            selectButtonBuilder: null,
             child: new GestureDetector(
               onLongPress: () {
                 expect(didLongPress, isFalse);
@@ -293,7 +285,6 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
           textDirection: TextDirection.ltr,
           child: new WidgetInspector(
             key: inspectorKey,
-            selectButtonBuilder: null,
             child: new Overlay(
               initialEntries: <OverlayEntry>[
                 new OverlayEntry(
