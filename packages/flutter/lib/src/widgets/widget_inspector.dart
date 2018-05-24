@@ -342,6 +342,27 @@ class WidgetInspectorService {
     );
   }
 
+  /// Registers a service extension method with the given name (full
+  /// name "ext.flutter.inspector.name"), that takes arguments
+  /// "arg0", "arg1", "arg2", ..., "argn".
+  void _registerServiceExtensionLocation({
+    @required String name,
+    @required FutureOr<Object> callback(double x, double y, String objectGroup),
+  }) {
+    registerServiceExtension(
+      name: name,
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('objectGroup'));
+        assert(parameters.containsKey('x'));
+        assert(parameters.containsKey('y'));
+         return <String, Object>{
+          'result': await callback(double.parse(parameters['x']), double.parse(parameters['y']), parameters['objectGroup']),
+        };
+      },
+    );
+  }
+
+
   /// Cause the entire tree to be rebuilt. This is used by development tools
   /// when the application code has changed and is being hot-reloaded, to cause
   /// the widget tree to pick up any changed implementations.
@@ -465,6 +486,10 @@ class WidgetInspectorService {
       name: 'isWidgetCreationTracked',
       callback: isWidgetCreationTracked,
     );
+
+    _registerServiceExtensionLocation(
+      name: 'inspectAt',
+      callback: inspectAt,
   }
 
   /// Clear all InspectorService object references.
@@ -1041,6 +1066,13 @@ class WidgetInspectorService {
     return _safeJsonEncode(_getSelectedWidget(previousSelectionId, groupName));
   }
 
+  Map<String, Object> inspectAt(double x, double y, String groupName) {
+    if (inspectCallback == null) {
+      return null;
+    }
+
+  }
+
   Map<String, Object> _getSelectedWidget(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final Element current = selection?.currentElement;
@@ -1162,10 +1194,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   final GlobalKey _ignorePointerKey = new GlobalKey();
 
-  /// Distance from the edge of of the bounding box for an element to consider
-  /// as selecting the edge of the bounding box.
-  static const double _edgeHitMargin = 2.0;
-
   InspectorSelectionChangedCallback _selectionChangedCallback;
   @override
   void initState() {
@@ -1189,84 +1217,13 @@ class _WidgetInspectorState extends State<WidgetInspector>
     super.dispose();
   }
 
-  bool _hitTestHelper(
-    List<RenderObject> hits,
-    List<RenderObject> edgeHits,
-    Offset position,
-    RenderObject object,
-    Matrix4 transform,
-  ) {
-    bool hit = false;
-    final Matrix4 inverse = Matrix4.tryInvert(transform);
-    if (inverse == null) {
-      // We cannot invert the transform. That means the object doesn't appear on
-      // screen and cannot be hit.
-      return false;
-    }
-    final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
-
-    final List<DiagnosticsNode> children = object.debugDescribeChildren();
-    for (int i = children.length - 1; i >= 0; i -= 1) {
-      final DiagnosticsNode diagnostics = children[i];
-      assert(diagnostics != null);
-      if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
-          diagnostics.value is! RenderObject)
-        continue;
-      final RenderObject child = diagnostics.value;
-      final Rect paintClip = object.describeApproximatePaintClip(child);
-      if (paintClip != null && !paintClip.contains(localPosition))
-        continue;
-
-      final Matrix4 childTransform = transform.clone();
-      object.applyPaintTransform(child, childTransform);
-      if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
-        hit = true;
-    }
-
-    final Rect bounds = object.semanticBounds;
-    if (bounds.contains(localPosition)) {
-      hit = true;
-      // Hits that occur on the edge of the bounding box of an object are
-      // given priority to provide a way to select objects that would
-      // otherwise be hard to select.
-      if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
-        edgeHits.add(object);
-    }
-    if (hit)
-      hits.add(object);
-    return hit;
-  }
-
-  /// Returns the list of render objects located at the given position ordered
-  /// by priority.
-  ///
-  /// All render objects that are not offstage that match the location are
-  /// included in the list of matches. Priority is given to matches that occur
-  /// on the edge of a render object's bounding box and to matches found by
-  /// [RenderBox.hitTest].
-  List<RenderObject> hitTest(Offset position, RenderObject root) {
-    final List<RenderObject> regularHits = <RenderObject>[];
-    final List<RenderObject> edgeHits = <RenderObject>[];
-
-    _hitTestHelper(regularHits, edgeHits, position, root, root.getTransformTo(null));
-    // Order matches by the size of the hit area.
-    double _area(RenderObject object) {
-      final Size size = object.semanticBounds?.size;
-      return size == null ? double.maxFinite : size.width * size.height;
-    }
-    regularHits.sort((RenderObject a, RenderObject b) => _area(a).compareTo(_area(b)));
-    final Set<RenderObject> hits = new LinkedHashSet<RenderObject>();
-    hits..addAll(edgeHits)..addAll(regularHits);
-    return hits.toList();
-  }
-
   void _inspectAt(Offset position) {
     if (!isSelectMode)
       return;
 
     final RenderIgnorePointer ignorePointer = _ignorePointerKey.currentContext.findRenderObject();
     final RenderObject userRender = ignorePointer.child;
-    final List<RenderObject> selected = hitTest(position, userRender);
+    final List<RenderObject> selected = _inspectorHitTest(position, userRender);
 
     setState(() {
       selection.candidates = selected;
@@ -1348,6 +1305,81 @@ class _WidgetInspectorState extends State<WidgetInspector>
     children.add(new _InspectorOverlay(selection: selection));
     return new Stack(children: children);
   }
+}
+
+
+/// Returns the list of render objects located at the given position ordered
+/// by priority.
+///
+/// All render objects that are not offstage that match the location are
+/// included in the list of matches. Priority is given to matches that occur
+/// on the edge of a render object's bounding box and to matches found by
+/// [RenderBox.hitTest].
+List<RenderObject> _inspectorHitTest(Offset position, RenderObject root) {
+  final List<RenderObject> regularHits = <RenderObject>[];
+  final List<RenderObject> edgeHits = <RenderObject>[];
+
+  _hitTestHelper(regularHits, edgeHits, position, root, root.getTransformTo(null));
+  // Order matches by the size of the hit area.
+  double _area(RenderObject object) {
+    final Size size = object.semanticBounds?.size;
+    return size == null ? double.maxFinite : size.width * size.height;
+  }
+  regularHits.sort((RenderObject a, RenderObject b) => _area(a).compareTo(_area(b)));
+  final Set<RenderObject> hits = new LinkedHashSet<RenderObject>();
+  hits..addAll(edgeHits)..addAll(regularHits);
+  return hits.toList();
+}
+
+/// Distance from the edge of of the bounding box for an element to consider
+/// as selecting the edge of the bounding box.
+const double _edgeHitMargin = 2.0;
+bool _hitTestHelper(
+  List<RenderObject> hits,
+  List<RenderObject> edgeHits,
+  Offset position,
+  RenderObject object,
+  Matrix4 transform,
+) {
+  bool hit = false;
+  final Matrix4 inverse = Matrix4.tryInvert(transform);
+  if (inverse == null) {
+    // We cannot invert the transform. That means the object doesn't appear on
+    // screen and cannot be hit.
+    return false;
+  }
+  final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
+
+  final List<DiagnosticsNode> children = object.debugDescribeChildren();
+  for (int i = children.length - 1; i >= 0; i -= 1) {
+    final DiagnosticsNode diagnostics = children[i];
+    assert(diagnostics != null);
+    if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
+        diagnostics.value is! RenderObject)
+      continue;
+    final RenderObject child = diagnostics.value;
+    final Rect paintClip = object.describeApproximatePaintClip(child);
+    if (paintClip != null && !paintClip.contains(localPosition))
+      continue;
+
+    final Matrix4 childTransform = transform.clone();
+    object.applyPaintTransform(child, childTransform);
+    if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
+      hit = true;
+  }
+
+  final Rect bounds = object.semanticBounds;
+  if (bounds.contains(localPosition)) {
+    hit = true;
+    // Hits that occur on the edge of the bounding box of an object are
+    // given priority to provide a way to select objects that would
+    // otherwise be hard to select.
+    if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
+      edgeHits.add(object);
+  }
+  if (hit)
+    hits.add(object);
+  return hit;
 }
 
 /// Mutable selection state of the inspector.
