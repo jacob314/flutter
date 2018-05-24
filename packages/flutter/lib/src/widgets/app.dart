@@ -583,12 +583,10 @@ class _WidgetsAppState extends State<WidgetsApp> implements WidgetsBindingObserv
     }
 
     assert(() {
-      if (widget.debugShowWidgetInspector || WidgetsApp.debugShowWidgetInspectorOverride) {
-        result = new WidgetInspector(
-          child: result,
-          selectButtonBuilder: widget.inspectorSelectButtonBuilder,
-        );
-      }
+      WidgetInspectorService.instance.isSelectMode = widget.debugShowWidgetInspector || WidgetsApp.debugShowWidgetInspectorOverride;
+
+      result = new WidgetInspector(child: result);
+
       if (widget.debugShowCheckedModeBanner && WidgetsApp.debugAllowBannerOverride) {
         result = new CheckedModeBanner(
           child: result,
