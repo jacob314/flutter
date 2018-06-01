@@ -448,6 +448,12 @@ class WidgetInspectorService {
       },
     );
 
+    _registerBoolServiceExtension(
+      name: 'showSelection',
+      getter: () async => selection.showSelection,
+      setter: (value) { showSelection(value); },
+    );
+
     _registerSignalServiceExtension(
       name: 'disposeAllGroups',
       callback: disposeAllGroups,
@@ -700,7 +706,7 @@ class WidgetInspectorService {
   /// API surface of methods called from the Flutter IntelliJ Plugin.
   @protected
   bool setSelection(Object object, [String groupName]) {
-    if (object is Element || object is RenderObject) {
+    if (object is Element || object is RenderObject || object == null) {
       if (object is Element) {
         if (object == selection.currentElement) {
           return false;
@@ -727,6 +733,32 @@ class WidgetInspectorService {
       return true;
     }
     return false;
+  }
+
+  /// Set the [WidgetInspector] selection to the specified `object` if it is
+  /// a valid object to set as the inspector selection.
+  ///
+  /// Returns `true` if the selection was changed.
+  ///
+  /// The `groupName` parameter is not needed but is specified to regularize the
+  /// API surface of methods called from the Flutter IntelliJ Plugin.
+  @protected
+  void showSelection(bool value, [String groupName]) {
+    if (value != selection.showSelection) {
+      selection.showSelection = value;
+      if (selectionChangedCallback != null) {
+        if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+          selectionChangedCallback();
+        } else {
+          // It isn't safe to trigger the selection change callback if we are in
+          // the middle of rendering the frame.
+          SchedulerBinding.instance.scheduleTask(
+            selectionChangedCallback,
+            Priority.touch,
+          );
+        }
+      }
+    }
   }
 
   /// Returns JSON representing the chain of [DiagnosticsNode] instances from
@@ -1272,9 +1304,19 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
   bool _isSelectMode;
 
+  bool get isShowShowSelection => _isShowShowSelection;
+  set isShowShowSelection(bool value) {
+    if (value != _isShowShowSelection) {
+      _isShowShowSelection = value;
+      showSelectionController?.animateTo(_isShowShowSelection ? 1.0 : 0.0);
+    }
+  }
+
+  bool _isShowShowSelection;
 
   AnimationController touchAnimationController;
   AnimationController selectModeController;
+  AnimationController showSelectionController;
 
   final GlobalKey _stackKey = new GlobalKey();
 
@@ -1290,6 +1332,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
       setState(() {
         // The [selection] property which the build method depends on has
         // changed.
+        isShowShowSelection = selection.showSelection;
       });
     };
 
@@ -1332,6 +1375,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
     touchAnimationController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController.value = _isSelectMode ? 1.0 : 0.0;
+    showSelectionController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    showSelectionController.value = selection.showSelection ? 1.0 : 0.0;
+
   }
 
   @override
@@ -1357,6 +1403,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
     setState(() {
       selection.candidates = selected;
+      isShowShowSelection = selection.showSelection;
     });
   }
 
@@ -1435,7 +1482,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
         ),
       ),
     ));
-    children.add(new _InspectorOverlay(selection: selection));
+    children.add(
+        new FadeTransition(opacity: showSelectionController,
+          child: new _InspectorOverlay(selection: selection)));
     return new Stack(children: children);
   }
 }
@@ -1585,6 +1634,8 @@ class _SelectModeTargetBoxPainter extends BoxPainter {
 
 /// Mutable selection state of the inspector.
 class InspectorSelection {
+  bool _show = true;
+
   /// Render objects that are candidates to be selected.
   ///
   /// Tools may wish to iterate through the list of candidates.
@@ -1621,7 +1672,10 @@ class InspectorSelection {
   set current(RenderObject value) {
     if (_current != value) {
       _current = value;
-      _currentElement = value.debugCreator.element;
+      _currentElement = value != null ? value.debugCreator.element : null;
+    }
+    if (value != null) {
+      showSelection = true;
     }
   }
 
@@ -1637,12 +1691,18 @@ class InspectorSelection {
       _currentElement = element;
       _current = element.findRenderObject();
     }
+    if (element != null) {
+      showSelection = true;
+    }
   }
 
   void _computeCurrent() {
     if (_index < candidates.length) {
       _current = candidates[index];
       _currentElement = _current.debugCreator.element;
+      if (_current != null) {
+        showSelection = true;
+      }
     } else {
       _current = null;
       _currentElement = null;
@@ -1652,6 +1712,12 @@ class InspectorSelection {
   /// Whether the selected render object is attached to the tree or has gone
   /// out of scope.
   bool get active => _current != null && _current.attached;
+
+  bool get showSelection => _show;
+
+  set showSelection(bool value) {
+    _show = value;
+  }
 }
 
 class _InspectorOverlay extends LeafRenderObjectWidget {
