@@ -4,6 +4,8 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -14,6 +16,38 @@ typedef FutureOr<Map<String, Object>> InspectorServiceExtensionCallback(Map<Stri
 
 void main() {
   TestWidgetInspectorService.runTests();
+}
+
+
+class MockWidgetInspectorClient implements WidgetInspectorClient {
+  int inspectAtCount = 0;
+  @override
+  RenderObject inspectAt(double x, double y, bool apply) {
+    inspectAtCount++;
+    return null;
+  }
+
+  int isSelectModeCount = 0;
+  @override
+  set isSelectMode(bool value) {
+    isSelectModeCount++;
+  }
+
+  int selectionChangedCount = 0;
+
+  @override
+  void onSelectionChanged() {
+    selectionChangedCount++;
+  }
+
+  int takeScreenshotCount = 0;
+
+  @override
+  Future<ui.Image> takeScreenshot(int width, int height) async {
+    takeScreenshotCount++;
+    return null;
+  }
+
 }
 
 class TestWidgetInspectorService extends Object with WidgetInspectorService {
@@ -423,32 +457,32 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      int selectionChangedCount = 0;
-      service.selectionChangedCallback = () => selectionChangedCount++;
+      var mockClient = new MockWidgetInspectorClient();
+      service.client = mockClient;
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(0));
+      expect(mockClient.selectionChangedCount, equals(0));
       expect(service.selection.currentElement, isNull);
       service.setSelection(elementA);
-      expect(selectionChangedCount, equals(1));
+      expect(mockClient.selectionChangedCount, equals(1));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelection(elementB.renderObject);
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
       expect(service.selection.currentElement, equals(elementB.renderObject.debugCreator.element));
 
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
     });
 
@@ -740,32 +774,32 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      int selectionChangedCount = 0;
-      service.selectionChangedCallback = () => selectionChangedCount++;
+      var mockClient = new MockWidgetInspectorClient();
+      service.client = mockClient;
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(0));
+      expect(mockClient.selectionChangedCount, equals(0));
       expect(service.selection.currentElement, isNull);
       service.setSelection(elementA);
-      expect(selectionChangedCount, equals(1));
+      expect(mockClient.selectionChangedCount, equals(1));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelection(elementB.renderObject);
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
       expect(service.selection.currentElement, equals(elementB.renderObject.debugCreator.element));
 
       service.setSelection('invalid selection');
-      expect(selectionChangedCount, equals(2));
+      expect(mockClient.selectionChangedCount, equals(2));
       expect(service.selection.current, equals(elementB.renderObject));
 
       await service.testExtension('setSelectionById', <String, String>{'arg' : service.toId(elementA, 'my-group'), 'objectGroup': 'my-group'});
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
       expect(service.selection.current, equals(elementA.renderObject));
 
       service.setSelectionById(service.toId(elementA, 'my-group'));
-      expect(selectionChangedCount, equals(3));
+      expect(mockClient.selectionChangedCount, equals(3));
       expect(service.selection.currentElement, equals(elementA));
     });
 

@@ -187,6 +187,7 @@ class _WidgetInspectorService extends Object with WidgetInspectorService {
 ///
 /// All methods returning String values return JSON.
 class WidgetInspectorService {
+
   // This class is usable as a mixin for test purposes and as a singleton
   // [instance] for production purposes.
   factory WidgetInspectorService._() => new _WidgetInspectorService();
@@ -211,13 +212,8 @@ class WidgetInspectorService {
   /// displayed on the device.
   final InspectorSelection selection = new InspectorSelection();
 
-  /// Callback typically registered by the [WidgetInspector] to receive
-  /// notifications when [selection] changes.
-  ///
-  /// The Flutter IntelliJ Plugin does not need to listen for this event as it
-  /// instead listens for `dart:developer` `inspect` events which also trigger
-  /// when the inspection target changes on device.
-  InspectorSelectionChangedCallback selectionChangedCallback;
+  WidgetInspectorClient client;
+
 
   /// Whether the inspector is in select mode.
   ///
@@ -229,30 +225,12 @@ class WidgetInspectorService {
     if (value == _isSelectMode)
       return;
     _isSelectMode = value;
-    if (selectionModeChangedCallback != null) {
-      selectionModeChangedCallback(value);
+    if (client != null) {
+      client.isSelectMode = value;
     }
   }
 
   bool _isSelectMode = false;
-
-  /// Callback typically registered by the [WidgetInspector] to receive
-  /// notifications when [isSelectMode] changes.
-  ///
-  /// The Flutter IntelliJ Plugin does not need to listen for this event as it
-  /// instead listens for `dart:developer` `inspect` events which also trigger
-  /// when the inspection target changes on device.
-  InspectorSelectionModeChangedCallback selectionModeChangedCallback;
-
-  // XXX
-  InspectorSelectAtCallback inspectCallback;
-
-  /// Callback typically registered by the [WidgetInspector] to take
-  /// screenshots of the application being inspected.
-  ///
-  /// The screenshot should only include the application being inspected and not
-  /// any debugging UI drawn b
-  ScreenshotCallback screenshotCallback;
 
   /// The Observatory protocol does not keep alive object references so this
   /// class needs to manually manage groups of objects that should be kept
@@ -728,14 +706,14 @@ class WidgetInspectorService {
         }
         selection.current = object;
       }
-      if (selectionChangedCallback != null) {
+      if (client != null) {
         if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
-          selectionChangedCallback();
+          client.onSelectionChanged();
         } else {
           // It isn't safe to trigger the selection change callback if we are in
           // the middle of rendering the frame.
           SchedulerBinding.instance.scheduleTask(
-            selectionChangedCallback,
+            client.onSelectionChanged,
             Priority.touch,
           );
         }
@@ -756,14 +734,18 @@ class WidgetInspectorService {
   void showSelection(bool value, [String groupName]) {
     if (value != selection.showSelection) {
       selection.showSelection = value;
-      if (selectionChangedCallback != null) {
+      if (client != null) {
         if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
-          selectionChangedCallback();
+          client.onSelectionChanged();
         } else {
           // It isn't safe to trigger the selection change callback if we are in
           // the middle of rendering the frame.
           SchedulerBinding.instance.scheduleTask(
-            selectionChangedCallback,
+            () {
+              if (client != null) {
+                client.onSelectionChanged();
+              }
+            },
             Priority.touch,
           );
         }
@@ -880,10 +862,9 @@ class WidgetInspectorService {
 
     if (config.includeBoundingBox) {
       if (value is RenderObject) {
-        Rect bounds = value.semanticBounds;
-        Matrix4 transform = value.getTransformTo(null);
-        final Rect rect = MatrixUtils.transformRect(
-          transform, bounds);
+        final Rect bounds = value.semanticBounds;
+        final Matrix4 transform = value.getTransformTo(null);
+        final Rect rect = MatrixUtils.transformRect(transform, bounds);
         json['boundingBox'] = {'x': rect.left, 'y': rect.top, 'width': rect.width, 'height': rect.height};
       }
     }
@@ -1168,10 +1149,10 @@ class WidgetInspectorService {
   }
 
   Map<String, Object> inspectAt(double x, double y, String groupName) {
-    if (inspectCallback == null) {
+    if (client == null) {
       return null;
     }
-    RenderObject renderObject = inspectCallback(x, y , true);
+    RenderObject renderObject = client.inspectAt(x, y , true);
     if (renderObject != null) {
       // XXX make this not be needed.
       developer.inspect(renderObject);
@@ -1183,20 +1164,20 @@ class WidgetInspectorService {
   }
 
   Future<String> screenshot(double width, double height, String groupName) async {
-    if (screenshotCallback == null) {
+    if (client == null) {
       return null;
     }
 
-    ui.Image image = await screenshotCallback(width.toInt(), height.toInt());
+    ui.Image image = await client.takeScreenshot(width.toInt(), height.toInt());
     ByteData byteData = await image.toByteData(format:ImageByteFormat.png);
     return base64.encoder.convert(new Uint8List.view(byteData.buffer));
   }
 
   Map<String, Object> hoverAt(double x, double y, String groupName) {
-    if (inspectCallback == null) {
+    if (client == null) {
       return null;
     }
-    RenderObject renderObject = inspectCallback(x, y , false);
+    RenderObject renderObject = client.inspectAt(x, y , false);
     if (renderObject == null) {
       return null;
     }
@@ -1299,8 +1280,16 @@ class WidgetInspector extends StatefulWidget {
   _WidgetInspectorState createState() => new _WidgetInspectorState();
 }
 
+abstract class WidgetInspectorClient {
+  set isSelectMode(bool value);
+  void onSelectionChanged();
+  RenderObject inspectAt(double x, double y, bool apply);
+  Future<ui.Image> takeScreenshot(int width, int height);
+}
+
 class _WidgetInspectorState extends State<WidgetInspector>
-    with WidgetsBindingObserver, TickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin
+    implements WidgetInspectorClient {
 
   _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection {
     isSelectMode = WidgetInspectorService.instance.isSelectMode;
@@ -1316,6 +1305,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   /// normal interactions. Otherwise the previously selected widget is
   /// highlighted but the application can be interacted with normally.
   bool get isSelectMode => _isSelectMode;
+  @override
   set isSelectMode(bool value) {
     if (value != _isSelectMode) {
       _isSelectMode = value;
@@ -1340,62 +1330,20 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   final GlobalKey _repaintBoundaryKey = new GlobalKey();
 
-  InspectorSelectionChangedCallback _selectionChangedCallback;
-  InspectorSelectionModeChangedCallback _selectionModeChangedCallback;
-  InspectorSelectAtCallback _inspectCallback;
-  ScreenshotCallback _takeScreenshotCallback;
+  @override
+  void onSelectionChanged() {
+    setState(() {
+      // The [selection] property which the build method depends on has
+      // changed.
+      isShowShowSelection = selection.showSelection;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
 
-    _selectionChangedCallback = () {
-      setState(() {
-        // The [selection] property which the build method depends on has
-        // changed.
-        isShowShowSelection = selection.showSelection;
-      });
-    };
-
-    _selectionModeChangedCallback = (bool mode) {
-      if (mode != isSelectMode) {
-        setState(() {
-          isSelectMode = mode;
-        });
-      }
-    };
-
-    _inspectCallback = (double x, double y, bool apply) {
-      final RenderObject userRender = findUserRender();
-      if (userRender == null) {
-        return null;
-      }
-      RenderObject root = userRender.owner.rootNode;
-      Rect bounds = userRender.semanticBounds;
-      Matrix4 transform = root.getTransformTo(null);
-      x = new Tween(begin: bounds.left, end: bounds.right).lerp(x);
-      y = new Tween(begin: bounds.top, end: bounds.bottom).lerp(y);
-      final Vector3 transformed = transform.transform3(new Vector3(x, y, 0.0));
-      List<RenderObject> selected = _inspectAtHelper(new Offset(transformed.x, transformed.y));
-
-      if (apply) {
-        setState(() {
-          selection.candidates = selected;
-        });
-      }
-      return selected.isNotEmpty ? selected.first : null;
-    };
-
-    _takeScreenshotCallback = takeScreenshot;
-    WidgetInspectorService.instance.inspectCallback = _inspectCallback;
-    WidgetInspectorService.instance.screenshotCallback = _takeScreenshotCallback;
-
-    assert(WidgetInspectorService.instance.selectionModeChangedCallback == null);
-    WidgetInspectorService.instance.selectionModeChangedCallback = _selectionModeChangedCallback;
-
-    assert(WidgetInspectorService.instance.selectionChangedCallback == null);
-    WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
-
+    WidgetInspectorService.instance.client = this;
     touchAnimationController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController.value = _isSelectMode ? 1.0 : 0.0;
@@ -1405,12 +1353,30 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   @override
-  void dispose() {
-    if (WidgetInspectorService.instance.selectionChangedCallback == _selectionChangedCallback) {
-      WidgetInspectorService.instance.selectionChangedCallback = null;
+  RenderObject inspectAt(double x, double y, bool apply) {
+    final RenderObject userRender = findRepaintBoundary();
+    if (userRender == null) {
+      return null;
     }
-    if (WidgetInspectorService.instance.selectionModeChangedCallback == _selectionModeChangedCallback) {
-      WidgetInspectorService.instance.selectionModeChangedCallback = null;
+    Rect bounds = userRender.semanticBounds;
+    Matrix4 transform = userRender.getTransformTo(null);
+    x = new Tween(begin: bounds.left, end: bounds.right).lerp(x);
+    y = new Tween(begin: bounds.top, end: bounds.bottom).lerp(y);
+    final Offset localPosition = MatrixUtils.transformPoint(transform, new Offset(x, y));
+    List<RenderObject> selected = _inspectAtHelper(localPosition);
+
+    if (apply) {
+      setState(() {
+        selection.candidates = selected;
+      });
+    }
+    return selected.isNotEmpty ? selected.first : null;
+  }
+
+  @override
+  void dispose() {
+    if (WidgetInspectorService.instance.client == this) {
+      WidgetInspectorService.instance.client = null;
     }
     super.dispose();
   }
@@ -1424,6 +1390,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   /// The screenshot will not exceed the specified `width` or `height`.
+  @override
   Future<ui.Image> takeScreenshot(int width, int height) {
     RenderRepaintBoundary repaintBoundary = findRepaintBoundary();
     Rect renderBounds = repaintBoundary.semanticBounds;
