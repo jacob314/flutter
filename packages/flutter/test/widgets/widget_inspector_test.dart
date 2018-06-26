@@ -43,7 +43,7 @@ class MockWidgetInspectorClient implements WidgetInspectorClient {
   int takeScreenshotCount = 0;
 
   @override
-  Future<ui.Image> takeScreenshot(int width, int height) async {
+  RenderObject findRenderForScreenshot() {
     takeScreenshotCount++;
     return null;
   }

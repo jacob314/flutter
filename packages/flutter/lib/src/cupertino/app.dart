@@ -387,18 +387,6 @@ class _CupertinoAppState extends State<CupertinoApp> {
         checkerboardOffscreenLayers: widget.checkerboardOffscreenLayers,
         showSemanticsDebugger: widget.showSemanticsDebugger,
         debugShowCheckedModeBanner: widget.debugShowCheckedModeBanner,
-        inspectorSelectButtonBuilder: (BuildContext context, VoidCallback onPressed) {
-          return new CupertinoButton(
-            child: const Icon(
-              CupertinoIcons.search,
-              size: 28.0,
-              color: CupertinoColors.white,
-            ),
-            color: CupertinoColors.activeBlue,
-            padding: EdgeInsets.zero,
-            onPressed: onPressed,
-          );
-        },
       ),
     );
   }

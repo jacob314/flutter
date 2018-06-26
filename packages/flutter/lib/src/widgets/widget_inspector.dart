@@ -92,17 +92,6 @@ List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain
   return path;
 }
 
-/// Signature for the selection change callback used by
-/// [WidgetInspectorService.selectionChangedCallback].
-typedef void InspectorSelectionChangedCallback();
-
-/// Signature for the selection mode change callback used by
-/// [WidgetInspectorService.selectionModeChangedCallback].
-typedef InspectorSelectionModeChangedCallback = void Function(bool isSelectMode);
-
-typedef InspectorSelectAtCallback = RenderObject Function(double x, double y, bool apply);
-typedef ScreenshotCallback = Future<ui.Image> Function(int width, int height);
-
 /// Structure to help reference count Dart objects referenced by a GUI tool
 /// using [WidgetInspectorService].
 class _InspectorReferenceData {
@@ -213,7 +202,6 @@ class WidgetInspectorService {
   final InspectorSelection selection = new InspectorSelection();
 
   WidgetInspectorClient client;
-
 
   /// Whether the inspector is in select mode.
   ///
@@ -488,10 +476,17 @@ class WidgetInspectorService {
       name: 'getRootWidget',
       callback: _getRootWidget,
     );
+
     _registerObjectGroupServiceExtension(
       name: 'getRootRenderObject',
       callback: _getRootRenderObject,
     );
+
+    _registerObjectGroupServiceExtension(
+      name: 'getRenderObjectForScreenshot',
+      callback: _getRenderObjectForScreenshot,
+    );
+
     _registerObjectGroupServiceExtension(
       name: 'getRootWidgetSummaryTree',
       callback: _getRootWidgetSummaryTree,
@@ -501,14 +496,32 @@ class WidgetInspectorService {
       name: 'getDetailsSubtree',
       callback: _getDetailsSubtree,
     );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedRenderObject',
       callback: _getSelectedRenderObject,
     );
+
+    _registerServiceExtensionWithArg(
+      name: 'getRenderObject',
+      callback: _getRenderObject,
+    );
+
+    _registerServiceExtensionWithArg(
+      name: 'getWidget',
+      callback: _getWidget,
+    );
+
+    _registerServiceExtensionWithArg(
+      name: 'getSummaryWidget',
+      callback: _getSummaryWidget,
+    );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedWidget',
       callback: _getSelectedWidget,
     );
+
     _registerServiceExtensionWithArg(
       name: 'getSelectedSummaryWidget',
       callback: _getSelectedSummaryWidget,
@@ -524,9 +537,17 @@ class WidgetInspectorService {
       callback: inspectAt,
     );
 
-    _registerServiceExtensionLocation(
+    registerServiceExtension(
       name: 'screenshot',
-      callback: screenshot,
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('objectGroup'));
+        assert(parameters.containsKey('id'));
+        assert(parameters.containsKey('width'));
+        assert(parameters.containsKey('height'));
+         return <String, Object>{
+          'result': await screenshot(parameters['id'], double.parse(parameters['width']), double.parse(parameters['height']), parameters['objectGroup']),
+        };
+      },
     );
 
     _registerServiceExtensionLocation(
@@ -1094,6 +1115,16 @@ class WidgetInspectorService {
     return _nodeToJson(RendererBinding.instance?.renderView?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
+  @protected
+  String getRenderObjectForScreenshot(String groupName) {
+    return _safeJsonEncode(_getRenderObjectForScreenshot(groupName));
+  }
+
+  Map<String, Object> _getRenderObjectForScreenshot(String groupName) {
+    return _nodeToJson(client?.findRenderForScreenshot()?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+
+  }
+
   /// Returns a JSON representation of the subtree rooted at the
   /// [DiagnosticsNode] object that `diagnosticsNodeId` references providing
   /// information needed for the details subtree view.
@@ -1135,7 +1166,44 @@ class WidgetInspectorService {
   Map<String, Object> _getSelectedRenderObject(String previousSelectionId, String groupName) {
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
     final RenderObject current = selection?.current;
-    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
+  String getRenderObject(String id, String groupName) {
+    return _safeJsonEncode(_getRenderObject(id, groupName));
+  }
+
+  Map<String, Object> _getRenderObject(String id, String groupName) {
+    final Object node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findRenderObject(node is DiagnosticsNode ? node.value : node)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+  }
+
+  String getWidget(String id, String groupName) {
+    return _safeJsonEncode(_getWidget(id, groupName));
+  }
+
+  Map<String, Object> _getWidget(String id, String groupName) {
+    final DiagnosticsNode node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findElement(node.value)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+
+  String getSummaryWidget(String id, String groupName) {
+    return _safeJsonEncode(_getSummaryWidget(id, groupName));
+  }
+
+  Map<String, Object> _getSummaryWidget(String id, String groupName) {
+    final DiagnosticsNode node = toObject(id);
+    if (node == null) {
+      return null;
+    }
+    return _nodeToJson(_findSummaryElement(node.value)?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
   }
 
   /// Returns a [DiagnosticsNode] representing the currently selected [Element].
@@ -1163,12 +1231,23 @@ class WidgetInspectorService {
     return _nodeToJson(renderObject.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
   }
 
-  Future<String> screenshot(double width, double height, String groupName) async {
+  Future<String> screenshot(String objectId, double width, double height, String groupName) async {
     if (client == null) {
       return null;
     }
 
-    ui.Image image = await client.takeScreenshot(width.toInt(), height.toInt());
+    final RenderObject renderObject = toObject(objectId);
+    if (renderObject is! RenderRepaintBoundary) {
+      // TODO(jacobr): get screenshots for other render objects by creating a new layer?
+      return null;
+    }
+    final RenderRepaintBoundary repaintBoundary = renderObject;
+    Rect renderBounds = renderObject.semanticBounds;
+    final double pixelRatio = math.min(
+      width / renderBounds.width,
+      height / renderBounds.height,
+    );
+    ui.Image image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
     ByteData byteData = await image.toByteData(format:ImageByteFormat.png);
     return base64.encoder.convert(new Uint8List.view(byteData.buffer));
   }
@@ -1207,18 +1286,21 @@ class WidgetInspectorService {
       return _getSelectedWidget(previousSelectionId, groupName);
     }
     final DiagnosticsNode previousSelection = toObject(previousSelectionId);
-    Element current = selection?.currentElement;
-    if (current != null && !_isValueCreatedByLocalProject(current)) {
-      Element firstLocal;
-      for (Element candidate in current.debugGetDiagnosticChain()) {
+    Element current = _findSummaryElement(selection?.currentElement);
+    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+  }
+
+  Element _findSummaryElement(Object object) {
+    final Element element = _findElement(object);
+
+    if (element != null && !_isValueCreatedByLocalProject(element)) {
+      for (Element candidate in element.debugGetDiagnosticChain()) {
         if (_isValueCreatedByLocalProject(candidate)) {
-          firstLocal = candidate;
-          break;
+          return candidate;
         }
       }
-      current = firstLocal;
     }
-    return _nodeToJson(current == previousSelection?.value ? previousSelection : current?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName));
+    return element;
   }
 
   /// Returns whether [Widget] creation locations are available.
@@ -1283,8 +1365,13 @@ class WidgetInspector extends StatefulWidget {
 abstract class WidgetInspectorClient {
   set isSelectMode(bool value);
   void onSelectionChanged();
+
+  // XXX rename to hit test
   RenderObject inspectAt(double x, double y, bool apply);
-  Future<ui.Image> takeScreenshot(int width, int height);
+
+  /// RenderObject to use to take a screenshot of the entire running user
+  /// application without including any UI from the widget inspector.
+  RenderObject findRenderForScreenshot();
 }
 
 class _WidgetInspectorState extends State<WidgetInspector>
@@ -1354,7 +1441,9 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   @override
   RenderObject inspectAt(double x, double y, bool apply) {
-    final RenderObject userRender = findRepaintBoundary();
+    // Coordinates are relative to the render object used to compute screenshots
+    // for the user.
+    final RenderObject userRender = findRenderForScreenshot();
     if (userRender == null) {
       return null;
     }
@@ -1381,24 +1470,13 @@ class _WidgetInspectorState extends State<WidgetInspector>
     super.dispose();
   }
 
-  RenderRepaintBoundary findRepaintBoundary() {
+  @override
+  RenderRepaintBoundary findRenderForScreenshot() {
     return _repaintBoundaryKey.currentContext.findRenderObject();
   }
 
   RenderObject findUserRender() {
-    return findRepaintBoundary().child;
-  }
-
-  /// The screenshot will not exceed the specified `width` or `height`.
-  @override
-  Future<ui.Image> takeScreenshot(int width, int height) {
-    RenderRepaintBoundary repaintBoundary = findRepaintBoundary();
-    Rect renderBounds = repaintBoundary.semanticBounds;
-    final double pixelRatio = math.min(
-      width / renderBounds.width,
-      height / renderBounds.height,
-    );
-    return repaintBoundary.toImage(pixelRatio: pixelRatio);
+    return findRenderForScreenshot().child;
   }
 
   void _inspectAt(Offset position) {
@@ -1592,18 +1670,18 @@ class _SelectModeTargetDecoration extends Decoration {
 /// ```
 class _SelectModeTargetBoxPainter extends BoxPainter {
   /// Target marker size as a fraction of the width of the screen.
-  static final double markerFraction = 0.07;
-  static final double strokeWidth = 1.5;
-  static final double shadowWidth = 3.0;
+  static const double markerFraction = 0.07;
+  static const double strokeWidth = 1.5;
+  static const double shadowWidth = 3.0;
   /// Length of the line segments in the target markers as a fraction of the
   /// size of the icon. A value of 1.0 would cause the target marker line segments
   /// to touch.
-  static final double segmentWidth = 0.75;
+  static const double segmentWidth = 0.75;
   /// Padding between the outside of the window and the edge of each target
   /// icon as a fraction of the target icon's size.
-  static final double outsidePadding = 0.35;
-  static final Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
-  static final Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
+  static const double outsidePadding = 0.35;
+  static const Color strokeColor = const Color.fromARGB(150, 0, 0, 0);
+  static const Color shadowColor = const Color.fromARGB(150, 255, 255, 255);
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
@@ -2101,4 +2179,24 @@ class _Location {
 _Location _getCreationLocation(Object object) {
   final Object candidate =  object is Element ? object.widget : object;
   return candidate is _HasCreationLocation ? candidate._location : null;
+}
+
+RenderObject _findRenderObject(Object object) {
+  if (object is RenderObject) {
+    return object;
+  }
+  if (object is Element) {
+    return object.findRenderObject();
+  }
+  return null;
+}
+
+Element _findElement(Object object) {
+  if (object is Element) {
+    return object;
+  }
+  if (object is RenderObject) {
+    return object.debugCreator.element;
+  }
+  return null;
 }
