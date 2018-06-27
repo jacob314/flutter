@@ -2568,6 +2568,15 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
       value: _semanticsConfiguration.isBlockingSemanticsOfPreviouslyPaintedNodes,
       ifTrue: 'blocks semantics of earlier render objects below the common boundary',
     ));
+    properties.add(new DiagnosticsProperty<Rect>('semanticBounds', semanticBounds, defaultValue: null));
+    final Matrix4 paintTransform = new Matrix4.identity();
+    RenderObject renderParent = parent;
+    if (renderParent != null) {
+      renderParent.applyPaintTransform(this, paintTransform);
+      properties.add(new DiagnosticsProperty<Matrix4>(
+          'paintTransform', paintTransform,
+      ));
+    }
     properties.add(new FlagProperty('isSemanticBoundary', value: _semanticsConfiguration.isSemanticBoundary, ifTrue: 'semantic boundary'));
   }
 

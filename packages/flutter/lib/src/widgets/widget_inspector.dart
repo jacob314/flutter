@@ -771,7 +771,24 @@ class WidgetInspectorService {
         json['valueProperties'] = <String, Object>{
           'codePoint': value.codePoint,
         };
+      } else if (value is Size) {
+        json['valueProperties'] = <String, Object>{
+          'width': value.width,
+          'height': value.height,
+        };
+      } else if (value is Rect) {
+        json['valueProperties'] = <String, Object>{
+          'left': value.left,
+          'top': value.top,
+          'width': value.width,
+          'height': value.height,
+        };
+      } else if (value is Matrix4) {
+        List<double> array = new List<double>.filled(16, 0.0);
+        value.copyIntoArray(array);
+        json['valueProperties'] = {'storage': array};
       }
+
       if (config.expandPropertyValues && value is Diagnosticable) {
         json['properties'] = _nodesToJson(
           value.toDiagnosticsNode().getProperties().where(
