@@ -41,10 +41,14 @@ void debugPrintSynchronously(String message, { int wrapWidth }) {
 /// Implementation of [debugPrint] that throttles messages. This avoids dropping
 /// messages on platforms that rate-limit their logging (for example, Android).
 void debugPrintThrottled(String message, { int wrapWidth }) {
+  assert (message != null);
   if (wrapWidth != null) {
     _debugPrintBuffer.addAll(message.split('\n').expand((String line) => debugWordWrap(line, wrapWidth)));
   } else {
     _debugPrintBuffer.addAll(message.split('\n'));
+  }
+  for (String line in _debugPrintBuffer) {
+    assert(line != null);
   }
   if (!_debugPrintScheduled)
     _debugPrintTask();

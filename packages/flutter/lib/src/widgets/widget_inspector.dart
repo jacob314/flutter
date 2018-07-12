@@ -881,7 +881,7 @@ class WidgetInspectorService {
       );
     }
 
-    if (config.includeBoundingBox) {
+    if (config.includeBoundingBox && false) {
       if (value is RenderObject) {
         final Rect bounds = value.semanticBounds;
         final Matrix4 transform = value.getTransformTo(null);
@@ -1232,6 +1232,9 @@ class WidgetInspectorService {
   }
 
   Future<String> screenshot(String objectId, double width, double height, String groupName) async {
+    if (true) {
+      return null;
+    }
     if (client == null) {
       return null;
     }
