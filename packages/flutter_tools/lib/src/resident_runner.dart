@@ -529,7 +529,11 @@ abstract class ResidentRunner {
   Future<Null> _debugToggleDebugPaintSizeEnabled() async {
     await refreshViews();
     for (FlutterDevice device in flutterDevices)
-      await device.toggleDebugPaintSizeEnabled();
+      try {
+        await device.toggleDebugPaintSizeEnabled();
+      } catch (e) {
+        print("XXX caught $e");
+      }
   }
 
   Future<Null> _debugTogglePerformanceOverlayOverride() async {

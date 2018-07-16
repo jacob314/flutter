@@ -60,6 +60,7 @@ abstract class RendererBinding extends BindingBase with ServicesBinding, Schedul
         name: 'debugPaint',
         getter: () async => debugPaintSizeEnabled,
         setter: (bool value) {
+          assert(1 == 2);
           if (debugPaintSizeEnabled == value)
             return new Future<Null>.value();
           debugPaintSizeEnabled = value;
