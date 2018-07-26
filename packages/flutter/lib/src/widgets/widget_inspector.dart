@@ -183,7 +183,7 @@ class WidgetInspectorService {
 
   /// Ring of cached JSON values to prevent json from being garbage
   /// collected before it can be requested over the Observatory protocol.
-  final List<String> _serializeRing = new List<String>(20);
+  final List<Object> _serializeRing = new List<Object>(20);
   int _serializeRingIndex = 0;
 
   /// The current [WidgetInspectorService].
@@ -595,9 +595,22 @@ class WidgetInspectorService {
       _getCreationLocation(object is DiagnosticsNode ? object.value : object)?.toJsonMap());
   }
 
-  /// XXXX
-  bool isInspectable(Object object, [String groupName]) {
-    return object is Widget || object is Element || object is RenderObject;
+  /// Returns a map of data useful for debuggers displaying information about
+  /// Flutter objects.
+  Map<String, Object> getDebuggerMetadata(Object object, [String groupName]) {
+    Map<String, Object> properties = _getGraphicalDisplayProperties(object);
+    if (object is Widget || object is Element || object is RenderObject) {
+      if (properties == null) {
+        properties = <String, Object>{};
+      }
+      properties['isInspectable'] = true;
+      if (object is Element) {
+        properties['widget'] = object.widget;
+        properties['renderObject'] = object.renderObject;
+        properties['isElement'] = true;
+      }
+    }
+    return properties;
   }
 
   /// Returns a unique id for [object] that will remain live at least until
@@ -720,6 +733,16 @@ class WidgetInspectorService {
   /// API surface of methods called from the Flutter IntelliJ Plugin.
   @protected
   bool setSelection(Object object, [String groupName]) {
+    if (object is List<Widget>) {
+      List<Element> matches = _findElementsContainingWidgets(object);
+      if (matches.isNotEmpty) {
+        selection.candidates = matches.map((Element e) => e.renderObject).where((RenderObject obj) => obj != null).toList();
+        selection.currentElement = matches.first;
+        _scheduleSelectionChanged();
+        return true;
+      }
+      return false;
+    }
     if (object is Widget) {
       List<Element> matches = _findElementsContainingWidget(object);
       if (matches.isNotEmpty) {
@@ -748,8 +771,9 @@ class WidgetInspectorService {
     return false;
   }
 
+  /// Returns either a Widget or List<Widget>
   @protected
-  Widget findMatchingWidgetForSourceLocation(String path, int startLine, int startColumn, int endLine, int endColumn) {
+  Object findMatchingWidgetForSourceLocation(String path, int startLine, int startColumn, int endLine, int endColumn) {
     List<Element> matches = _findMatchingElements((Element element) {
       _Location location = _getCreationLocation(element);
       if (location == null) {
@@ -765,7 +789,17 @@ class WidgetInspectorService {
     if (matches.isEmpty) {
       return null;
     }
-    return matches.first.widget;
+    Set<Widget> uniqueWidgets = new Set<Widget>.identity();
+    for (Element e in matches) {
+      uniqueWidgets.add(e.widget);
+    }
+    if (uniqueWidgets.isEmpty) {
+      return null;
+    }
+    if (uniqueWidgets.length == 1) {
+      return uniqueWidgets.first;
+    }
+    return uniqueWidgets.toList();
   }
 
   void _scheduleSelectionChanged() {
@@ -785,6 +819,11 @@ class WidgetInspectorService {
 
   List<Element> _findElementsContainingWidget(Widget widget) {
     return _findMatchingElements((Element e) => identical(e.widget, widget));
+  }
+
+  List<Element> _findElementsContainingWidgets(List<Widget> widgets) {
+    Set<Widget> widgetSet = new Set<Widget>.identity()..addAll(widgets);
+    return _findMatchingElements((Element e) => widgetSet.contains(e.widget));
   }
 
   List<Element> _findMatchingElements(bool matches(Element e)) {
@@ -954,17 +993,9 @@ class WidgetInspectorService {
     if (node is DiagnosticsProperty) {
       // Add additional information about properties needed for graphical
       // display of properties.
-      if (value is Color) {
-        json['valueProperties'] = <String, Object>{
-          'red': value.red,
-          'green': value.green,
-          'blue': value.blue,
-          'alpha': value.alpha,
-        };
-      } else if (value is IconData) {
-        json['valueProperties'] = <String, Object>{
-          'codePoint': value.codePoint,
-        };
+      var valueProperties = _getGraphicalDisplayProperties(value);
+      if (valueProperties != null) {
+        json['valueProperties'] = valueProperties;
       }
       if (config.expandPropertyValues && value is Diagnosticable) {
         json['properties'] = _nodesToJson(
@@ -972,13 +1003,32 @@ class WidgetInspectorService {
                 (DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info),
           ),
           new _SerializeConfig(groupName: config.groupName,
-              subtreeDepth: 0,
-              expandPropertyValues: false,
+            subtreeDepth: 0,
+            expandPropertyValues: false,
           ),
         );
       }
     }
     return json;
+  }
+
+  Map<String, Object> _getGraphicalDisplayProperties(Object value) {
+    if (value is Color) {
+      return <String, Object>{
+        'className': 'Color',
+        'red': value.red,
+        'green': value.green,
+        'blue': value.blue,
+        'alpha': value.alpha,
+      };
+    }
+    if (value is IconData) {
+      return <String, Object>{
+        'className': 'IconData',
+        'codePoint': value.codePoint,
+      };
+    }
+    return null;
   }
 
   bool _isValueCreatedByLocalProject(Object value) {
@@ -2070,6 +2120,17 @@ class _InspectorOverlayLayer extends Layer {
       ..drawRect(selectedPaintRect, fillPaint)
       ..drawRect(selectedPaintRect, borderPaint)
       ..restore();
+
+    // Show all other candidate possibly selected elements. This helps selecting
+    // render objects by selecting the edge of the bounding box shows all
+    // elements the user could toggle the selection between.
+    for (_TransformedRect transformedRect in state.candidates) {
+      canvas
+        ..save()
+        ..transform(transformedRect.transform.storage)
+        ..drawRect(transformedRect.rect.deflate(0.5), borderPaint)
+        ..restore();
+    }
 
     final Rect targetRect = MatrixUtils.transformRect(
         state.selected.transform, state.selected.rect);
