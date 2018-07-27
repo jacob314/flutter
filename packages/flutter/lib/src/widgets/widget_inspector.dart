@@ -607,7 +607,14 @@ class WidgetInspectorService {
       if (object is Element) {
         properties['widget'] = object.widget;
         properties['renderObject'] = object.renderObject;
-        properties['isElement'] = true;
+        properties['className'] = 'Element';
+      } else if (object is Widget) {
+        properties['className'] = 'Widget';
+      } else {
+        properties['className'] = 'RenderObject';
+      }
+      if (_getCreationLocation(object) != null) {
+        properties['hasCreationLocation'] = true;
       }
     }
     return properties;
