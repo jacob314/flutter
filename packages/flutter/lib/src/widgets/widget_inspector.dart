@@ -8,7 +8,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' as ui show window, Image, Picture, SceneBuilder, PictureRecorder;
+import 'dart:ui' as ui show window, Image, Picture, Scene, SceneBuilder, PictureRecorder;
 import 'dart:ui' show ImageByteFormat, Offset;
 
 import 'package:flutter/foundation.dart';
@@ -607,7 +607,14 @@ class WidgetInspectorService {
       if (object is Element) {
         properties['widget'] = object.widget;
         properties['renderObject'] = object.renderObject;
-        properties['isElement'] = true;
+        properties['className'] = 'Element';
+      } else if (object is Widget) {
+        properties['className'] = 'Widget';
+      } else {
+        properties['className'] = 'RenderObject';
+      }
+      if (_getCreationLocation(object) != null) {
+        properties['hasCreationLocation'] = true;
       }
     }
     return properties;
@@ -659,27 +666,10 @@ class WidgetInspectorService {
 
     final _InspectorReferenceData data = _idToReferenceData[id];
     if (data == null) {
-      throw new FlutterError('Id does not exist.');
+      // TODO(jacobr): log that this is an old ID?
+      return null;
     }
     return data.object;
-  }
-
-  /// Returns the object to introspect to determine the source location of an
-  /// object's class.
-  ///
-  /// The Dart object for the id is returned for all cases but [Element] objects
-  /// where the [Widget] configuring the [Element] is returned instead as the
-  /// class of the [Widget] is more relevant than the class of the [Element].
-  ///
-  /// The `groupName` parameter is not required by is added to regularize the
-  /// API surface of methods called from the Flutter IntelliJ Plugin.
-  @protected
-  Object toObjectForSourceLocation(String id, [String groupName]) {
-    final Object object = toObject(id);
-    if (object is Element) {
-      return object.widget;
-    }
-    return object;
   }
 
   /// Remove the object with the specified `id` from the specified object
@@ -771,9 +761,9 @@ class WidgetInspectorService {
     return false;
   }
 
-  /// Returns either a Widget or List<Widget>
+  /// Returns either an Element or List<Element>
   @protected
-  Object findMatchingWidgetForSourceLocation(String path, int startLine, int startColumn, int endLine, int endColumn) {
+  Object findMatchingElementsForSourceLocation(String path, int startLine, int startColumn, int endLine, int endColumn) {
     List<Element> matches = _findMatchingElements((Element element) {
       _Location location = _getCreationLocation(element);
       if (location == null) {
@@ -789,17 +779,11 @@ class WidgetInspectorService {
     if (matches.isEmpty) {
       return null;
     }
-    Set<Widget> uniqueWidgets = new Set<Widget>.identity();
-    for (Element e in matches) {
-      uniqueWidgets.add(e.widget);
+    Set<Element> uniqueElements = new Set<Element>.identity()..addAll(matches);
+    if (uniqueElements.length == 1) {
+      return uniqueElements.first;
     }
-    if (uniqueWidgets.isEmpty) {
-      return null;
-    }
-    if (uniqueWidgets.length == 1) {
-      return uniqueWidgets.first;
-    }
-    return uniqueWidgets.toList();
+    return uniqueElements.toList();
   }
 
   void _scheduleSelectionChanged() {
@@ -1342,23 +1326,68 @@ class WidgetInspectorService {
     return _nodeToJson(renderObject.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
   }
 
+  RenderRepaintBoundary _findRepaintBoundaryAncestor(RenderObject renderObject) {
+    while (renderObject is! RenderRepaintBoundary) {
+      if (renderObject.parent is! RenderObject) {
+        return null;
+      }
+      renderObject = renderObject.parent;
+    }
+    return renderObject;
+  }
+
   Future<String> screenshot(String objectId, double width, double height, String groupName) async {
     if (client == null) {
       return null;
     }
-
-    final RenderObject renderObject = toObject(objectId);
-    if (renderObject is! RenderRepaintBoundary) {
-      // TODO(jacobr): get screenshots for other render objects by creating a new layer?
+    final Object object = toObject(objectId);
+    final RenderObject renderObject = object is Element ? object.renderObject : object;
+    final RenderRepaintBoundary repaintBoundary = _findRepaintBoundaryAncestor(
+        renderObject);
+    if (repaintBoundary == null) {
       return null;
     }
-    final RenderRepaintBoundary repaintBoundary = renderObject;
-    Rect renderBounds = renderObject.semanticBounds;
-    final double pixelRatio = math.min(
-      width / renderBounds.width,
-      height / renderBounds.height,
+    if (!renderObject.attached) {
+      return null;
+    }
+    
+    final Rect renderBounds = renderObject.semanticBounds;
+    final double pixelRatio = math.min(1.0,
+        math.min(
+          width / renderBounds.width,
+          height / renderBounds.height,
+        )
     );
-    ui.Image image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
+
+    ui.Image image;
+    if (repaintBoundary == renderObject) {
+      image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
+    } else {
+
+      Layer layer = repaintBoundary.layer;
+      final ui.SceneBuilder builder = new ui.SceneBuilder();
+      final Matrix4 transform = renderObject.getTransformTo(repaintBoundary);
+      double det = transform.invert();
+      if (det == null) {
+        // Scale is 0, etc.
+        return null;
+      }
+      transform.scale(pixelRatio, pixelRatio);
+      builder.pushTransform(transform.storage);
+      layer.addToScene(builder, Offset.zero);
+      final ui.Scene scene = builder.build();
+      try {
+        // Size is rounded up to the next pixel to make sure we don't clip off
+        // anything.
+        image = await scene.toImage(
+          (pixelRatio * renderBounds.width).ceil(),
+          (pixelRatio * renderBounds.height).ceil(),
+        );
+      } finally {
+        scene.dispose();
+      }
+    }
+    
     ByteData byteData = await image.toByteData(format:ImageByteFormat.png);
     return base64.encoder.convert(new Uint8List.view(byteData.buffer));
   }
