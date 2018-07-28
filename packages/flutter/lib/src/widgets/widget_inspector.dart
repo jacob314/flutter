@@ -1342,7 +1342,7 @@ class WidgetInspectorService {
     }
     final Object object = toObject(objectId);
     final RenderObject renderObject = object is Element ? object.renderObject : object;
-    final RenderRepaintBoundary repaintBoundary = _findRepaintBoundaryAncestor(
+    RenderRepaintBoundary repaintBoundary = _findRepaintBoundaryAncestor(
         renderObject);
     if (repaintBoundary == null) {
       return null;
@@ -1363,9 +1363,10 @@ class WidgetInspectorService {
     if (repaintBoundary == renderObject) {
       image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
     } else {
+      final OffsetLayer layer = PaintingContext.debugPaintToLayer(renderObject);
 
-      Layer layer = repaintBoundary.layer;
       final ui.SceneBuilder builder = new ui.SceneBuilder();
+      /*
       final Matrix4 transform = renderObject.getTransformTo(repaintBoundary);
       double det = transform.invert();
       if (det == null) {
@@ -1373,7 +1374,8 @@ class WidgetInspectorService {
         return null;
       }
       transform.scale(pixelRatio, pixelRatio);
-      builder.pushTransform(transform.storage);
+      builder.pushTransform(transform.storage);*/
+
       layer.addToScene(builder, Offset.zero);
       final ui.Scene scene = builder.build();
       try {

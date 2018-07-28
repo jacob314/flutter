@@ -112,6 +112,31 @@ class PaintingContext {
     childContext._stopRecordingIfNeeded();
   }
 
+
+  /// Paints a RenderObject to an OffsetLayer
+  ///
+  /// XXX add debugPaint toggle.. that would be schweet.
+  static OffsetLayer debugPaintToLayer(RenderObject child) {
+    if (child.isRepaintBoundary) {
+      // Existing layer is fine to use.
+      return child._layer;
+    }
+    final OffsetLayer existingLayer = child._layer;
+    final OffsetLayer layer = new OffsetLayer();
+    child._layer = layer;
+
+    layer.debugCreator = child.runtimeType;
+    try {
+      final PaintingContext childContext = new PaintingContext._(
+          child._layer, child.paintBounds);
+      child._paintWithContext(childContext, Offset.zero);
+      childContext._stopRecordingIfNeeded();
+    } finally {
+      child._layer = existingLayer;
+    }
+    return layer;
+  }
+
   /// Paint a child [RenderObject].
   ///
   /// If the child has its own composited layer, the child will be composited
@@ -1993,8 +2018,8 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
     // and therefore may not have had a chance to paint yet (since the tree
     // paints in reverse order). In particular this will happen if they have
     // a different layer, because there's a repaint boundary between us.
-    if (_needsLayout)
-      return;
+    // XXX if (_needsLayout)
+    //  return;
     assert(() {
       if (_needsCompositingBitsUpdate) {
         throw new FlutterError(

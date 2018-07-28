@@ -360,7 +360,10 @@ class _GalleryHomeState extends State<GalleryHome> with SingleTickerProviderStat
             frontTitle: new AnimatedSwitcher(
               duration: _kFrontLayerSwitchDuration,
               child: _category == null
-                ? const Text('Flutter gallery')
+                ? const RotatedBox(
+                  child: const Text('Flutter gallery'),
+                  quarterTurns: 1,
+              )
                 : new Text(_category.name),
             ),
             frontHeading: widget.testMode ? null: new Container(height: 24.0),
