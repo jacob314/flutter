@@ -1363,6 +1363,7 @@ class WidgetInspectorService {
     if (repaintBoundary == renderObject) {
       image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
     } else {
+
       final OffsetLayer layer = PaintingContext.debugPaintToLayer(renderObject);
 
       final ui.SceneBuilder builder = new ui.SceneBuilder();

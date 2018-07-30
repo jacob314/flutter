@@ -117,6 +117,9 @@ class PaintingContext {
   ///
   /// XXX add debugPaint toggle.. that would be schweet.
   static OffsetLayer debugPaintToLayer(RenderObject child) {
+    PipelineOwner dummyPipeline = new PipelineOwner();
+    Object oldOwner = child.owner;
+    child.owner = dummyPipeline;
     if (child.isRepaintBoundary) {
       // Existing layer is fine to use.
       return child._layer;
