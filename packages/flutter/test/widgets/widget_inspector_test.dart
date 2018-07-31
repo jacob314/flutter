@@ -1239,5 +1239,270 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
       expect(service.rebuildCount, equals(2));
       expect(WidgetsApp.debugShowWidgetInspectorOverride, isFalse);
     });
+
+    testWidgets('ext.flutter.inspector.screenshot',
+        (WidgetTester tester) async {
+      final GlobalKey repaintBoundaryKey = new GlobalKey();
+      final GlobalKey outerContainerKey = new GlobalKey();
+      final GlobalKey paddingKey = new GlobalKey();
+      final GlobalKey redContainerKey = new GlobalKey();
+      final GlobalKey whiteContainerKey = new GlobalKey();
+      final GlobalKey sizedBoxKey = new GlobalKey();
+
+      // Complex widget tree intended to exercise features such as children
+      // with rotational transforms and clipping without introducing platform
+      // specific behavior as text rendering would.
+      await tester.pumpWidget(
+        new Center(
+          child: new RepaintBoundary(
+            key: repaintBoundaryKey,
+            child: new Container(
+              key: outerContainerKey,
+              color: Colors.white,
+              child: new Padding(
+                key: paddingKey,
+                padding: const EdgeInsets.all(100.0),
+                child: new SizedBox(
+                  key: sizedBoxKey,
+                  height: 100.0,
+                  width: 100.0,
+                  child: new Transform.rotate(
+                    angle: 1.0, // radians
+                    child: new ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.elliptical(10.0, 20.0),
+                        topRight: Radius.elliptical(5.0, 30.0),
+                        bottomLeft: Radius.elliptical(2.5, 12.0),
+                        bottomRight: Radius.elliptical(15.0, 6.0),
+                      ),
+                      child: new Container(
+                        key: redContainerKey,
+                        color: Colors.red,
+                        child: new Container(
+                          key: whiteContainerKey,
+                          color: Colors.white,
+                          child: new RepaintBoundary(
+                            child: new Center(
+                              child: new Container(
+                                color: Colors.black,
+                                height: 10.0,
+                                width: 10.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final Element repaintBoundary =
+          find.byKey(repaintBoundaryKey).evaluate().single;
+
+      final RenderRepaintBoundary renderObject = repaintBoundary.renderObject;
+
+      final OffsetLayer layer = renderObject.debugLayer;
+      await expectLater(
+        layer.toImage(renderObject.semanticBounds.inflate(50.0)),
+        matchesGoldenFile('inspector.repaint_boundary_margin.png'),
+      );
+
+      // Regression test for how rendering with a pixel scale other than 1.0
+      // was handled.
+      await expectLater(
+        layer.toImage(
+          renderObject.semanticBounds.inflate(50.0),
+          pixelRatio: 0.5,
+        ),
+        matchesGoldenFile('inspector.repaint_boundary_margin_small.png'),
+      );
+
+      await expectLater(
+        layer.toImage(
+          renderObject.semanticBounds.inflate(50.0),
+          pixelRatio: 2.0,
+        ),
+        matchesGoldenFile('inspector.repaint_boundary_margin_large.png'),
+      );
+
+      final Layer layerParent = layer.parent;
+      final Layer firstChild = layer.firstChild;
+
+      expect(layerParent, isNotNull);
+      expect(firstChild, isNotNull);
+
+      await expectLater(
+        service.screenshot(
+          repaintBoundary,
+          width: 300.0,
+          height: 300.0,
+        ),
+        matchesGoldenFile('inspector.repaint_boundary.png'),
+      );
+
+      await expectLater(
+        service.screenshot(
+          repaintBoundary,
+          width: 500.0,
+          height: 500.0,
+          margin: 50.0,
+        ),
+        matchesGoldenFile('inspector.repaint_boundary_margin.png'),
+      );
+
+      // Make sure taking a screenshot didn't change the layers associated with
+      // the renderObject.
+      expect(renderObject.debugLayer, equals(layer));
+
+      // Make sure taking a screenshot didn't change the parent of the layer.
+      expect(layer.parent, equals(layerParent));
+
+      await expectLater(
+        service.screenshot(
+          find.byKey(repaintBoundaryKey).evaluate().single,
+          width: 300.0,
+          height: 300.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.repaint_boundary_debugPaint.png'),
+      );
+
+      // Ensure that creating screenshots including ones with debug paint
+      // hasn't changed the regular render of the widget.
+      await expectLater(
+        find.byKey(repaintBoundaryKey),
+        matchesGoldenFile('inspector.repaint_boundary.png'),
+      );
+
+      expect(layer.attached, isTrue);
+
+      // Full size image
+      await expectLater(
+        service.screenshot(
+          find.byKey(outerContainerKey).evaluate().single,
+          width: 100.0,
+          height: 100.0,
+        ),
+        matchesGoldenFile('inspector.container.png'),
+      );
+
+      await expectLater(
+        service.screenshot(
+          find.byKey(outerContainerKey).evaluate().single,
+          width: 100.0,
+          height: 100.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.container_debugPaint.png'),
+      );
+
+      {
+        // Verify calling the screenshot method still works if the RenderObject
+        // needs to be laid out again.
+        final RenderObject container =
+            find.byKey(outerContainerKey).evaluate().single.renderObject;
+        container
+          ..markNeedsLayout()
+          ..markNeedsPaint();
+        expect(container.debugNeedsLayout, isTrue);
+
+        await expectLater(
+          service.screenshot(
+            find
+                .byKey(outerContainerKey)
+                .evaluate()
+                .single,
+            width: 100.0,
+            height: 100.0,
+            debugPaint: true,
+          ),
+          matchesGoldenFile('inspector.container_debugPaint.png'),
+        );
+        expect(container.debugNeedsLayout, isFalse);
+      }
+
+      // Small image
+      await expectLater(
+        service.screenshot(
+          find.byKey(outerContainerKey).evaluate().single,
+          width: 50.0,
+          height: 100.0,
+        ),
+        matchesGoldenFile('inspector.container_small.png'),
+      );
+
+      await expectLater(
+        service.screenshot(
+          find.byKey(outerContainerKey).evaluate().single,
+          width: 400.0,
+          height: 400.0,
+          maxPixelRatio: 3.0,
+        ),
+        matchesGoldenFile('inspector.container_large.png'),
+      );
+
+      // This screenshot will show the clip rect debug paint but no other
+      // debug paint.
+      await expectLater(
+        service.screenshot(
+          find.byType(ClipRRect).evaluate().single,
+          width: 100.0,
+          height: 100.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.clipRect_debugPaint.png'),
+      );
+
+      // Add a margin so that the clip icon shows up in the screenshot.
+      await expectLater(
+        service.screenshot(
+          find.byType(ClipRRect).evaluate().single,
+          width: 100.0,
+          height: 100.0,
+          margin: 20.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.clipRect_debugPaint_margin.png'),
+      );
+
+      // Test with a very visible debug paint
+      await expectLater(
+        service.screenshot(
+          find.byKey(paddingKey).evaluate().single,
+          width: 300.0,
+          height: 300.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.padding_debugPaint.png'),
+      );
+
+      // The bounds for this box crop its rendered content.
+      await expectLater(
+        service.screenshot(
+          find.byKey(sizedBoxKey).evaluate().single,
+          width: 300.0,
+          height: 300.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.sizedBox_debugPaint.png'),
+      );
+
+      // Verify that setting a margin includes the previously cropped content.
+      await expectLater(
+        service.screenshot(
+          find.byKey(sizedBoxKey).evaluate().single,
+          width: 300.0,
+          height: 300.0,
+          margin: 50.0,
+          debugPaint: true,
+        ),
+        matchesGoldenFile('inspector.sizedBox_debugPaint_margin.png'),
+      );
+    });
   }
 }

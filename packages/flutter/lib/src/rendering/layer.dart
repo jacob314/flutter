@@ -588,10 +588,10 @@ class OffsetLayer extends ContainerLayer {
     assert(bounds != null);
     assert(pixelRatio != null);
     final ui.SceneBuilder builder = new ui.SceneBuilder();
-    final Matrix4 transform = new Matrix4.translationValues(bounds.left - offset.dx, bounds.top - offset.dy, 0.0);
-    transform.scale(pixelRatio, pixelRatio);
+    final Matrix4 transform = new Matrix4.identity()
+      ..scale(pixelRatio, pixelRatio);
     builder.pushTransform(transform.storage);
-    addToScene(builder, Offset.zero);
+    addToScene(builder, -offset - bounds.topLeft);
     final ui.Scene scene = builder.build();
     try {
       // Size is rounded up to the next pixel to make sure we don't clip off

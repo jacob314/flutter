@@ -249,8 +249,12 @@ Matcher isMethodCall(String name, {@required dynamic arguments}) {
 Matcher coversSameAreaAs(Path expectedPath, {@required Rect areaToCompare, int sampleSize = 20})
   => new _CoversSameAreaAs(expectedPath, areaToCompare: areaToCompare, sampleSize: sampleSize);
 
-/// Asserts that a [Finder] matches exactly one widget whose rendered image
-/// matches the golden image file identified by [key].
+/// Asserts that a [Finder] or [FutureOr<ui.Image>] matches the golden image
+/// file identified by [key].
+///
+/// For the case of a [Finder], the [Finder] must match exactly one widget and
+/// the rendered image of the first [RepaintBoundary] ancestor of the widget is
+/// used to approximate the image for the widget.
 ///
 /// [key] may be either a [Uri] or a [String] representation of a URI.
 ///
@@ -262,6 +266,8 @@ Matcher coversSameAreaAs(Path expectedPath, {@required Rect areaToCompare, int s
 ///
 /// ```dart
 /// await expectLater(find.text('Save'), matchesGoldenFile('save.png'));
+/// await expectLater(image, matchesGoldenFile('save.png'));
+/// await expectLater(imageFuture, matchesGoldenFile('save.png'));
 /// ```
 ///
 /// See also:
@@ -1463,6 +1469,17 @@ class _CoversSameAreaAs extends Matcher {
     description.add('covers expected area and only expected area');
 }
 
+Future<ui.Image> _toImage(Element element) {
+  RenderObject renderObject = element.renderObject;
+  while (!renderObject.isRepaintBoundary) {
+    renderObject = renderObject.parent;
+    assert(renderObject != null);
+  }
+  assert(!renderObject.debugNeedsPaint);
+  final OffsetLayer layer = renderObject.layer;
+  return layer.toImage(renderObject.paintBounds);
+}
+
 class _MatchesGoldenFile extends AsyncMatcher {
   const _MatchesGoldenFile(this.key);
 
@@ -1471,23 +1488,20 @@ class _MatchesGoldenFile extends AsyncMatcher {
   final Uri key;
 
   @override
-  Future<String> matchAsync(covariant Finder finder) async {
-    final Iterable<Element> elements = finder.evaluate();
-    if (elements.isEmpty) {
-      return 'could not be rendered because no widget was found';
-    } else if (elements.length > 1) {
-      return 'matched too many widgets';
+  Future<String> matchAsync(dynamic item) async {
+    Future<ui.Image> imageFuture;
+    if (item is FutureOr<ui.Image>) {
+      imageFuture = item;
+    } else {
+      final Finder finder = item;
+      final Iterable<Element> elements = finder.evaluate();
+      if (elements.isEmpty) {
+        return 'could not be rendered because no widget was found';
+      } else if (elements.length > 1) {
+        return 'matched too many widgets';
+      }
+      imageFuture = _toImage(elements.single);
     }
-    final Element element = elements.single;
-
-    RenderObject renderObject = element.renderObject;
-    while (!renderObject.isRepaintBoundary) {
-      renderObject = renderObject.parent;
-      assert(renderObject != null);
-    }
-    assert(!renderObject.debugNeedsPaint);
-    final OffsetLayer layer = renderObject.layer;
-    final Future<ui.Image> imageFuture = layer.toImage(renderObject.paintBounds);
 
     final TestWidgetsFlutterBinding binding = TestWidgetsFlutterBinding.ensureInitialized();
     return binding.runAsync<String>(() async {

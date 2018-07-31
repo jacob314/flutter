@@ -60,7 +60,13 @@ typedef void PaintingContextCallback(PaintingContext context, Offset offset);
 /// New [PaintingContext] objects are created automatically when using
 /// [PaintingContext.repaintCompositedChild] and [pushLayer].
 class PaintingContext extends ClipContext {
-  PaintingContext._(this._containerLayer, this.estimatedBounds)
+
+  /// Creates a painting context.
+  ///
+  /// Typically only called by [PaintingContext.repaintCompositedChild]
+  /// and [pushLayer].
+  @protected
+  PaintingContext(this._containerLayer, this.estimatedBounds)
     : assert(_containerLayer != null),
       assert(estimatedBounds != null);
 
@@ -107,7 +113,7 @@ class PaintingContext extends ClipContext {
       child._layer.debugCreator = child.debugCreator ?? child.runtimeType;
       return true;
     }());
-    final PaintingContext childContext = new PaintingContext._(child._layer, child.paintBounds);
+    final PaintingContext childContext = new PaintingContext(child._layer, child.paintBounds);
     child._paintWithContext(childContext, Offset.zero);
     childContext._stopRecordingIfNeeded();
   }
@@ -158,14 +164,29 @@ class PaintingContext extends ClipContext {
         return true;
       }());
     }
-    child._layer.offset = offset;
-    _appendLayer(child._layer);
+    compositeLayerAtOffset(child._layer, offset);
   }
 
-  void _appendLayer(Layer layer) {
+  /// Adds an already detached layer.
+  @protected
+  void appendLayer(Layer layer) {
     assert(!_isRecording);
-    layer.remove();
+    assert(!layer.attached);
     _containerLayer.append(layer);
+  }
+
+  /// Composites a [layer] at the specified [offset].
+  ///
+  /// Subclasses that need to avoid modifying existing layers must reimplement
+  /// this method using an alternate mechanism to composite the [layer] at the
+  /// specified [offset].
+  @protected
+  void compositeLayerAtOffset(OffsetLayer layer, Offset offset) {
+    appendLayer(
+      layer
+        ..offset = offset
+        ..remove(),
+    );
   }
 
   bool get _isRecording {
@@ -208,6 +229,13 @@ class PaintingContext extends ClipContext {
     _recorder = new ui.PictureRecorder();
     _canvas = new Canvas(_recorder);
     _containerLayer.append(_currentLayer);
+  }
+
+  /// Returns a layer containing all content painted.
+  @protected
+  OffsetLayer toLayer() {
+    _stopRecordingIfNeeded();
+    return _containerLayer;
   }
 
   void _stopRecordingIfNeeded() {
@@ -272,7 +300,7 @@ class PaintingContext extends ClipContext {
   ///    layer.
   void addLayer(Layer layer) {
     _stopRecordingIfNeeded();
-    _appendLayer(layer);
+    appendLayer(layer);
   }
 
   /// Appends the given layer to the recording, and calls the `painter` callback
@@ -295,15 +323,21 @@ class PaintingContext extends ClipContext {
   /// See also:
   ///
   ///  * [addLayer], for pushing a leaf layer whose canvas is not used.
-  void pushLayer(Layer childLayer, PaintingContextCallback painter, Offset offset, { Rect childPaintBounds }) {
+  void pushLayer(ContainerLayer childLayer, PaintingContextCallback painter, Offset offset, { Rect childPaintBounds }) {
     assert(!childLayer.attached);
     assert(childLayer.parent == null);
     assert(painter != null);
     _stopRecordingIfNeeded();
-    _appendLayer(childLayer);
-    final PaintingContext childContext = new PaintingContext._(childLayer, childPaintBounds ?? estimatedBounds);
+    appendLayer(childLayer);
+    final PaintingContext childContext = createChildContext(childLayer, childPaintBounds ?? estimatedBounds);
     painter(childContext, offset);
     childContext._stopRecordingIfNeeded();
+  }
+
+  /// Creates a compatible painting context to paint onto [childLayer].
+  @protected
+  PaintingContext createChildContext(ContainerLayer childLayer, Rect bounds) {
+    return new PaintingContext(childLayer, bounds);
   }
 
   /// Clip further painting using a rectangle.
@@ -2036,7 +2070,6 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
   Rect get paintBounds;
 
   /// Override this method to paint debugging information.
-  @protected
   void debugPaint(PaintingContext context, Offset offset) { }
 
   /// Paint this render object into the given context at the given offset.

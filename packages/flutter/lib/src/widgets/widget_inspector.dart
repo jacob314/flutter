@@ -7,13 +7,15 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
-import 'dart:ui' as ui show window, Picture, SceneBuilder, PictureRecorder;
-import 'dart:ui' show Offset;
+import 'dart:typed_data';
+import 'dart:ui' as ui show window, Image, Picture, PictureRecorder, SceneBuilder;
+import 'dart:ui' show ImageByteFormat, Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:vector_math/vector_math_64.dart';
 
 import 'app.dart';
 import 'basic.dart';
@@ -30,6 +32,134 @@ typedef void _RegisterServiceExtensionCallback({
   @required String name,
   @required ServiceExtensionCallback callback
 });
+
+/// A layer that mimics the behavior of another layer.
+///
+/// A proxy layer is used for cases where a layer needs to be added to a tree
+/// of layers but should not be removed from its existing tree of layers.
+class _ProxyLayer<L extends Layer> extends Layer {
+  final L _layer;
+
+  _ProxyLayer(this._layer);
+
+  @override
+  void addToScene(ui.SceneBuilder builder, Offset layerOffset) {
+    _layer.addToScene(builder, layerOffset);
+  }
+
+  @override
+  S find<S>(Offset regionOffset) => _layer.find(regionOffset);
+}
+
+/// A layer that renders like an [OffsetLayer] with the offset modified.
+///
+/// The [OffsetLayer] interface is not implemented as generally all methods
+/// would need to throw an exception to avoid accidentally modifying the layer
+/// being proxied.
+class _OffsetProxyLayer extends _ProxyLayer<OffsetLayer> {
+  final Offset _offset;
+
+  _OffsetProxyLayer(OffsetLayer _layer, this._offset) : super(_layer);
+
+  Offset _transformOffset(Offset offset) => offset + _offset - _layer.offset;
+
+  @override
+  void addToScene(ui.SceneBuilder builder, Offset layerOffset) {
+    _layer.addToScene(builder, _transformOffset(layerOffset));
+  }
+
+  @override
+  S find<S>(Offset regionOffset) {
+    return _layer.find(_transformOffset(regionOffset));
+  }
+}
+
+/// A place to paint to create screenshots of [RenderObject]s.
+///
+/// Requires that the render objects have already been painted successfully as
+/// part of the regular rendering pipeline.
+class _ScreenshotPaintingContext extends PaintingContext {
+  _ScreenshotPaintingContext._(
+    ContainerLayer containerLayer,
+    Rect estimatedBounds,
+  ) : super(containerLayer, estimatedBounds);
+
+  @override
+  void compositeLayerAtOffset(OffsetLayer layer, Offset offset) {
+    // Wrap the layer in a proxy layer to avoid detaching the layer from its
+    // existing parent or modifying its offset.
+    appendLayer(new _OffsetProxyLayer(layer, offset));
+  }
+
+  @override
+  void addLayer(Layer layer) {
+    // Wrap the layer in a proxy layer to avoid detaching the layer from its
+    // existing parent.
+    super.addLayer(new _ProxyLayer<Layer>(layer));
+  }
+
+  @override
+  PaintingContext createChildContext(ContainerLayer childLayer, Rect bounds) {
+    return new _ScreenshotPaintingContext._(childLayer, bounds);
+  }
+
+  /// Captures an image of the current state of [renderObject] and its children.
+  ///
+  /// The returned [ui.Image] has uncompressed raw RGBA bytes, will be offset
+  /// by the top-left corner of [renderBounds], and have dimensions equal to the
+  /// size of [renderBounds] multiplied by [pixelRatio].
+  ///
+  /// To use [toImage], the render object must have gone through the paint phase
+  /// (i.e. [debugNeedsPaint] must be false).
+  ///
+  /// The [pixelRatio] describes the scale between the logical pixels and the
+  /// size of the output image. It is independent of the
+  /// [window.devicePixelRatio] for the device, so specifying 1.0 (the default)
+  /// will give you a 1:1 mapping between logical pixels and the output pixels
+  /// in the image.
+  ///
+  /// [debugPaint] specifies whether the image should include the debug paint
+  /// for [renderObject]. Debug paint information is not included for the
+  /// children of [renderObject] so it is clear precisely which object the debug
+  /// paint information is for.
+  ///
+  /// See also:
+  ///
+  ///  * [RenderRepaintBoundary.toImage] for a similar API for [RenderObject]s
+  ///    that are repaint boundaries that can be used outside of the inspector.
+  ///  * [OffsetLayer.toImage] for a similar API at the layer level.
+  ///  * [dart:ui.Scene.toImage] for more information about the image returned.
+  static Future<ui.Image> toImage(
+    RenderObject renderObject,
+    Rect renderBounds, {
+    double pixelRatio = 1.0,
+    bool debugPaint = false,
+  }) {
+    final Float64List deviceTransform = new Float64List(16)
+      ..[0] = 1.0
+      ..[5] = 1.0
+      ..[10] = 1.0
+      ..[15] = 1.0;
+    final _ScreenshotPaintingContext context = new _ScreenshotPaintingContext._(
+      new TransformLayer(
+        transform: new Matrix4.fromFloat64List(deviceTransform),
+      ),
+      renderBounds,
+    );
+
+    context.paintChild(renderObject, Offset.zero);
+
+    if (debugPaint && debugPaint != debugPaintSizeEnabled) {
+      // TODO(jacobr): consider turning on additional debug paint options as
+      // well.
+      debugPaintSizeEnabled = true;
+      renderObject.debugPaint(context, Offset.zero);
+      debugPaintSizeEnabled = false;
+    }
+
+    return context.toLayer().toImage(renderBounds, pixelRatio: pixelRatio);
+  }
+}
 
 /// A class describing a step along a path through a tree of [DiagnosticsNode]
 /// objects.
@@ -94,7 +224,6 @@ List<_DiagnosticsPathNode> _followDiagnosticableChain(List<Diagnosticable> chain
 /// Signature for the selection change callback used by
 /// [WidgetInspectorService.selectionChangedCallback].
 typedef void InspectorSelectionChangedCallback();
-
 /// Structure to help reference count Dart objects referenced by a GUI tool
 /// using [WidgetInspectorService].
 class _InspectorReferenceData {
@@ -464,6 +593,30 @@ class WidgetInspectorService {
     _registerSignalServiceExtension(
       name: 'isWidgetCreationTracked',
       callback: isWidgetCreationTracked,
+    );
+    registerServiceExtension(
+      name: 'screenshot',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('id'));
+        assert(parameters.containsKey('width'));
+        assert(parameters.containsKey('height'));
+
+        final ui.Image image = await screenshot(
+          toObject(parameters['id']),
+          width: double.parse(parameters['width']),
+          height: double.parse(parameters['height']),
+          margin: parameters.containsKey('margin') ?
+              double.parse(parameters['margin']) : 0.0,
+          maxPixelRatio: parameters.containsKey('maxPixelRatio') ?
+              double.parse(parameters['maxPixelRatio']) : 1.0,
+          debugPaint: parameters['debugPaint'] == 'true',
+        );
+        final ByteData byteData = await image.toByteData(format:ImageByteFormat.png);
+
+        return <String, Object>{
+          'result': base64.encoder.convert(new Uint8List.view(byteData.buffer)),
+        };
+      },
     );
   }
 
@@ -1034,6 +1187,77 @@ class WidgetInspectorService {
   @protected
   String getSelectedWidget(String previousSelectionId, String groupName) {
     return _safeJsonEncode(_getSelectedWidget(previousSelectionId, groupName));
+  }
+
+  /// Captures an image of the current state of an [object] that is a
+  /// [RenderObject] or [Element].
+  ///
+  /// The returned [ui.Image] has uncompressed raw RGBA bytes and will be scaled
+  /// to be at most [width] pixels wide and [height] pixels tall. The returned
+  /// image will never have a scale between logical pixels and the
+  /// size of the output image larger than maxPixelRatio.
+  /// [margin] indicates the number of pixels relative to the unscaled size of
+  /// the [object] to include as a margin to include around the bounds of the
+  /// [object] in the screenshot. Including a margin can be useful to capture
+  /// areas that are slightly outside of the normal bounds of an object such as
+  /// some debug paint information.
+  @protected
+  Future<ui.Image> screenshot(
+    Object object, {
+    @required double width,
+    @required double height,
+    double margin = 0.0,
+    double maxPixelRatio = 1.0,
+    bool debugPaint = false,
+  }) async {
+    if (object is! Element && object is! RenderObject) {
+      return null;
+    }
+    final RenderObject renderObject = object is Element ? object.renderObject : object;
+    if (renderObject == null || !renderObject.attached) {
+      return null;
+    }
+
+    if (renderObject.debugNeedsLayout) {
+      final PipelineOwner owner = renderObject.owner;
+      assert(owner != null);
+      assert(!owner.debugDoingLayout);
+      owner
+        ..flushLayout()
+        ..flushCompositingBits()
+        ..flushPaint();
+
+      // If we still need layout, then that means that renderObject was skipped
+      // in the layout phase and therefore can't be painted. It is clearer to
+      // return null indicating that a screenshot is unavailable than to return
+      // an empty image.
+      if (renderObject.debugNeedsLayout) {
+        return null;
+      }
+    }
+
+    Rect renderBounds = renderObject.semanticBounds;
+    if (margin != 0.0) {
+      renderBounds = renderBounds.inflate(margin);
+    }
+    if (renderBounds.isEmpty) {
+      return null;
+    }
+
+    final double pixelRatio = math.min(
+      maxPixelRatio,
+      math.min(
+        width / renderBounds.width,
+        height / renderBounds.height,
+      ),
+    );
+
+    return _ScreenshotPaintingContext.toImage(
+      renderObject,
+      renderBounds,
+      pixelRatio: pixelRatio,
+      debugPaint: debugPaint,
+    );
   }
 
   Map<String, Object> _getSelectedWidget(String previousSelectionId, String groupName) {
