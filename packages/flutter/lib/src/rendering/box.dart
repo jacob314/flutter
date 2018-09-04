@@ -7,6 +7,7 @@ import 'dart:ui' as ui show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:vector_math/vector_math_64.dart';
 
@@ -1432,6 +1433,22 @@ abstract class RenderBox extends RenderObject {
   /// Whether this render object has undergone layout and has a [size].
   bool get hasSize => _size != null;
 
+  String toStringWithLocation() {
+    final String message = toString();
+    var location = getCreationLocation(debugCreator.element);
+    if (location == null) {
+      return message;
+    }
+    final String file = location.file;
+    final bool isPackageFlutter = file.contains('packages/flutter/');
+    if (!isPackageFlutter) {
+      // Widget is from a user's package.
+      return '$message ${location.file}:${location.line}';
+    } else {
+      return message;
+    }
+  }
+
   /// The size of this render box computed during layout.
   ///
   /// This value is stale whenever this object is marked as needing layout.
@@ -1443,7 +1460,7 @@ abstract class RenderBox extends RenderObject {
   /// of those functions, call [markNeedsLayout] instead to schedule a layout of
   /// the box.
   Size get size {
-    assert(hasSize, 'RenderBox was not laid out: ${toString()}');
+    assert(hasSize, 'RenderBox was not laid out: ${toStringWithLocation()}');
     assert(() {
       if (_size is _DebugSize) {
         final _DebugSize _size = this._size;

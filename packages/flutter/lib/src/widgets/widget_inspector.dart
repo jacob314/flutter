@@ -733,7 +733,7 @@ class WidgetInspectorService {
       json['summaryTree'] = true;
     }
 
-    final _Location creationLocation = _getCreationLocation(value);
+    final _Location creationLocation = getCreationLocation(value);
     bool createdByLocalProject = false;
     if (creationLocation != null) {
       json['creationLocation'] = creationLocation.toJsonMap();
@@ -788,7 +788,7 @@ class WidgetInspectorService {
   }
 
   bool _isValueCreatedByLocalProject(Object value) {
-    final _Location creationLocation = _getCreationLocation(value);
+    final _Location creationLocation = getCreationLocation(value);
     if (creationLocation == null) {
       return false;
     }
@@ -1795,7 +1795,7 @@ class _Location {
 /// [Dart Kernel Transformer](https://github.com/dart-lang/sdk/wiki/Kernel-Documentation).
 ///
 /// Currently creation locations are only available for [Widget] and [Element]
-_Location _getCreationLocation(Object object) {
+_Location getCreationLocation(Object object) {
   final Object candidate =  object is Element ? object.widget : object;
   return candidate is _HasCreationLocation ? candidate._location : null;
 }
