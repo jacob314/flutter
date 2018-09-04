@@ -30,6 +30,9 @@ import 'table.dart';
 /// See also the discussion at [WidgetsBinding.drawFrame].
 bool debugPrintRebuildDirtyWidgets = false;
 
+/// Callback called whenever a widget is rebuilt in debug mode.
+Function(Element e, bool builtOnce) debugOnRebuildDirtyWidget;
+
 /// Log all calls to [BuildOwner.buildScope].
 ///
 /// Combined with [debugPrintScheduleBuildForStacks], this allows you to track

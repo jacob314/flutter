@@ -4,6 +4,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
 
 export 'package:flutter/foundation.dart' show debugPrint;
 
@@ -67,6 +68,9 @@ bool debugPrintMarkNeedsLayoutStacks = false;
 
 /// Log the call stacks that mark render objects as needing paint.
 bool debugPrintMarkNeedsPaintStacks = false;
+
+/// Log the render objects that are marked as needing paint.
+Function(RenderObject renderObject) debugOnMarkNeedsPaint;
 
 /// Log the dirty render objects that are laid out each frame.
 ///

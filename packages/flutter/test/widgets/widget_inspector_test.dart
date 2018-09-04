@@ -132,6 +132,113 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
     final TestWidgetInspectorService service = new TestWidgetInspectorService();
     WidgetInspectorService.instance = service;
 
+    test('SlidingWindowStats simple', () {
+      final SlidingWindowStats stats = new SlidingWindowStats();
+      expect(stats.total , equals(0));
+      stats.add(0);
+      stats.add(1);
+      expect(stats.total , equals(2));
+      stats.add(2);
+      stats.add(3);
+      expect(stats.total , equals(4));
+      expect(stats.getTotalWithinWindow(0), equals(4));
+      expect(stats.getTotalWithinWindow(1), equals(3));
+      expect(stats.getTotalWithinWindow(2), equals(2));
+      expect(stats.getTotalWithinWindow(3), equals(1));
+    });
+
+    test('SlidingWindowStats duplicates', () {
+      final SlidingWindowStats stats = new SlidingWindowStats();
+      void add1000Times(int timeStamp) {
+        for (int i = 0; i < 1000; i++) {
+          stats.add(timeStamp);
+        }
+      }
+      expect(stats.total, equals(0));
+      add1000Times(0);
+      add1000Times(1);
+      expect(stats.total, equals(2000));
+      add1000Times(2);
+      add1000Times(3);
+      expect(stats.total, equals(4000));
+      expect(stats.getTotalWithinWindow(0), equals(4000));
+      expect(stats.getTotalWithinWindow(1), equals(3000));
+      expect(stats.getTotalWithinWindow(2), equals(2000));
+      expect(stats.getTotalWithinWindow(3), equals(1000));
+      add1000Times(4);
+      add1000Times(5);
+      add1000Times(6);
+      add1000Times(7);
+      add1000Times(8);
+      add1000Times(9);
+      add1000Times(10);
+      expect(stats.total, equals(11000));
+      expect(stats.getTotalWithinWindow(0), equals(11000));
+      add1000Times(11);
+      // We have now overflowed the capacity of the window
+      expect(stats.total, equals(12000));
+      expect(stats.getTotalWithinWindow(0), equals(11000));
+      expect(stats.getTotalWithinWindow(1), equals(11000));
+      expect(stats.getTotalWithinWindow(2), equals(10000));
+      add1000Times(12);
+      expect(stats.total, equals(13000));
+      expect(stats.getTotalWithinWindow(0), equals(11000));
+      expect(stats.getTotalWithinWindow(1), equals(11000));
+      expect(stats.getTotalWithinWindow(2), equals(11000));
+      expect(stats.getTotalWithinWindow(3), equals(10000));
+    });
+
+    test('SlidingWindowStats clear', () {
+      final SlidingWindowStats stats = new SlidingWindowStats();
+      stats.add(0);
+      stats.add(1);
+      stats.add(2);
+      stats.add(3);
+      expect(stats.total , equals(4));
+      expect(stats.getTotalWithinWindow(0), equals(4));
+
+      stats.clear();
+      stats.add(4);
+      stats.add(5);
+      expect(stats.total, equals(2));
+      expect(stats.getTotalWithinWindow(5), equals(1));
+      expect(stats.getTotalWithinWindow(0), equals(2));
+      stats.clear();
+
+      // Intentionally shift timestamps backwards as could happen after a hot
+      // reload.
+      stats.add(0);
+      stats.add(1);
+      stats.add(2);
+      stats.add(3);
+      expect(stats.total , equals(4));
+      expect(stats.getTotalWithinWindow(0), equals(4));
+      stats.add(4);
+      stats.add(5);
+      stats.add(6);
+      stats.add(7);
+      stats.add(8);
+      stats.add(9);
+      stats.add(10);
+      expect(stats.total , equals(11));
+      expect(stats.getTotalWithinWindow(0), equals(11));
+      // Overflowed window.
+      stats.add(11);
+      expect(stats.total , equals(12));
+      expect(stats.getTotalWithinWindow(0), equals(11));
+      expect(stats.getTotalWithinWindow(1), equals(11));
+      expect(stats.getTotalWithinWindow(2), equals(10));
+    });
+
+    test('SlidingWindowStats out of order', () {
+      final SlidingWindowStats stats = new SlidingWindowStats();
+      stats.add(1);
+      expect(() => stats.add(0), throwsAssertionError);
+      stats.add(2);
+      expect(() => stats.add(1), throwsAssertionError);
+      stats.add(3);
+    });
+
     testWidgets('WidgetInspector smoke test', (WidgetTester tester) async {
       // This is a smoke test to verify that adding the inspector doesn't crash.
       await tester.pumpWidget(

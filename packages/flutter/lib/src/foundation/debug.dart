@@ -35,6 +35,11 @@ bool debugAssertAllFoundationVarsUnset(String reason, { DebugPrintCallback debug
 /// actions in debug builds.
 bool debugInstrumentationEnabled = false;
 
+
+/// Callback called whenever [Binding.performReassemble] is called in debug
+/// mode.
+Function() debugOnPerformReassemble;
+
 /// Runs the specified [action], timing how long the action takes in debug
 /// builds when [debugInstrumentationEnabled] is true.
 ///

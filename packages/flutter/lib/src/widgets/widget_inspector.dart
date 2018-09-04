@@ -31,9 +31,15 @@ import 'package:vector_math/vector_math_64.dart';
 import 'app.dart';
 import 'basic.dart';
 import 'binding.dart';
+import 'debug.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 import 'icon_data.dart';
+
+/// To reduce memory usage of performance stats accumulation we chunk frames in
+/// 100ms intervals. This reduces memory usage for stat tracking by 10X relative
+/// to tracking at 10ms intervals.
+const int _timeStampChunkInMs = 100;
 
 /// Signature for the builder callback used by
 /// [WidgetInspector.selectButtonBuilder].
@@ -778,6 +784,9 @@ class WidgetInspectorService {
 
   List<String> _pubRootDirectories;
 
+  bool _trackRebuildDirtyWidgets = false;
+  bool _trackRepaintWidgets = false;
+
   _RegisterServiceExtensionCallback _registerServiceExtensionCallback;
   /// Registers a service extension method with the given name (full
   /// name "ext.flutter.inspector.name").
@@ -934,6 +943,8 @@ class WidgetInspectorService {
     assert(!_debugServiceExtensionsRegistered);
     assert(() { _debugServiceExtensionsRegistered = true; return true; }());
 
+    WidgetsBinding.instance.addPersistentFrameCallback(_onFrameStart);
+
     _registerBoolServiceExtension(
       name: 'show',
       getter: () async => WidgetsApp.debugShowWidgetInspectorOverride,
@@ -943,6 +954,65 @@ class WidgetInspectorService {
         }
         WidgetsApp.debugShowWidgetInspectorOverride = value;
         return forceRebuild();
+      },
+    );
+
+    if (isWidgetCreationTracked()) {
+      // Extensions only valid if widget creation is tracked.
+      assert(debugOnPerformReassemble == null);
+      debugOnPerformReassemble = _onPerfomReassemble;
+
+      _registerBoolServiceExtension(
+        name: 'trackRebuildDirtyWidgets',
+        getter: () async => _trackRebuildDirtyWidgets,
+        setter: (bool value) async {
+          if (value == _trackRebuildDirtyWidgets) {
+            return null;
+          }
+          _trackRebuildDirtyWidgets = value;
+          if (value) {
+            assert(debugOnRebuildDirtyWidget == null);
+            debugOnRebuildDirtyWidget = _onRebuildWidget;
+            // Trigger a rebuild so there are baseline stats for rebuilds
+            // performed by the app.
+            return forceRebuild();
+          } else {
+            debugOnRebuildDirtyWidget = null;
+            return null;
+          }
+        },
+      );
+
+      _registerBoolServiceExtension(
+        name: 'trackRepaintWidgets',
+        getter: () async => _trackRepaintWidgets,
+        setter: (bool value) async {
+          if (value == _trackRepaintWidgets) {
+            return;
+          }
+          _trackRepaintWidgets = value;
+          if (value) {
+            assert(debugOnMarkNeedsPaint == null);
+            debugOnMarkNeedsPaint = _onMarkNeedsPaint;
+            final WidgetsBinding binding = WidgetsBinding.instance;
+            // Trigger an immediate paint so the user has some paint baseline
+            // stats to view.
+            // TODO(jacobr): potentially just mark as needing paint.
+            binding.renderViewElement?.renderObject?.reassemble();
+          } else {
+            debugOnMarkNeedsPaint = null;
+          }
+        },
+      );
+    }
+
+    registerServiceExtension(
+      name: 'getPerfSourceReport',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('file'));
+        return _getPerfSourceReport(
+          parameters['file'],
+        );
       },
     );
 
@@ -1114,14 +1184,6 @@ class WidgetInspectorService {
         referenceData.count += 1;
     }
     return id;
-  }
-
-  /// Returns whether the application has rendered its first frame and it is
-  /// appropriate to display the Widget tree in the inspector.
-  @protected
-  bool isWidgetTreeReady([String groupName]) {
-    return WidgetsBinding.instance != null &&
-           WidgetsBinding.instance.debugDidSendFirstFrameEvent;
   }
 
   /// Returns the Dart object associated with a reference id.
@@ -1384,13 +1446,17 @@ class WidgetInspectorService {
     return _isLocalCreationLocation(creationLocation);
   }
 
+  final Map<_Location, bool> _localCreationLocationCache = new Map<_Location, bool>.identity();
+
   bool _isLocalCreationLocation(_Location location) {
     if (_pubRootDirectories == null || location == null || location.file == null) {
       return false;
     }
+
     final String file = Uri.parse(location.file).path;
     for (String directory in _pubRootDirectories) {
       if (file.startsWith(directory)) {
+        _localCreationLocationCache[location] = true;
         return true;
       }
     }
@@ -1747,6 +1813,250 @@ class WidgetInspectorService {
   }
 
   bool _widgetCreationTracked;
+
+  int _chunkedFrameTimeStamp;
+
+  void _onFrameStart(Duration timeStamp) {
+    _chunkedFrameTimeStamp = timeStamp.inMilliseconds ~/ _timeStampChunkInMs;
+    WidgetsBinding.instance.addPostFrameCallback(_onFrameEnd);
+  }
+
+  void _onFrameEnd(Duration timeStamp) {
+    if (_trackRebuildDirtyWidgets) {
+      _rebuildStats.endFrame(_chunkedFrameTimeStamp);
+    }
+    if (_trackRepaintWidgets) {
+      void _handleNonRenderObjectElementAncestors(
+          Element element,
+          RenderObject renderObject,
+          ) {
+        assert(element is RenderObjectElement);
+        _repaintStats.add(element, _chunkedFrameTimeStamp);
+        element.visitAncestorElements((Element ancestor) {
+          if (ancestor is RenderObjectElement) {
+            // This ancestor has its onw RenderObject. Don't conflate it.
+            return false;
+          }
+          _repaintStats.add(ancestor, _chunkedFrameTimeStamp);
+          return true;
+        });
+      }
+
+      void _onMarkNeedsPaintHelper(RenderObject renderObject) {
+        if (renderObject.isRepaintBoundary) {
+          return;
+        }
+        renderObject.visitChildren(_onMarkNeedsPaintHelper);
+        _handleNonRenderObjectElementAncestors(renderObject.debugCreator?.element, renderObject);
+      }
+
+      for (RenderObject renderObject in _needsRepaintForFrame) {
+        if (!renderObject.attached) {
+          // The render object was detached before the scene was rendered
+          continue;
+        }
+        try {
+          assert(renderObject.isRepaintBoundary);
+          final Element element = renderObject.debugCreator?.element;
+          // TODO(jacobr): should we instead just abort if the render object is not
+          // a RenderObjectElement as that indicates we have misunderstood how things
+          // work.
+          assert(element is RenderObjectElement);
+          _repaintStats.add(element, _chunkedFrameTimeStamp);
+          renderObject.visitChildren(_onMarkNeedsPaintHelper);
+        } catch (e) {
+          /// XXX
+          print("uncaught exception $e");
+        }
+      }
+      _repaintStats.endFrame(_chunkedFrameTimeStamp);
+    }
+    _needsRepaintForFrame.clear();
+  }
+
+  /// Returns whether the application has rendered its first frame and it is
+  /// appropriate to display the Widget tree in the inspector.
+  @protected
+  bool isWidgetTreeReady([String groupName]) {
+    return WidgetsBinding.instance != null &&
+        WidgetsBinding.instance.debugDidSendFirstFrameEvent;
+  }
+
+  final _LocationStats _rebuildStats = new _LocationStats();
+  final _LocationStats _repaintStats = new _LocationStats();
+
+  final Set<RenderObject> _needsRepaintForFrame = new Set<RenderObject>.identity();
+
+  void _onRebuildWidget(Element element, bool builtOnce) {
+    if (_chunkedFrameTimeStamp != null) {
+      _rebuildStats.add(element, _chunkedFrameTimeStamp);
+    }
+  }
+
+  Map<String, Object> _getPerfSourceReport(String file) {
+    final Map<String, Object> report = <String, Object>{};
+    if (_trackRebuildDirtyWidgets) {
+      report['rebuild'] = _rebuildStats.getReportForFile(file);
+    }
+    if (_trackRepaintWidgets) {
+      report['repaint'] = _repaintStats.getReportForFile(file);
+    }
+    return report;
+  }
+
+  void _onPerfomReassemble() {
+    _rebuildStats.clear();
+    _repaintStats.clear();
+  }
+
+  void _onMarkNeedsPaint(RenderObject renderObject) {
+    _needsRepaintForFrame.add(renderObject);
+  }
+}
+
+/// Class for accumulating sliding window performance stats optimized for fast
+/// performance and stable memory usage.
+class SlidingWindowStats {
+  static const int windowLength = 11 * 2;
+
+  SlidingWindowStats() : _window = new Int32List(windowLength);
+
+  int _next = 0;
+  int _start = 0;
+
+  int _total = 0;
+  int get total => _total;
+
+  /// Array of timestamp followed by count.
+  final Int32List _window;
+
+  void clear() {
+    _next = 0;
+    _start = 0;
+    _total = 0;
+  }
+
+  int getTotalWithinWindow(int windowStart) {
+    if (_next == _start) {
+      return 0;
+    }
+    final int end = _start >= 0 ? _start : _next;
+    int i = _next;
+    int count = 0;
+    while (true) {
+      i -= 2;
+      if (i < 0) {
+        i += windowLength;
+      }
+
+      if (_window[i] < windowStart) {
+        break;
+      }
+      count += _window[i+1];
+      if (i == end) {
+        break;
+      }
+    }
+    return count;
+  }
+
+  void add(int timeStamp) {
+    _total++;
+    if (_start != _next) {
+      int last = _next - 2;
+      if (last < 0) {
+        last += windowLength;
+      }
+      int lastTimeStamp = _window[last];
+      if (lastTimeStamp == timeStamp) {
+        _window[last+1] += 1;
+        return;
+      }
+      // The sliding window assumes timestamps must be given in increasing
+      // order.
+      assert(lastTimeStamp < timeStamp);
+    }
+    _window[_next] = timeStamp;
+    _window[_next+1] = 1;
+    _next += 2;
+    if (_next == windowLength) {
+      _next = 0;
+    }
+    if (_start == _next) {
+      // The entire sliding window is now full so no need
+      // to track an explicit start.
+      _start = -1;
+    }
+  }
+}
+
+class _LocationStats {
+  final Map<_Location, SlidingWindowStats> _stats = new Map<_Location, SlidingWindowStats>.identity();
+  final Map<String, List<_Location>> _locationsPerFile = <String, List<_Location>>{};
+
+  int lastCompletedFrameTimeStamp;
+
+  void add(Element element, int timeStamp) {
+    final Object widget = element.widget;
+    if (widget is _HasCreationLocation) {
+      final _Location location = widget._location;
+      if (location != null) {
+        final SlidingWindowStats stats = _stats.putIfAbsent(location, () {
+          if (WidgetInspectorService.instance._isLocalCreationLocation(location)) {
+            _locationsPerFile.putIfAbsent(location.file, () => <_Location>[])
+              .add(location);
+            return SlidingWindowStats();
+          } else {
+            // As an optimization, don't keep detailed stats for locations
+            // outside of the user's project.
+            return null;
+          }
+        });
+        stats?.add(timeStamp);
+      }
+    }
+  }
+
+  Map<String, Object> getReportForFile(String file) {
+    final List<List<int>> entries = <List<int>>[];
+    final List<_Location> locationsInFile = _locationsPerFile[file];
+    if (locationsInFile != null && lastCompletedFrameTimeStamp != null) {
+      int windowStart = lastCompletedFrameTimeStamp - 1000 ~/ _timeStampChunkInMs;
+      for (_Location location in locationsInFile) {
+        final SlidingWindowStats stats = _stats[location];
+        if (stats.total == 0) {
+          // Occurs if stats were cleared due to optimizations to keep memory
+          // usage steady.
+          continue;
+        }
+        entries.add(
+          <int>[
+            location.line,
+            location.column,
+            stats.total,
+            stats.getTotalWithinWindow(windowStart),
+          ],
+        );
+      }
+    }
+    return <String, Object>{
+      'file': file,
+      'entries': entries,
+    };
+  }
+
+  void clear() {
+    // Clear is relatively expensive so only call it after a major event such
+    // as a hot reload. This clear method is optimized to keep memory usage
+    // relatively stable.
+    for (SlidingWindowStats stats in _stats.values) {
+      stats?.clear();
+    }
+  }
+
+  void endFrame(int timeStamp) {
+    lastCompletedFrameTimeStamp = timeStamp;
+  }
 }
 
 class _WidgetForTypeTests extends Widget {
@@ -2462,4 +2772,11 @@ class _Location {
 _Location _getCreationLocation(Object object) {
   final Object candidate =  object is Element ? object.widget : object;
   return candidate is _HasCreationLocation ? candidate._location : null;
+}
+
+class _RebuildsForFrame {
+  _RebuildsForFrame(this.timestamp, this.locations);
+
+  final int timestamp;
+  final List<_Location> locations;
 }

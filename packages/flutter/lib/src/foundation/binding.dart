@@ -231,6 +231,12 @@ abstract class BindingBase {
   @protected
   Future<Null> performReassemble() {
     FlutterError.resetErrorCount();
+    assert(() {
+      if (debugOnPerformReassemble != null) {
+        debugOnPerformReassemble();
+      }
+      return true;
+    }());
     return new Future<Null>.value();
   }
 

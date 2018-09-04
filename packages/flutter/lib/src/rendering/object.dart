@@ -1941,6 +1941,10 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
       assert(() {
         if (debugPrintMarkNeedsPaintStacks)
           debugPrintStack(label: 'markNeedsPaint() called for $this');
+
+        if (debugOnMarkNeedsPaint != null) {
+          debugOnMarkNeedsPaint(this);
+        }
         return true;
       }());
       // If we always have our own layer, then we can just repaint
@@ -1962,6 +1966,10 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
       assert(() {
         if (debugPrintMarkNeedsPaintStacks)
           debugPrintStack(label: 'markNeedsPaint() called for $this (root of render tree)');
+
+        if (debugOnMarkNeedsPaint != null) {
+          debugOnMarkNeedsPaint(this);
+        }
         return true;
       }());
       // If we're the root of the render tree (probably a RenderView),
