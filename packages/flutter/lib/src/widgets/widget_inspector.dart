@@ -934,100 +934,100 @@ class WidgetInspectorService {
     assert(!_debugServiceExtensionsRegistered);
     assert(() { _debugServiceExtensionsRegistered = true; return true; }());
 
-    _registerBoolServiceExtension(
-      name: 'show',
-      getter: () async => WidgetsApp.debugShowWidgetInspectorOverride,
-      setter: (bool value) {
-        if (WidgetsApp.debugShowWidgetInspectorOverride == value) {
-          return Future<Null>.value();
-        }
-        WidgetsApp.debugShowWidgetInspectorOverride = value;
-        return forceRebuild();
-      },
-    );
-
-    _registerSignalServiceExtension(
-      name: 'disposeAllGroups',
-      callback: disposeAllGroups,
-    );
-    _registerObjectGroupServiceExtension(
-      name: 'disposeGroup',
-      callback: disposeGroup,
-    );
-    _registerSignalServiceExtension(
-      name: 'isWidgetTreeReady',
-      callback: isWidgetTreeReady,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'disposeId',
-      callback: disposeId,
-    );
-    _registerServiceExtensionVarArgs(
-      name: 'setPubRootDirectories',
-      callback: setPubRootDirectories,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'setSelectionById',
-      callback: setSelectionById,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getParentChain',
-      callback: _getParentChain,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getProperties',
-      callback: _getProperties,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getChildren',
-      callback: _getChildren,
-    );
-
-    _registerServiceExtensionWithArg(
-      name: 'getChildrenSummaryTree',
-      callback: _getChildrenSummaryTree,
-    );
-
-    _registerServiceExtensionWithArg(
-      name: 'getChildrenDetailsSubtree',
-      callback: _getChildrenDetailsSubtree,
-    );
-
-    _registerObjectGroupServiceExtension(
-      name: 'getRootWidget',
-      callback: _getRootWidget,
-    );
-    _registerObjectGroupServiceExtension(
-      name: 'getRootRenderObject',
-      callback: _getRootRenderObject,
-    );
-    _registerObjectGroupServiceExtension(
-      name: 'getRootWidgetSummaryTree',
-      callback: _getRootWidgetSummaryTree,
-    );
-
-    _registerServiceExtensionWithArg(
-      name: 'getDetailsSubtree',
-      callback: _getDetailsSubtree,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getSelectedRenderObject',
-      callback: _getSelectedRenderObject,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getSelectedWidget',
-      callback: _getSelectedWidget,
-    );
-    _registerServiceExtensionWithArg(
-      name: 'getSelectedSummaryWidget',
-      callback: _getSelectedSummaryWidget,
-    );
-
-    _registerSignalServiceExtension(
-      name: 'isWidgetCreationTracked',
-      callback: isWidgetCreationTracked,
-    );
     assert(() {
+      _registerBoolServiceExtension(
+        name: 'show',
+        getter: () async => WidgetsApp.debugShowWidgetInspectorOverride,
+        setter: (bool value) {
+          if (WidgetsApp.debugShowWidgetInspectorOverride == value) {
+            return Future<Null>.value();
+          }
+          WidgetsApp.debugShowWidgetInspectorOverride = value;
+          return forceRebuild();
+        },
+      );
+
+      _registerSignalServiceExtension(
+        name: 'disposeAllGroups',
+        callback: disposeAllGroups,
+      );
+      _registerObjectGroupServiceExtension(
+        name: 'disposeGroup',
+        callback: disposeGroup,
+      );
+      _registerSignalServiceExtension(
+        name: 'isWidgetTreeReady',
+        callback: isWidgetTreeReady,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'disposeId',
+        callback: disposeId,
+      );
+      _registerServiceExtensionVarArgs(
+        name: 'setPubRootDirectories',
+        callback: setPubRootDirectories,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'setSelectionById',
+        callback: setSelectionById,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getParentChain',
+        callback: _getParentChain,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getProperties',
+        callback: _getProperties,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getChildren',
+        callback: _getChildren,
+      );
+
+      _registerServiceExtensionWithArg(
+        name: 'getChildrenSummaryTree',
+        callback: _getChildrenSummaryTree,
+      );
+
+      _registerServiceExtensionWithArg(
+        name: 'getChildrenDetailsSubtree',
+        callback: _getChildrenDetailsSubtree,
+      );
+
+      _registerObjectGroupServiceExtension(
+        name: 'getRootWidget',
+        callback: _getRootWidget,
+      );
+      _registerObjectGroupServiceExtension(
+        name: 'getRootRenderObject',
+        callback: _getRootRenderObject,
+      );
+      _registerObjectGroupServiceExtension(
+        name: 'getRootWidgetSummaryTree',
+        callback: _getRootWidgetSummaryTree,
+      );
+
+      _registerServiceExtensionWithArg(
+        name: 'getDetailsSubtree',
+        callback: _getDetailsSubtree,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getSelectedRenderObject',
+        callback: _getSelectedRenderObject,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getSelectedWidget',
+        callback: _getSelectedWidget,
+      );
+      _registerServiceExtensionWithArg(
+        name: 'getSelectedSummaryWidget',
+        callback: _getSelectedSummaryWidget,
+      );
+
+      _registerSignalServiceExtension(
+        name: 'isWidgetCreationTracked',
+        callback: isWidgetCreationTracked,
+      );
       registerServiceExtension(
         name: 'screenshot',
         callback: (Map<String, String> parameters) async {
