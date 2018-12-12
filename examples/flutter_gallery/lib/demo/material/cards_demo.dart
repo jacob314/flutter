@@ -22,7 +22,8 @@ class TravelDestination {
   final String title;
   final List<String> description;
 
-  bool get isValid => assetName != null && title != null && description?.length == 3;
+  bool get isValid =>
+      assetName != null && title != null && description?.length == 3;
 }
 
 final List<TravelDestination> destinations = <TravelDestination>[
@@ -49,9 +50,9 @@ final List<TravelDestination> destinations = <TravelDestination>[
 ];
 
 class TravelDestinationItem extends StatelessWidget {
-  TravelDestinationItem({ Key key, @required this.destination, this.shape })
-    : assert(destination != null && destination.isValid),
-      super(key: key);
+  TravelDestinationItem({Key key, @required this.destination, this.shape})
+      : assert(destination != null && destination.isValid),
+        super(key: key);
 
   static const double height = 366.0;
   final TravelDestination destination;
@@ -60,7 +61,8 @@ class TravelDestinationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final TextStyle titleStyle = theme.textTheme.headline.copyWith(color: Colors.white);
+    final TextStyle titleStyle =
+        theme.textTheme.headline.copyWith(color: Colors.white);
     final TextStyle descriptionStyle = theme.textTheme.subhead;
 
     return SafeArea(
@@ -93,7 +95,8 @@ class TravelDestinationItem extends StatelessWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
-                        child: Text(destination.title,
+                        child: Text(
+                          destination.title,
                           style: titleStyle,
                         ),
                       ),
@@ -117,7 +120,8 @@ class TravelDestinationItem extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Text(
                             destination.description[0],
-                            style: descriptionStyle.copyWith(color: Colors.black54),
+                            style: descriptionStyle.copyWith(
+                                color: Colors.black54),
                           ),
                         ),
                         Text(destination.description[1]),
@@ -133,14 +137,16 @@ class TravelDestinationItem extends StatelessWidget {
                   alignment: MainAxisAlignment.start,
                   children: <Widget>[
                     FlatButton(
-                      child: Text('SHARE', semanticsLabel: 'Share ${destination.title}'),
+                      child: Text('SHARE',
+                          semanticsLabel: 'Share ${destination.title}'),
                       textColor: Colors.amber.shade500,
-                      onPressed: () { /* do nothing */ },
+                      onPressed: () {/* do nothing */},
                     ),
                     FlatButton(
-                      child: Text('EXPLORE', semanticsLabel: 'Explore ${destination.title}'),
+                      child: Text('EXPLORE',
+                          semanticsLabel: 'Explore ${destination.title}'),
                       textColor: Colors.amber.shade500,
-                      onPressed: () { /* do nothing */ },
+                      onPressed: () {/* do nothing */},
                     ),
                   ],
                 ),
@@ -152,7 +158,6 @@ class TravelDestinationItem extends StatelessWidget {
     );
   }
 }
-
 
 class CardsDemo extends StatefulWidget {
   static const String routeName = '/material/cards';
@@ -178,14 +183,16 @@ class _CardsDemoState extends State<CardsDemo> {
             ),
             onPressed: () {
               setState(() {
-                _shape = _shape != null ? null : const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(16.0),
-                    topRight: Radius.circular(16.0),
-                    bottomLeft: Radius.circular(2.0),
-                    bottomRight: Radius.circular(2.0),
-                  ),
-                );
+                _shape = _shape != null
+                    ? null
+                    : const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16.0),
+                          topRight: Radius.circular(16.0),
+                          bottomLeft: Radius.circular(2.0),
+                          bottomRight: Radius.circular(2.0),
+                        ),
+                      );
               });
             },
           ),
@@ -202,8 +209,8 @@ class _CardsDemoState extends State<CardsDemo> {
               shape: _shape,
             ),
           );
-        }).toList()
-      )
+        }).toList(),
+      ),
     );
   }
 }

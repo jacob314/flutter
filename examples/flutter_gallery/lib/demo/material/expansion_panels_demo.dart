@@ -21,7 +21,7 @@ class DualHeaderWithHint extends StatelessWidget {
     this.name,
     this.value,
     this.hint,
-    this.showHint
+    this.showHint,
   });
 
   final String name;
@@ -36,7 +36,8 @@ class DualHeaderWithHint extends StatelessWidget {
       firstCurve: const Interval(0.0, 0.6, curve: Curves.fastOutSlowIn),
       secondCurve: const Interval(0.4, 1.0, curve: Curves.fastOutSlowIn),
       sizeCurve: Curves.fastOutSlowIn,
-      crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+      crossFadeState:
+          isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
       duration: const Duration(milliseconds: 200),
     );
   }
@@ -69,11 +70,11 @@ class DualHeaderWithHint extends StatelessWidget {
             child: _crossFade(
               Text(value, style: textTheme.caption.copyWith(fontSize: 15.0)),
               Text(hint, style: textTheme.caption.copyWith(fontSize: 15.0)),
-              showHint
-            )
-          )
+              showHint,
+            ),
+          ),
         )
-      ]
+      ],
     );
   }
 }
@@ -83,7 +84,7 @@ class CollapsibleBody extends StatelessWidget {
     this.margin = EdgeInsets.zero,
     this.child,
     this.onSave,
-    this.onCancel
+    this.onCancel,
   });
 
   final EdgeInsets margin;
@@ -100,16 +101,17 @@ class CollapsibleBody extends StatelessWidget {
       children: <Widget>[
         Container(
           margin: const EdgeInsets.only(
-            left: 24.0,
-            right: 24.0,
-            bottom: 24.0
-          ) - margin,
+                left: 24.0,
+                right: 24.0,
+                bottom: 24.0,
+              ) -
+              margin,
           child: Center(
             child: DefaultTextStyle(
               style: textTheme.caption.copyWith(fontSize: 15.0),
-              child: child
-            )
-          )
+              child: child,
+            ),
+          ),
         ),
         const Divider(height: 1.0),
         Container(
@@ -121,25 +123,26 @@ class CollapsibleBody extends StatelessWidget {
                 margin: const EdgeInsets.only(right: 8.0),
                 child: FlatButton(
                   onPressed: onCancel,
-                  child: const Text('CANCEL', style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 15.0,
-                    fontWeight: FontWeight.w500
-                  ))
-                )
+                  child: const Text('CANCEL',
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 15.0,
+                        fontWeight: FontWeight.w500,
+                      )),
+                ),
               ),
               Container(
                 margin: const EdgeInsets.only(right: 8.0),
                 child: FlatButton(
                   onPressed: onSave,
                   textTheme: ButtonTextTheme.accent,
-                  child: const Text('SAVE')
-                )
+                  child: const Text('SAVE'),
+                ),
               )
-            ]
-          )
+            ],
+          ),
         )
-      ]
+      ],
     );
   }
 }
@@ -150,7 +153,7 @@ class DemoItem<T> {
     this.value,
     this.hint,
     this.builder,
-    this.valueToString
+    this.valueToString,
   }) : textController = TextEditingController(text: valueToString(value));
 
   final String name;
@@ -167,7 +170,7 @@ class DemoItem<T> {
         name: name,
         value: valueToString(value),
         hint: hint,
-        showHint: isExpanded
+        showHint: isExpanded,
       );
     };
   }
@@ -207,8 +210,14 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
               builder: (BuildContext context) {
                 return CollapsibleBody(
                   margin: const EdgeInsets.symmetric(horizontal: 16.0),
-                  onSave: () { Form.of(context).save(); close(); },
-                  onCancel: () { Form.of(context).reset(); close(); },
+                  onSave: () {
+                    Form.of(context).save();
+                    close();
+                  },
+                  onCancel: () {
+                    Form.of(context).reset();
+                    close();
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: TextFormField(
@@ -217,7 +226,9 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
                         hintText: item.hint,
                         labelText: item.name,
                       ),
-                      onSaved: (String value) { item.value = value; },
+                      onSaved: (String value) {
+                        item.value = value;
+                      },
                     ),
                   ),
                 );
@@ -237,15 +248,24 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
               item.isExpanded = false;
             });
           }
+
           return Form(
             child: Builder(
               builder: (BuildContext context) {
                 return CollapsibleBody(
-                  onSave: () { Form.of(context).save(); close(); },
-                  onCancel: () { Form.of(context).reset(); close(); },
+                  onSave: () {
+                    Form.of(context).save();
+                    close();
+                  },
+                  onCancel: () {
+                    Form.of(context).reset();
+                    close();
+                  },
                   child: FormField<Location>(
                     initialValue: item.value,
-                    onSaved: (Location result) { item.value = result; },
+                    onSaved: (Location result) {
+                      item.value = result;
+                    },
                     builder: (FormFieldState<Location> field) {
                       return Column(
                         mainAxisSize: MainAxisSize.min,
@@ -269,15 +289,15 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
                             groupValue: field.value,
                             onChanged: field.didChange,
                           ),
-                        ]
+                        ],
                       );
-                    }
+                    },
                   ),
                 );
-              }
-            )
+              },
+            ),
           );
-        }
+        },
       ),
       DemoItem<double>(
         name: 'Sun',
@@ -295,17 +315,26 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
             child: Builder(
               builder: (BuildContext context) {
                 return CollapsibleBody(
-                  onSave: () { Form.of(context).save(); close(); },
-                  onCancel: () { Form.of(context).reset(); close(); },
+                  onSave: () {
+                    Form.of(context).save();
+                    close();
+                  },
+                  onCancel: () {
+                    Form.of(context).reset();
+                    close();
+                  },
                   child: FormField<double>(
                     initialValue: item.value,
-                    onSaved: (double value) { item.value = value; },
+                    onSaved: (double value) {
+                      item.value = value;
+                    },
                     builder: (FormFieldState<double> field) {
                       return Slider(
                         min: 0.0,
                         max: 100.0,
                         divisions: 5,
-                        activeColor: Colors.orange[100 + (field.value * 5.0).round()],
+                        activeColor:
+                            Colors.orange[100 + (field.value * 5.0).round()],
                         label: '${field.value.round()}',
                         value: field.value,
                         onChanged: field.didChange,
@@ -313,10 +342,10 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
                     },
                   ),
                 );
-              }
-            )
+              },
+            ),
           );
-        }
+        },
       )
     ];
   }
@@ -342,13 +371,14 @@ class _ExpansionPanelsDemoState extends State<ExpansionPanelsDemo> {
                   _demoItems[index].isExpanded = !isExpanded;
                 });
               },
-              children: _demoItems.map<ExpansionPanel>((DemoItem<dynamic> item) {
+              children:
+                  _demoItems.map<ExpansionPanel>((DemoItem<dynamic> item) {
                 return ExpansionPanel(
                   isExpanded: item.isExpanded,
                   headerBuilder: item.headerBuilder,
-                  body: item.build()
+                  body: item.build(),
                 );
-              }).toList()
+              }).toList(),
             ),
           ),
         ),

@@ -9,7 +9,8 @@ class SpinningSquare extends StatefulWidget {
   _SpinningSquareState createState() => _SpinningSquareState();
 }
 
-class _SpinningSquareState extends State<SpinningSquare> with SingleTickerProviderStateMixin {
+class _SpinningSquareState extends State<SpinningSquare>
+    with SingleTickerProviderStateMixin {
   AnimationController _animation;
 
   @override
@@ -38,7 +39,7 @@ class _SpinningSquareState extends State<SpinningSquare> with SingleTickerProvid
         width: 200.0,
         height: 200.0,
         color: const Color(0xFF00FF00),
-      )
+      ),
     );
   }
 }

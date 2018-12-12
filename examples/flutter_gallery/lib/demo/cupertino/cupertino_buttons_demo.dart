@@ -22,21 +22,23 @@ class _CupertinoButtonDemoState extends State<CupertinoButtonsDemo> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cupertino Buttons'),
-        actions: <Widget>[MaterialDemoDocumentationButton(CupertinoButtonsDemo.routeName)],
+        actions: <Widget>[
+          MaterialDemoDocumentationButton(CupertinoButtonsDemo.routeName)
+        ],
       ),
       body: Column(
-        children: <Widget> [
+        children: <Widget>[
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
               'iOS themed buttons are flat. They can have borders or backgrounds but '
-              'only when necessary.'
+                  'only when necessary.',
             ),
           ),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget> [
+              children: <Widget>[
                 Text(_pressedCount > 0
                     ? 'Button pressed $_pressedCount time${_pressedCount == 1 ? "" : "s"}'
                     : ' '),
@@ -49,8 +51,10 @@ class _CupertinoButtonDemoState extends State<CupertinoButtonsDemo> {
                       CupertinoButton(
                         child: const Text('Cupertino Button'),
                         onPressed: () {
-                          setState(() { _pressedCount += 1; });
-                        }
+                          setState(() {
+                            _pressedCount += 1;
+                          });
+                        },
                       ),
                       const CupertinoButton(
                         child: Text('Disabled'),
@@ -64,8 +68,10 @@ class _CupertinoButtonDemoState extends State<CupertinoButtonsDemo> {
                   child: const Text('With Background'),
                   color: CupertinoColors.activeBlue,
                   onPressed: () {
-                    setState(() { _pressedCount += 1; });
-                  }
+                    setState(() {
+                      _pressedCount += 1;
+                    });
+                  },
                 ),
                 const Padding(padding: EdgeInsets.all(12.0)),
                 const CupertinoButton(
@@ -74,10 +80,10 @@ class _CupertinoButtonDemoState extends State<CupertinoButtonsDemo> {
                   onPressed: null,
                 ),
               ],
-            )
+            ),
           ),
         ],
-      )
+      ),
     );
   }
 }

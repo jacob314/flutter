@@ -19,17 +19,19 @@ HAL: This mission is too important for me to allow you to jeopardize it.''';
 
 // [["Dave", "Open the pod bay..."] ...]
 final List<List<String>> _kNameLines = _kDialogText
-  .split('\n')
-  .map<List<String>>((String line) => line.split(':'))
-  .toList();
+    .split('\n')
+    .map<List<String>>((String line) => line.split(':'))
+    .toList();
 
-final TextStyle _kDaveStyle = TextStyle(color: Colors.indigo.shade400, height: 1.8);
-final TextStyle _kHalStyle = TextStyle(color: Colors.red.shade400, fontFamily: 'monospace');
+final TextStyle _kDaveStyle =
+    TextStyle(color: Colors.indigo.shade400, height: 1.8);
+final TextStyle _kHalStyle =
+    TextStyle(color: Colors.red.shade400, fontFamily: 'monospace');
 const TextStyle _kBold = TextStyle(fontWeight: FontWeight.bold);
 const TextStyle _kUnderline = TextStyle(
   decoration: TextDecoration.underline,
   decorationColor: Color(0xFF000000),
-  decorationStyle: TextDecorationStyle.wavy
+  decorationStyle: TextDecorationStyle.wavy,
 );
 
 Widget toStyledText(String name, String text) {
@@ -44,14 +46,14 @@ Widget toStyledText(String name, String text) {
           children: <TextSpan>[
             TextSpan(
               style: _kUnderline,
-              text: name
+              text: name,
             ),
             const TextSpan(text: ':')
-          ]
+          ],
         ),
         TextSpan(text: text)
-      ]
-    )
+      ],
+    ),
   );
 }
 
@@ -65,9 +67,9 @@ class SpeakerSeparator extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 64.0),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color.fromARGB(24, 0, 0, 0))
-        )
-      )
+          bottom: BorderSide(color: Color.fromARGB(24, 0, 0, 0)),
+        ),
+      ),
     );
   }
 }
@@ -95,14 +97,14 @@ class _StyledTextDemoState extends State<StyledTextDemo> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> lines = _kNameLines
-      .map<Widget>((List<String> nameAndText) => _toText(nameAndText[0], nameAndText[1]))
-      .toList();
+        .map<Widget>((List<String> nameAndText) =>
+            _toText(nameAndText[0], nameAndText[1]))
+        .toList();
 
     final List<Widget> children = <Widget>[];
     for (Widget line in lines) {
       children.add(line);
-      if (line != lines.last)
-        children.add(SpeakerSeparator());
+      if (line != lines.last) children.add(SpeakerSeparator());
     }
 
     return GestureDetector(
@@ -112,9 +114,9 @@ class _StyledTextDemoState extends State<StyledTextDemo> {
         child: Column(
           children: children,
           mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start
-        )
-      )
+          crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+      ),
     );
   }
 }
@@ -124,12 +126,12 @@ void main() {
     theme: ThemeData.light(),
     home: Scaffold(
       appBar: AppBar(
-        title: const Text('Hal and Dave')
+        title: const Text('Hal and Dave'),
       ),
       body: Material(
         color: Colors.grey.shade50,
-        child: StyledTextDemo()
-      )
-    )
+        child: StyledTextDemo(),
+      ),
+    ),
   ));
 }

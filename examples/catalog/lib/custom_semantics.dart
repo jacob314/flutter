@@ -58,7 +58,7 @@ class AdjustableDropdownListTile extends StatelessWidget {
             }).toList(),
           ),
         ),
-      )
+      ),
     );
   }
 
@@ -81,11 +81,11 @@ class AdjustableDropdownListTile extends StatelessWidget {
 
 class AdjustableDropdownExample extends StatefulWidget {
   @override
-  AdjustableDropdownExampleState createState() => AdjustableDropdownExampleState();
+  AdjustableDropdownExampleState createState() =>
+      AdjustableDropdownExampleState();
 }
 
 class AdjustableDropdownExampleState extends State<AdjustableDropdownExample> {
-
   final List<String> items = <String>[
     '1 second',
     '5 seconds',

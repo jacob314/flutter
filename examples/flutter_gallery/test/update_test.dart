@@ -11,7 +11,8 @@ Future<String> mockUpdateUrlFetcher() {
 }
 
 void main() {
-  final TestWidgetsFlutterBinding binding = TestWidgetsFlutterBinding.ensureInitialized();
+  final TestWidgetsFlutterBinding binding =
+      TestWidgetsFlutterBinding.ensureInitialized();
   if (binding is LiveTestWidgetsFlutterBinding)
     binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
@@ -20,8 +21,8 @@ void main() {
     await tester.pumpWidget(
       const GalleryApp(
         testMode: true,
-        updateUrlFetcher: mockUpdateUrlFetcher
-      )
+        updateUrlFetcher: mockUpdateUrlFetcher,
+      ),
     );
     await tester.pump(); // see https://github.com/flutter/flutter/issues/1865
     await tester.pump(); // triggers a frame
