@@ -120,6 +120,23 @@ class VMService {
       _handleStreamNotify(event.asMap);
     });
 
+    {
+      print("XXX registering");
+      _peer.registerMethod('exampleJacob', (rpc.Parameters params) async {
+        print("XXX SERVICE CALLED!!!");
+        return <String, String>{'type': 'Success', 'result': 'MUMBLE MUBMLE RESPONSE!'};
+      });
+
+      // If the Flutter Engine doesn't support service registration this will
+      // have no effect
+      _peer.sendNotification('_registerService', <String, String>{
+        'service': 'exampleJacob',
+        'alias': 'Flutter Tools'
+      });
+      print("XXX survived");
+    }
+
+
     if (reloadSources != null) {
       _peer.registerMethod('reloadSources', (rpc.Parameters params) async {
         final String isolateId = params['isolateId'].value;
