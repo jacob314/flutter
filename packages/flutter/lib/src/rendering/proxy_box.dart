@@ -193,7 +193,7 @@ class RenderConstrainedBox extends RenderProxyBox {
     RenderBox child,
     @required BoxConstraints additionalConstraints,
   }) : assert(additionalConstraints != null),
-       assert(additionalConstraints.debugAssertIsValid()),
+       assert(additionalConstraints.debugAssertIsValidStructured()),
        _additionalConstraints = additionalConstraints,
        super(child);
 
@@ -202,7 +202,7 @@ class RenderConstrainedBox extends RenderProxyBox {
   BoxConstraints _additionalConstraints;
   set additionalConstraints(BoxConstraints value) {
     assert(value != null);
-    assert(value.debugAssertIsValid());
+    assert(value.debugAssertIsValidStructured());
     if (_additionalConstraints == value)
       return;
     _additionalConstraints = value;
@@ -453,16 +453,18 @@ class RenderAspectRatio extends RenderProxyBox {
   }
 
   Size _applyAspectRatio(BoxConstraints constraints) {
-    assert(constraints.debugAssertIsValid());
+    assert(constraints.debugAssertIsValidStructured());
     assert(() {
       if (!constraints.hasBoundedWidth && !constraints.hasBoundedHeight) {
-        throw FlutterError(
-          '$runtimeType has unbounded constraints.\n'
-          'This $runtimeType was given an aspect ratio of $aspectRatio but was given '
-          'both unbounded width and unbounded height constraints. Because both '
-          'constraints were unbounded, this render object doesn\'t know how much '
-          'size to consume.'
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('$runtimeType has unbounded constraints.'),
+          ErrorDetails(
+            'This $runtimeType was given an aspect ratio of $aspectRatio but was given '
+            'both unbounded width and unbounded height constraints. Because both '
+            'constraints were unbounded, this render object doesn\'t know how much '
+            'size to consume.'
+          )
+        ]);
       }
       return true;
     }());
@@ -1918,16 +1920,18 @@ class RenderDecoratedBox extends RenderProxyBox {
       _painter.paint(context.canvas, offset, filledConfiguration);
       assert(() {
         if (debugSaveCount != context.canvas.getSaveCount()) {
-          throw FlutterError(
-            '${_decoration.runtimeType} painter had mismatching save and restore calls.\n'
-            'Before painting the decoration, the canvas save count was $debugSaveCount. '
-            'After painting it, the canvas save count was ${context.canvas.getSaveCount()}. '
-            'Every call to save() or saveLayer() must be matched by a call to restore().\n'
-            'The decoration was:\n'
-            '  $decoration\n'
-            'The painter was:\n'
-            '  $_painter'
-          );
+          throw FlutterError(<DiagnosticsNode>[
+            ErrorSummary('${_decoration.runtimeType} painter had mismatching save and restore calls.'),
+            ErrorDetails(
+              'Before painting the decoration, the canvas save count was $debugSaveCount. '
+              'After painting it, the canvas save count was ${context.canvas.getSaveCount()}.'
+            ),
+            ErrorHint(
+              'Every call to save() or saveLayer() must be matched by a call to restore().'
+            ),
+            ErrorProperty<Decoration>('The decoration was', decoration),
+            ErrorProperty<BoxPainter>('The painter was', _painter),
+          ]);
         }
         return true;
       }());

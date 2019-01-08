@@ -53,6 +53,7 @@ abstract class TickerProvider {
 ///
 /// Tickers are driven by the [SchedulerBinding]. See
 /// [SchedulerBinding.scheduleFrameCallback].
+// TODO(jacobr): make Ticker Diagnosticable. XXX and then cleanup all uses of it. XXX The Diagnosticable version should include the stack.
 class Ticker {
   /// Creates a ticker that will call the provided callback once per frame while
   /// running.
@@ -145,11 +146,11 @@ class Ticker {
   TickerFuture start() {
     assert(() {
       if (isActive) {
-        throw FlutterError(
-          'A ticker was started twice.\n'
-          'A ticker that is already active cannot be started again without first stopping it.\n'
-          'The affected ticker was: ${ toString(debugIncludeStack: true) }'
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('A ticker was started twice.'),
+          ErrorDetails('A ticker that is already active cannot be started again without first stopping it.'),
+          describeForError('The affected ticker was'),
+        ]);
       }
       return true;
     }());
@@ -162,6 +163,11 @@ class Ticker {
         SchedulerBinding.instance.schedulerPhase.index < SchedulerPhase.postFrameCallbacks.index)
       _startTime = SchedulerBinding.instance.currentFrameTimeStamp;
     return _future;
+  }
+
+  DiagnosticsNode describeForError(String name) {
+    // TODO(jacobr): make this more structured
+    return DiagnosticsProperty<Ticker>(name, this, description: toString(debugIncludeStack: true));
   }
 
   /// Stops calling this [Ticker]'s callback.

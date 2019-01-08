@@ -2,7 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:meta/meta.dart';
+
 import 'basic_types.dart';
+import 'diagnostics.dart';
 import 'print.dart';
 
 /// Signature for [FlutterError.onError] handler.
@@ -10,12 +13,198 @@ typedef FlutterExceptionHandler = void Function(FlutterErrorDetails details);
 
 /// Signature for [FlutterErrorDetails.informationCollector] callback
 /// and other callbacks that collect information into a string buffer.
-typedef InformationCollector = void Function(StringBuffer information);
+typedef InformationCollector = void Function(List<DiagnosticsNode> information);
 
+class _ErrorDiagnostic extends DiagnosticsProperty<List<Object>> {
+  _ErrorDiagnostic._fromParts(
+      List<Object> messageParts, {
+        DiagnosticsTreeStyle style = DiagnosticsTreeStyle.flat,
+        DiagnosticLevel level = DiagnosticLevel.info,
+      }) : assert(messageParts != null),
+        super(
+        null,
+        messageParts,
+        showName: false,
+        showSeparator: false,
+        defaultValue: null,
+        style: style,
+        level: level,
+      );
+
+  @override
+  String valueToString({ TextTreeConfiguration parentConfiguration }) {
+    return value.join('');
+  }
+}
+
+/// Diagnostics describing an error message.
+///
+/// An error message should start with a summary that is typically
+/// no longer than 2 lines that concisely states what the assertion
+/// failure or contract violation was. The summary should be separated from the
+/// rest of the error message with a line break.
+///
+/// The client (e.g., an IDE) usually displays the error summary in red.
+///
+/// The full error message should include at least the following elements:
+/// * Claim: Explanation of the assertion failure or contract violation.
+/// * Grounds: Facts about the user's code that led to the error.
+/// * Warranty: Connections between the grounds and the claim.
+///
+/// Error messages may include references to objects relevant to the error using
+/// string interpolation and those objects will be directly available to
+/// debugging tools when error messages are generating as part of a debug builds.
+/// Other builds will see the same string error message but will not be able to
+/// extract the contents of the object.
+class ErrorDetails extends _ErrorDiagnostic {
+  // This constructor provides a reliable hook for a kernel transformer to find
+  // error messages that need to be rewritten to include object references.
+  //
+  // The message will display with the same text regardless of whether the
+  // kernel transformer is used but without the kernel transformer, debugging
+  // tools are unable to provide interactive displays of objects referenced by
+  // the string.
+  /// In debug builds, a kernel transformer rewrites calls to the default
+  /// constructor into calls to this constructor.
+  ///
+  /// of this class as follows so that the objects referenced in the
+  /// string literal can be captured by debuggers.
+  /// ```dart
+  /// ErrorMessage('Element $element must be color $color')
+  /// ```
+  /// Desugars to:
+  /// ```dart
+  /// ErrorMessage._structured(<Object>['Element ', element, ' must be ', color]);
+  /// ```
+  ///
+  /// Slightly more complext case:
+  /// ```dart
+  /// ErrorMessage('Element ${element.runtimeType} must be must be $color')
+  /// ```
+  /// Desugars to:
+  ///```dart
+  /// ErrorMessage._structured(<Object>[
+  ///   'Element ',
+  ///    DiagnosticsProperty(null, element, description: element.runtimeType?.toString()),
+  ///    ' must be ',
+  ///    color,
+  /// ]);
+  /// ```
+  ErrorDetails(String message) : super._fromParts([message], level: DiagnosticLevel.summary);
+
+  // Calls to the default constructor are rewritten to use this constructor
+  // debug mode using a kernel transformer.
+  ErrorDetails._fromParts(List<Object> messageParts) : super._fromParts(messageParts, level: DiagnosticLevel.summary);
+}
+
+class ErrorSummary extends _ErrorDiagnostic {
+  // This constructor provides a reliable hook for a kernel transformer to find
+  // error messages that need to be rewritten to include object references.
+  //
+  // The message will display with the same text regardless of whether the
+  // kernel transformer is used but without the kernel transformer, debugging
+  // tools are unable to provide interactive displays of objects referenced by
+  // the string.
+  /// In debug builds, a kernel transformer rewrites calls to the default
+  /// constructor into calls to this constructor.
+  ///
+  /// of this class as follows so that the objects referenced in the
+  /// string literal can be captured by debuggers.
+  /// ```dart
+  /// ErrorMessage('Element $element must be color $color')
+  /// ```
+  /// Desugars to:
+  /// ```dart
+  /// ErrorMessage._structured(<Object>['Element ', element, ' must be ', color]);
+  /// ```
+  ///
+  /// Slightly more complext case:
+  /// ```dart
+  /// ErrorMessage('Element ${element.runtimeType} must be must be $color')
+  /// ```
+  /// Desugars to:
+  ///```dart
+  /// ErrorMessage._structured(<Object>[
+  ///   'Element ',
+  ///    DiagnosticsProperty(null, element, description: element.runtimeType?.toString()),
+  ///    ' must be ',
+  ///    color,
+  /// ]);
+  /// ```
+  ErrorSummary(String message) : super._fromParts([message], level: DiagnosticLevel.summary);
+
+  // Use this constructor if and only if the string passed in needs to be a
+  // variabile instead of a string literal. Using this constructor loses out
+  // on the debugger benefits of using ErrorSummary.
+  ErrorSummary.fromString(String message) : super._fromParts([message], level: DiagnosticLevel.summary);
+
+  // Calls to the default constructor are rewritten to use this constructor
+  // debug mode using a kernel transformer.
+  ErrorSummary._fromParts(List<Object> messageParts) : super._fromParts(messageParts, level: DiagnosticLevel.summary);
+}
+
+/// An [ErrorHint] provides specific, non-obvious advice that may be applicable.
+///
+/// Information that is always true (e.g. "this argument is required" or
+/// "you must include this argument") goes in the description.
+/// Information that may not be useful in all situations
+/// ("Consider using the Foo widget...") goes in a "hint" section.
+/// Urls may be be included in the hint to reference external material.
+class ErrorHint extends _ErrorDiagnostic {
+  // A lint enforces that this constructor can only be called with a string
+  // literal to match the limitations of the Dart Kernel transformer that
+  // optionally extracts out objects referenced using string interpolation in
+  // the message passed in.
+  ErrorHint(String message) : super._fromParts([message], level:DiagnosticLevel.hint);
+
+  // Calls to the default constructor are rewritten to use this constructor
+  // debug mode using a kernel transformer.
+  ErrorHint._fromParts(List<Object> messageParts) : super._fromParts(messageParts, level:DiagnosticLevel.hint);
+}
+
+// XXX remove?
+class ErrorProperty<T> extends DiagnosticsProperty<T> {
+  ErrorProperty(
+      String name,
+      T value,
+      {
+        String description,
+        String ifNull,
+        String ifEmpty,
+        bool showName = true,
+        bool showSeparator = true,
+        Object defaultValue = kNoDefaultValue,
+        String tooltip,
+        bool missingIfNull = false,
+        String linePrefix,
+        bool expandableValue = false,
+        bool allowWrap = true,
+        bool allowNameWrap = true,
+        DiagnosticsTreeStyle style = DiagnosticsTreeStyle.indentedSingleLine,
+        DiagnosticLevel level = DiagnosticLevel.info,
+      }) : super(
+      name,
+      value,
+       description: description,
+      ifNull: ifNull,
+      ifEmpty: ifEmpty,
+      showName: showName,
+      showSeparator: showSeparator,
+      defaultValue: defaultValue,
+      tooltip: tooltip,
+      missingIfNull: missingIfNull,
+      linePrefix: linePrefix,
+      expandableValue: expandableValue,
+      allowWrap: allowWrap,
+      allowNameWrap: allowNameWrap,
+      style: style,
+      level: level,
+    );
+}
 /// Class for information provided to [FlutterExceptionHandler] callbacks.
 ///
 /// See [FlutterError.onError].
-class FlutterErrorDetails {
+class FlutterErrorDetails extends Diagnosticable {
   /// Creates a [FlutterErrorDetails] object with the given arguments setting
   /// the object's properties.
   ///
@@ -64,7 +253,7 @@ class FlutterErrorDetails {
   /// following the word "thrown", as in "thrown while obtaining the image from
   /// the network" (for the context "while obtaining the image from the
   /// network").
-  final String context;
+  final DiagnosticsNode context;
 
   /// A callback which filters the [stack] trace. Receives an iterable of
   /// strings representing the frames encoded in the way that
@@ -146,42 +335,130 @@ class FlutterErrorDetails {
     return longMessage;
   }
 
+  DiagnosticsNode _diagnosticContext(String namePrefix) {
+    final List<String> parts = <String>[];
+    if (namePrefix.isNotEmpty) {
+      parts.add(namePrefix);
+    }
+    if (context != null && context.name != null && context.name.isNotEmpty) {
+      parts.add(context.name);
+    }
+    final String name = parts.join(' ');
+    if (context == null)
+      return DiagnosticsNode.message(name, style: DiagnosticsTreeStyle.headerLine);
+
+    return DiagnosticsProperty<Object>(
+      name,
+      context,
+      showName: name.isNotEmpty,
+      showSeparator: false,
+      expandableValue: true,
+      allowNameWrap: true,
+      style: DiagnosticsTreeStyle.headerLine,
+    );
+  }
+
+
   @override
-  String toString() {
-    final StringBuffer buffer = StringBuffer();
-    if ((library != null && library != '') || (context != null && context != '')) {
-      if (library != null && library != '') {
-        buffer.write('Error caught by $library');
-        if (context != null && context != '')
-          buffer.write(', ');
-      } else {
-        buffer.writeln('Exception ');
-      }
-      if (context != null && context != '')
-        buffer.write('thrown $context');
-      buffer.writeln('.');
-    } else {
-      buffer.write('An error was caught.');
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    void addContextHeader(String namePrefix, [String nameSuffix = ':']) {
+      // Hixie, we are ingoring suffix for now. Can we just standardize to
+      // all header lines ending with ':' or is that a step backwards?
+      // XXX resolve this question before submitting. See the calls to this
+      // method that indicate what the header should be in each case if we care.
+      properties.add(_diagnosticContext('$namePrefix thrown'));
     }
-    buffer.writeln(exceptionAsString());
-    if (informationCollector != null)
-      informationCollector(buffer);
+    if (exception is NullThrownError) {
+      addContextHeader('The null value was', '.');
+    } else if (exception is num) {
+      addContextHeader('The number $exception was', '.');
+    } else if (exception is FlutterError) {
+      final FlutterError flutterError = exception;
+      addContextHeader('The following assertion was');
+      flutterError.debugFillProperties(properties);
+    }
+    else {
+      String errorName;
+      if (exception is AssertionError) {
+        errorName = 'assertion';
+      } else if (exception is String) {
+        errorName = 'message';
+      } else if (exception is Error || exception is Exception) {
+        errorName = '${exception.runtimeType}';
+      } else {
+        errorName = '${exception.runtimeType} object';
+      }
+      // Many exception classes put their type at the head of their message.
+      // This is redundant with the way we display exceptions, so attempt to
+      // strip out that header when we see it.
+      final String prefix = '${exception.runtimeType}: ';
+      String message = exceptionAsString();
+      if (message.startsWith(prefix))
+        message = message.substring(prefix.length);
+      addContextHeader('The following $errorName was');
+      properties.add(new DiagnosticsNode.message(message));
+    }
+
+    final Iterable<String> stackLines = (stack != null) ? stack.toString().trimRight().split('\n') : null;
+    if ((exception is AssertionError) && (exception is! FlutterError)) {
+      bool ourFault = true;
+      if (stackLines != null) {
+        final List<String> stackList = stackLines.take(2).toList();
+        if (stackList.length >= 2) {
+          // TODO(ianh): This has bitrotted and is no longer matching. https://github.com/flutter/flutter/issues/4021
+          final RegExp throwPattern = RegExp(
+              r'^#0 +_AssertionError._throwNew \(dart:.+\)$');
+          final RegExp assertPattern = RegExp(
+              r'^#1 +[^(]+ \((.+?):([0-9]+)(?::[0-9]+)?\)$');
+          if (throwPattern.hasMatch(stackList[0])) {
+            final Match assertMatch = assertPattern.firstMatch(stackList[1]);
+            if (assertMatch != null) {
+              assert(assertMatch.groupCount == 2);
+              final RegExp ourLibraryPattern = RegExp(r'^package:flutter/');
+              ourFault = ourLibraryPattern.hasMatch(assertMatch.group(1));
+            }
+          }
+        }
+      }
+      if (ourFault) {
+        properties.add(DiagnosticsNode.message(''));
+        properties.add(ErrorHint(
+          'Either the assertion indicates an error in the framework itself, or we should '
+          'provide substantially more information in this error message to help you determine '
+          'and fix the underlying cause.\n'
+          'In either case, please report this assertion by filing a bug on GitHub:\n'
+          '  https://github.com/flutter/flutter/issues/new?template=BUG.md'
+        ));
+      }
+    }
     if (stack != null) {
-      Iterable<String> stackLines = stack.toString().trimRight().split('\n');
-      if (stackFilter != null) {
-        stackLines = stackFilter(stackLines);
-      } else {
-        stackLines = FlutterError.defaultStackFilter(stackLines);
-      }
-      buffer.writeAll(stackLines, '\n');
+      properties.add(DiagnosticsNode.message(''));
+      properties.add(DiagnosticsStackTrace('When the exception was thrown, this was the stack', stack, stackFilter: stackFilter));
+      if (informationCollector != null) //ignore: deprecated_member_use_from_same_package
+        properties.add(DiagnosticsNode.message(''));
     }
-    return buffer.toString().trimRight();
+    if (informationCollector != null) {
+      final List<DiagnosticsNode> information = <DiagnosticsNode>[];
+      informationCollector(information);
+      information.forEach(properties.add);
+    }
+  }
+
+  @override
+  String toStringShort() {
+    return library != null ? 'Exception Caught By $library' : 'Exception Caught';
+  }
+
+  @override
+  String toString({DiagnosticLevel minLevel = DiagnosticLevel.debug}) {
+    return toDiagnosticsNode(style: DiagnosticsTreeStyle.error).toStringDeep(minLevel: minLevel);
   }
 }
 
 /// Error class used to report Flutter-specific assertion failures and
 /// contract violations.
-class FlutterError extends AssertionError {
+class FlutterError extends AssertionError with DiagnosticableTreeMixin {
   /// Creates a [FlutterError].
   ///
   /// See [message] for details on the format that the message should
@@ -190,7 +467,9 @@ class FlutterError extends AssertionError {
   /// Include as much detail as possible in the full error message,
   /// including specifics about the state of the app that might be
   /// relevant to debugging the error.
-  FlutterError(String message) : super(message);
+  FlutterError(this._diagnostics) : super(null);
+
+  final List<DiagnosticsNode> _diagnostics;
 
   /// The message associated with this error.
   ///
@@ -208,10 +487,7 @@ class FlutterError extends AssertionError {
   /// All sentences in the error should be correctly punctuated (i.e.,
   /// do end the error message with a period).
   @override
-  String get message => super.message;
-
-  @override
-  String toString() => message;
+  String get message => toStringDeep();
 
   /// Called whenever the Flutter framework catches an error.
   ///
@@ -267,77 +543,7 @@ class FlutterError extends AssertionError {
     if (!reportError && !forceReport)
       return;
     if (_errorCount == 0 || forceReport) {
-      final String header = '\u2550\u2550\u2561 EXCEPTION CAUGHT BY ${details.library} \u255E'.toUpperCase();
-      final String footer = '\u2550' * wrapWidth;
-      debugPrint('$header${"\u2550" * (footer.length - header.length)}');
-      final String verb = 'thrown${ details.context != null ? " ${details.context}" : ""}';
-      if (details.exception is NullThrownError) {
-        debugPrint('The null value was $verb.', wrapWidth: wrapWidth);
-      } else if (details.exception is num) {
-        debugPrint('The number ${details.exception} was $verb.', wrapWidth: wrapWidth);
-      } else {
-        String errorName;
-        if (details.exception is AssertionError) {
-          errorName = 'assertion';
-        } else if (details.exception is String) {
-          errorName = 'message';
-        } else if (details.exception is Error || details.exception is Exception) {
-          errorName = '${details.exception.runtimeType}';
-        } else {
-          errorName = '${details.exception.runtimeType} object';
-        }
-        // Many exception classes put their type at the head of their message.
-        // This is redundant with the way we display exceptions, so attempt to
-        // strip out that header when we see it.
-        final String prefix = '${details.exception.runtimeType}: ';
-        String message = details.exceptionAsString();
-        if (message.startsWith(prefix))
-          message = message.substring(prefix.length);
-        debugPrint('The following $errorName was $verb:\n$message', wrapWidth: wrapWidth);
-      }
-      Iterable<String> stackLines = (details.stack != null) ? details.stack.toString().trimRight().split('\n') : null;
-      if ((details.exception is AssertionError) && (details.exception is! FlutterError)) {
-        bool ourFault = true;
-        if (stackLines != null) {
-          final List<String> stackList = stackLines.take(2).toList();
-          if (stackList.length >= 2) {
-            // TODO(ianh): This has bitrotted and is no longer matching. https://github.com/flutter/flutter/issues/4021
-            final RegExp throwPattern = RegExp(r'^#0 +_AssertionError._throwNew \(dart:.+\)$');
-            final RegExp assertPattern = RegExp(r'^#1 +[^(]+ \((.+?):([0-9]+)(?::[0-9]+)?\)$');
-            if (throwPattern.hasMatch(stackList[0])) {
-              final Match assertMatch = assertPattern.firstMatch(stackList[1]);
-              if (assertMatch != null) {
-                assert(assertMatch.groupCount == 2);
-                final RegExp ourLibraryPattern = RegExp(r'^package:flutter/');
-                ourFault = ourLibraryPattern.hasMatch(assertMatch.group(1));
-              }
-            }
-          }
-        }
-        if (ourFault) {
-          debugPrint('\nEither the assertion indicates an error in the framework itself, or we should '
-                     'provide substantially more information in this error message to help you determine '
-                     'and fix the underlying cause.', wrapWidth: wrapWidth);
-          debugPrint('In either case, please report this assertion by filing a bug on GitHub:', wrapWidth: wrapWidth);
-          debugPrint('  https://github.com/flutter/flutter/issues/new?template=BUG.md');
-        }
-      }
-      if (details.stack != null) {
-        debugPrint('\nWhen the exception was thrown, this was the stack:', wrapWidth: wrapWidth);
-        if (details.stackFilter != null) {
-          stackLines = details.stackFilter(stackLines);
-        } else {
-          stackLines = defaultStackFilter(stackLines);
-        }
-        for (String line in stackLines)
-          debugPrint(line, wrapWidth: wrapWidth);
-      }
-      if (details.informationCollector != null) {
-        final StringBuffer information = StringBuffer();
-        details.informationCollector(information);
-        debugPrint('\n${information.toString().trimRight()}', wrapWidth: wrapWidth);
-      }
-      debugPrint(footer);
+      debugPrint(TextRenderer(wrapWidth: wrapWidth, wrapWidthProperties: wrapWidth, maxDescendentsTruncatableNode: 5).render(details.toDiagnosticsNode(style: DiagnosticsTreeStyle.error)));
     } else {
       debugPrint('Another exception was thrown: ${details.exceptionAsString().split("\n")[0].trimLeft()}');
     }
@@ -405,6 +611,20 @@ class FlutterError extends AssertionError {
     return result;
   }
 
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    _diagnostics?.forEach(properties.add);
+  }
+
+  @override
+  String toStringShort() => 'FlutterError';
+
+  @override
+  String toString({DiagnosticLevel minLevel = DiagnosticLevel.debug}) {
+    final TextRenderer renderer = TextRenderer(wrapWidth: wrapWidth);
+    return _diagnostics.map((DiagnosticsNode node) => renderer.render(node).trimRight()).join('\n');
+  }
+
   /// Calls [onError] with the given details, unless it is null.
   static void reportError(FlutterErrorDetails details) {
     assert(details != null);
@@ -430,4 +650,54 @@ void debugPrintStack({ String label, int maxFrames }) {
   if (maxFrames != null)
     lines = lines.take(maxFrames);
   debugPrint(FlutterError.defaultStackFilter(lines).join('\n'));
+}
+
+/// Diagnostic with a [StackTrace] [value] suitable for displaying stacktraces
+/// as part of a [FlutterError] object.
+///
+/// See also:
+///
+/// * [FlutterErrorBuilder.addStackTrace], which is the typical way [StackTrace]
+///   objects are added to a [FlutterError].
+class DiagnosticsStackTrace extends DiagnosticsBlock {
+
+  /// Creates a diagnostic for a stack trace.
+  ///
+  /// [name] describes a name the stacktrace is given, e.g.
+  /// `When the exception was thrown, this was the stack`.
+  /// [stackFilter] provides an optional filter to use to filter which frames
+  /// are included. If no filter is specified, [FlutterError.defaultStackFilter]
+  /// is used.
+  /// [showSeparator] indicates whether to include a ':' after the [name].
+  DiagnosticsStackTrace(
+      String name,
+      StackTrace stack, {
+        IterableFilter<String> stackFilter,
+        bool showSeparator = true,
+      }) : super(
+    name: name,
+    value: stack,
+    properties: (stackFilter ?? FlutterError.defaultStackFilter)(stack.toString().trimRight().split('\n'))
+        .map<DiagnosticsNode>(_createStackFrame)
+        .toList(),
+    style: DiagnosticsTreeStyle.flat,
+    showSeparator: showSeparator,
+    allowTruncate: true,
+  );
+
+  /// Creates a diagnostic describing a single frame from a StackTrace.
+  DiagnosticsStackTrace.singleFrame(
+      String name, {
+        @required String frame,
+        bool showSeparator = true,
+      }) : super(
+    name: name,
+    properties: <DiagnosticsNode>[_createStackFrame(frame)],
+    style: DiagnosticsTreeStyle.indentedSingleLine,
+    showSeparator: showSeparator,
+  );
+
+  static DiagnosticsNode _createStackFrame(String frame) {
+    return DiagnosticsNode.message(frame, allowWrap: false);
+  }
 }

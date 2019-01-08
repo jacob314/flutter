@@ -1446,11 +1446,13 @@ class Navigator extends StatefulWidget {
         : context.ancestorStateOfType(const TypeMatcher<NavigatorState>());
     assert(() {
       if (navigator == null && !nullOk) {
-        throw FlutterError(
-          'Navigator operation requested with a context that does not include a Navigator.\n'
-          'The context used to push or pop routes from the Navigator must be that of a '
-          'widget that is a descendant of a Navigator widget.'
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('Navigator operation requested with a context that does not include a Navigator.'),
+          ErrorDetails(
+            'The context used to push or pop routes from the Navigator must be that of a '
+            'widget that is a descendant of a Navigator widget.'
+          )
+        ]);
       }
       return true;
     }());
@@ -1586,26 +1588,28 @@ class NavigatorState extends State<Navigator> with TickerProviderStateMixin {
     if (route == null && !allowNull) {
       assert(() {
         if (widget.onUnknownRoute == null) {
-          throw FlutterError(
-            'If a Navigator has no onUnknownRoute, then its onGenerateRoute must never return null.\n'
-            'When trying to build the route "$name", onGenerateRoute returned null, but there was no '
-            'onUnknownRoute callback specified.\n'
-            'The Navigator was:\n'
-            '  $this'
-          );
+          throw FlutterError(<DiagnosticsNode>[
+            ErrorSummary('If a Navigator has no onUnknownRoute, then its onGenerateRoute must never return null.'),
+            ErrorDetails(
+              'When trying to build the route "$name", onGenerateRoute returned null, but there was no '
+              'onUnknownRoute callback specified.'
+            ),
+            ErrorProperty<NavigatorState>('The Navigator was', this),
+          ]);
         }
         return true;
       }());
       route = widget.onUnknownRoute(settings);
       assert(() {
         if (route == null) {
-          throw FlutterError(
-            'A Navigator\'s onUnknownRoute returned null.\n'
-            'When trying to build the route "$name", both onGenerateRoute and onUnknownRoute returned '
-            'null. The onUnknownRoute callback should never return null.\n'
-            'The Navigator was:\n'
-            '  $this'
-          );
+          throw FlutterError(<DiagnosticsNode>[
+            ErrorSummary('A Navigator\'s onUnknownRoute returned null.'),
+            ErrorDetails(
+              'When trying to build the route "$name", both onGenerateRoute and onUnknownRoute returned '
+              'null. The onUnknownRoute callback should never return null.'
+            ),
+            ErrorProperty<NavigatorState>('The Navigator was', this),
+          ]);
         }
         return true;
       }());

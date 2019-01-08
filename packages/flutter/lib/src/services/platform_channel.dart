@@ -493,7 +493,7 @@ class EventChannel {
           exception: exception,
           stack: stack,
           library: 'services library',
-          context: 'while activating platform stream on channel $name',
+          context: ErrorDetails('while activating platform stream on channel $name'),
         ));
       }
     }, onCancel: () async {
@@ -505,7 +505,7 @@ class EventChannel {
           exception: exception,
           stack: stack,
           library: 'services library',
-          context: 'while de-activating platform stream on channel $name',
+          context: ErrorDetails('while de-activating platform stream on channel $name'),
         ));
       }
     });
