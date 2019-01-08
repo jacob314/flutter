@@ -733,4 +733,7 @@ class _TextStyleProxy implements TextStyle {
   TextStyle merge(TextStyle other) {
     throw UnimplementedError();
   }
+
+  @override
+  DiagnosticLevel get debugDiagnosticLevel => DiagnosticLevel.info;
 }
