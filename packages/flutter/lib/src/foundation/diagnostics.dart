@@ -4,6 +4,7 @@
 
 import 'package:meta/meta.dart';
 
+import 'assertions.dart';
 import 'print.dart';
 
 // Examples can assume:
@@ -56,6 +57,26 @@ enum DiagnosticLevel {
   /// message in ALL CAPS.
   warning,
 
+  /// Diagnostics that provide a hint about best practices.
+  ///
+  /// For example, a diagnostic providing a hint on  on how to fix an overflow
+  /// error.
+  hint,
+
+  /// Diagnostics that provide a hint for how to fix a problem.
+  ///
+  /// For example, a diagnostic providing advice for how to fix an overflow
+  /// error.
+  fix,
+
+  /// Diagnostics that describe a contract.
+  ///
+  /// For example, a diagnostic describing the constraints applying to layout or
+  /// invariants that must remain true to correctly compose objects.
+  contract,
+
+  violation,
+
   /// Diagnostics that indicate errors or unexpected conditions.
   ///
   /// For example, use for property values where computing the value throws an
@@ -107,6 +128,14 @@ enum DiagnosticsTreeStyle {
   ///    style of the [RenderObject] tree.
   transition,
 
+  /// Style for displaying content describing an error.
+  ///
+  /// See also:
+  ///
+  ///  * [FlutterError], which uses this style for the root node in a tree
+  ///    describing an error.
+  error,
+
   /// Render the tree just using whitespace without connecting parents to
   /// children using lines.
   ///
@@ -117,6 +146,25 @@ enum DiagnosticsTreeStyle {
 
   /// Render the tree on a single line without showing children.
   singleLine,
+
+  /// Render the tree on a single line with the name and value on separate
+  /// lines.
+  indentedSingleLine,
+
+  /// Render only the immediate properties of a node instead of the full tree.
+  ///
+  /// See also:
+  ///
+  ///  * [DebugOverflowIndicator], which uses this style to display just the
+  ///    immediate children of a node.
+  shallow,
+
+  /// Render only the children of a node truncating before the tree becomes too
+  /// large.
+  ///
+  /// See also:
+  ///  * XXX
+  truncateChildren,
 }
 
 /// Configuration specifying how a particular [DiagnosticsTreeStyle] should be
@@ -153,6 +201,9 @@ class TextTreeConfiguration {
     this.addBlankLineIfNoChildren = true,
     this.isNameOnOwnLine = false,
     this.isBlankLineBetweenPropertiesAndChildren = true,
+    this.beforeName = '',
+    this.suffixLineOne = '',
+    this.manditoryFooter = '',
   }) : assert(prefixLineOne != null),
        assert(prefixOtherLines != null),
        assert(prefixLastChildLineOne != null),
@@ -177,6 +228,13 @@ class TextTreeConfiguration {
 
   /// Prefix to add to the first line to display a child with this style.
   final String prefixLineOne;
+
+  /// Similar to prefixLineOne but applies even when this is the root node in
+  /// the tree.
+  final String beforeName;
+
+  /// Suffix to add to end of the first line to make its length match the footer.
+  final String suffixLineOne;
 
   /// Prefix to add to other lines to display a child with this style.
   ///
@@ -279,6 +337,9 @@ class TextTreeConfiguration {
   /// See [transitionTextConfiguration] for an example of using footer to draw a box
   /// around the node. [footer] is indented the same amount as [prefixOtherLines].
   final String footer;
+
+  /// Footer to add even for root nodes.
+  final String manditoryFooter;
 
   /// Add a blank line between properties and children if both are present.
   final bool isBlankLineBetweenPropertiesAndChildren;
@@ -458,6 +519,46 @@ final TextTreeConfiguration transitionTextConfiguration = TextTreeConfiguration(
   isBlankLineBetweenPropertiesAndChildren: false,
 );
 
+/// Configuration that draws a box around a node ignoring the connection to the
+/// parents.
+///
+/// If nested in a tree, this node is best displayed in the property box rather
+/// than as a traditional child.
+///
+/// Used to draw a decorative box around detailed descriptions of an exception.
+///
+/// Example:
+/// ```
+/// ══╡ <name>: <description> ╞═════════════════════════════════════
+///
+///
+/// ════════════════════════════════════════════════════════════════
+/// ```
+///
+/// /// See also:
+///
+///  * [DiagnosticsTreeStyle.error]
+// TODO(jacobr): cleanup this style to create nice flower boxes in other cases
+final TextTreeConfiguration errorTextConfiguration = TextTreeConfiguration(
+  prefixLineOne:           '╞═╦',
+  prefixLastChildLineOne:  '╘═╦',
+  prefixOtherLines:         ' ║ ',
+  footer:                   ' ╚',
+  linkCharacter:            '│',
+  // Subtree boundaries are clear due to the border around the node so omit the
+  // property prefix.
+  propertyPrefixIfChildren: '',
+  propertyPrefixNoChildren: '',
+  prefixOtherLinesRootNode: '',
+  beforeName:               '══╡ ',
+  suffixLineOne:            '═',
+  manditoryFooter:          '═' * FlutterError.wrapWidth,
+  // No need to add a blank line as the footer makes the boundary of this
+  // subtree unambiguous.
+  addBlankLineIfNoChildren: false,
+  isBlankLineBetweenPropertiesAndChildren: false,
+);
+
 /// Whitespace only configuration where children are consistently indented
 /// two spaces.
 ///
@@ -518,6 +619,63 @@ final TextTreeConfiguration singleLineTextConfiguration = TextTreeConfiguration(
   propertyPrefixNoChildren: '',
   linkCharacter: '',
   prefixOtherLinesRootNode: '',
+);
+
+/// Render a node as a single line omitting children.
+///
+/// Example:
+/// ```
+/// <name>:
+///   <description>(<property1>, <property2>, ..., <propertyN>)
+/// ```
+///
+/// See also:
+///
+///  * [DiagnosticsTreeStyle.indentedSingleLine]
+final TextTreeConfiguration singleLineTextConfigurationIndented = TextTreeConfiguration(
+  propertySeparator: ', ',
+  beforeProperties: '(',
+  afterProperties: ')',
+  prefixLineOne: '',
+  prefixOtherLines: '',
+  prefixLastChildLineOne: '',
+  lineBreak: '',
+  lineBreakProperties: false,
+  addBlankLineIfNoChildren: false,
+  showChildren: false,
+  propertyPrefixIfChildren: '',
+  propertyPrefixNoChildren: '',
+  linkCharacter: '',
+  prefixOtherLinesRootNode: '',
+  afterName: '\n  ', // This is the difference between this text configuration and the typical single line text configuration. TODO(jacobr): verify this is robust.
+);
+
+/// Render a node on multiple lines omitting children.
+///
+/// Example:
+/// `<name>: <description>
+///   <property1>
+///   <property2>
+///   <propertyN>`
+///
+/// See also:
+///
+///  * [DiagnosticsTreeStyle.shallow]
+final TextTreeConfiguration shallowTextConfiguration = TextTreeConfiguration(
+  prefixLineOne: '',
+  prefixLastChildLineOne: '',
+  prefixOtherLines: ' ',
+  prefixOtherLinesRootNode: '  ',
+  bodyIndent: '',
+  propertyPrefixIfChildren: '',
+  propertyPrefixNoChildren: '',
+  linkCharacter: ' ',
+  addBlankLineIfNoChildren: false,
+  // Add a colon after the description and before the properties to link the
+  // properties to the description line.
+  afterDescriptionIfBody: ':',
+  isBlankLineBetweenPropertiesAndChildren: false,
+  showChildren: false,
 );
 
 /// Builder that builds a String with specified prefixes for the first and
@@ -629,6 +787,255 @@ class _NoDefaultValue {
 /// Marker object indicating that a [DiagnosticsNode] has no default value.
 const _NoDefaultValue kNoDefaultValue = _NoDefaultValue();
 
+enum TerminalColor {
+  red,
+  green,
+  blue,
+  cyan,
+  yellow,
+  magenta,
+  grey,
+}
+
+class TextRenderer {
+  static const String bold = '\u001B[1m';
+  static const String resetAll = '\u001B[0m';
+  static const String resetColor = '\u001B[39m';
+  static const String resetBold = '\u001B[22m';
+  static const String clear = '\u001B[2J\u001B[H';
+
+  static const String red = '\u001b[31m';
+  static const String green = '\u001b[32m';
+  static const String blue = '\u001b[34m';
+  static const String cyan = '\u001b[36m';
+  static const String magenta = '\u001b[35m';
+  static const String yellow = '\u001b[33m';
+  static const String grey = '\u001b[1;30m';
+
+  static const Map<TerminalColor, String> _colorMap = <TerminalColor, String>{
+    TerminalColor.red: red,
+    TerminalColor.green: green,
+    TerminalColor.blue: blue,
+    TerminalColor.cyan: cyan,
+    TerminalColor.magenta: magenta,
+    TerminalColor.yellow: yellow,
+    TerminalColor.grey: grey,
+  };
+
+  static String colorCode(TerminalColor color) => _colorMap[color];
+
+  String currentColor;
+  bool showColor;
+
+  static String renderToString(
+    DiagnosticsNode node, {
+    String prefixLineOne = '',
+    String prefixOtherLines,
+    TextTreeConfiguration parentConfiguration,
+    DiagnosticLevel minLevel = DiagnosticLevel.debug,
+  }) {
+    assert(minLevel != null);
+    prefixOtherLines ??= prefixLineOne;
+    if (node.linePrefix != null) {
+      // TODO(jacobr): should it apply to line 1 or not??
+      prefixLineOne += node.linePrefix;
+      prefixOtherLines += node.linePrefix;
+    }
+
+    final TextTreeConfiguration config = node.textTreeConfiguration;
+    if (prefixOtherLines.isEmpty)
+      prefixOtherLines += config.prefixOtherLinesRootNode;
+
+    if (node.style == DiagnosticsTreeStyle.truncateChildren) {
+      // This style is different enough that it isn't worthwhile to reuse the
+      // existing logic.
+      final List<String> descendants = <String>[];
+      const int maxDepth = 5;
+      int depth = 0;
+      const int maxLines = 25;
+      int lines = 0;
+      void visitor(DiagnosticsNode node) {
+        for (DiagnosticsNode child in node.getChildren()) {
+          if (lines < maxLines) {
+            depth += 1;
+            descendants.add('$prefixOtherLines${"  " * depth}$child');
+            if (depth < maxDepth)
+              visitor(child);
+            depth -= 1;
+          } else if (lines == maxLines) {
+            descendants.add('$prefixOtherLines  ...(descendants list truncated after $lines lines)');
+          }
+          lines += 1;
+        }
+      }
+      visitor(node);
+      StringBuffer information = StringBuffer(prefixLineOne);
+      if (lines > 1) {
+        information.writeln('This ${node.name} had the following descendants (showing up to depth $maxDepth):');
+      } else if (descendants.length == 1) {
+        information.writeln('This ${node.name} had the following child:');
+      } else {
+        information.writeln('This ${node.name} has no descendants.');
+      }
+      information.writeAll(descendants, '\n');
+      return information.toString();
+    }
+    final _PrefixedStringBuilder builder = _PrefixedStringBuilder(
+      prefixLineOne,
+      prefixOtherLines,
+    );
+
+    final List<DiagnosticsNode> children = node.getChildren();
+
+    final String description = node.toDescription(parentConfiguration: parentConfiguration);
+    if (config.beforeName.isNotEmpty) {
+      builder.write(config.beforeName);
+    }
+    if (description == null || description.isEmpty) {
+      if (node.showName && node.name != null)
+        builder.write(node.name);
+    } else {
+      if (node.name != null && node.name.isNotEmpty && node.showName) {
+        builder.write(node.name);
+        if (node.showSeparator)
+          builder.write(config.afterName);
+
+        builder.write(
+            config.isNameOnOwnLine || description.contains('\n') ? '\n' : ' ');
+        if (description.contains('\n') && node.style == DiagnosticsTreeStyle.singleLine)
+          builder.prefixOtherLines += '  ';
+      }
+      builder.prefixOtherLines += children.isEmpty ?
+      config.propertyPrefixNoChildren : config.propertyPrefixIfChildren;
+      builder.write(description);
+    }
+    if (config.suffixLineOne.isNotEmpty) {
+      int extraSuffixLength = builder.prefixOtherLines.length + config.footer.length - builder.prefixLineOne.length - config.suffixLineOne.length;
+      builder.write(config.suffixLineOne);
+      if (extraSuffixLength > 0) {
+        builder.write(config.suffixLineOne[config.suffixLineOne.length - 1] * extraSuffixLength);
+      }
+    }
+
+    final List<DiagnosticsNode> properties = node.getProperties().where(
+            (DiagnosticsNode n) => !n.isFiltered(minLevel)
+    ).toList();
+
+    if (properties.isNotEmpty || children.isNotEmpty || node.emptyBodyDescription != null)
+      builder.write(config.afterDescriptionIfBody);
+
+    if (config.lineBreakProperties)
+      builder.write(config.lineBreak);
+
+    if (properties.isNotEmpty)
+      builder.write(config.beforeProperties);
+
+    builder.prefixOtherLines += config.bodyIndent;
+
+    if (node.emptyBodyDescription != null &&
+        properties.isEmpty &&
+        children.isEmpty &&
+        prefixLineOne.isNotEmpty) {
+      builder.write(node.emptyBodyDescription);
+      if (config.lineBreakProperties)
+        builder.write(config.lineBreak);
+    }
+
+    for (int i = 0; i < properties.length; ++i) {
+      final DiagnosticsNode property = properties[i];
+      if (i > 0)
+        builder.write(config.propertySeparator);
+
+      const int kWrapWidth = 65;
+      if (property.style != DiagnosticsTreeStyle.singleLine) {
+        final TextTreeConfiguration propertyStyle = property.textTreeConfiguration;
+        builder.writeRaw(renderToString(property,
+          prefixLineOne: '${builder.prefixOtherLines}${propertyStyle.prefixLineOne}',
+          prefixOtherLines: '${builder.prefixOtherLines}${propertyStyle.linkCharacter}${propertyStyle.prefixOtherLines}',
+          parentConfiguration: config,
+          minLevel: minLevel,
+        ));
+        continue;
+      }
+      assert(property.style == DiagnosticsTreeStyle.singleLine);
+      final String message = property.toString(parentConfiguration: config, minLevel: minLevel);
+      if (!config.lineBreakProperties || message.length < kWrapWidth) {
+        builder.write(message);
+      } else {
+        // debugWordWrap doesn't handle line breaks within the text being
+        // wrapped so we must call it on each line.
+        final List<String> lines = message.split('\n');
+        for (int j = 0; j < lines.length; ++j) {
+          final String line = lines[j];
+          if (j > 0)
+            builder.write(config.lineBreak);
+          builder.write(debugWordWrap(line, kWrapWidth, wrapIndent: '  ').join('\n'));
+        }
+      }
+      if (config.lineBreakProperties)
+        builder.write(config.lineBreak);
+    }
+    if (properties.isNotEmpty)
+      builder.write(config.afterProperties);
+
+    if (!config.lineBreakProperties)
+      builder.write(config.lineBreak);
+
+    final String prefixChildren = '$prefixOtherLines${config.bodyIndent}';
+
+    if (children.isEmpty &&
+        config.addBlankLineIfNoChildren &&
+        builder.hasMultipleLines) {
+      final String prefix = prefixChildren.trimRight();
+      if (prefix.isNotEmpty)
+        builder.writeRaw('$prefix${config.lineBreak}');
+    }
+
+    if (children.isNotEmpty && config.showChildren) {
+      if (config.isBlankLineBetweenPropertiesAndChildren &&
+          properties.isNotEmpty &&
+          children.first.textTreeConfiguration.isBlankLineBetweenPropertiesAndChildren) {
+        builder.write(config.lineBreak);
+      }
+
+      for (int i = 0; i < children.length; i++) {
+        final DiagnosticsNode child = children[i];
+        assert(child != null);
+        final TextTreeConfiguration childConfig = node._childTextConfiguration(child, config);
+        if (i == children.length - 1) {
+          final String lastChildPrefixLineOne = '$prefixChildren${childConfig.prefixLastChildLineOne}';
+          builder.writeRawLine(renderToString(
+            child,
+            prefixLineOne: lastChildPrefixLineOne,
+            prefixOtherLines: '$prefixChildren${childConfig.childLinkSpace}${childConfig.prefixOtherLines}',
+            parentConfiguration: config,
+            minLevel: minLevel,
+          ));
+          if (childConfig.footer.isNotEmpty)
+            builder.writeRaw('$prefixChildren${childConfig.childLinkSpace}${childConfig.footer}${childConfig.manditoryFooter}');
+        } else {
+          final TextTreeConfiguration nextChildStyle = node._childTextConfiguration(children[i + 1], config);
+          final String childPrefixLineOne = '$prefixChildren${childConfig.prefixLineOne}';
+          final String childPrefixOtherLines ='$prefixChildren${nextChildStyle.linkCharacter}${childConfig.prefixOtherLines}';
+          builder.writeRawLine(renderToString(
+            child,
+            prefixLineOne: childPrefixLineOne,
+            prefixOtherLines: childPrefixOtherLines,
+            parentConfiguration: config,
+            minLevel: minLevel,
+          ));
+          if (childConfig.footer.isNotEmpty)
+            builder.writeRaw('$prefixChildren${nextChildStyle.linkCharacter}${childConfig.footer}${childConfig.manditoryFooter}');
+        }
+      }
+    }
+    if (parentConfiguration == null && config.manditoryFooter.isNotEmpty) {
+      builder.write(config.manditoryFooter);
+    }
+    return builder.toString();
+  }
+}
+
 /// Defines diagnostics data for a [value].
 ///
 /// [DiagnosticsNode] provides a high quality multi-line string dump via
@@ -646,6 +1053,7 @@ abstract class DiagnosticsNode {
     this.style,
     this.showName = true,
     this.showSeparator = true,
+    this.linePrefix,
   }) : assert(showName != null),
        assert(showSeparator != null),
        // A name ending with ':' indicates that the user forgot that the ':' will
@@ -724,6 +1132,8 @@ abstract class DiagnosticsNode {
   /// will make the name self-evident.
   final bool showName;
 
+  final String linePrefix;
+
   /// Description to show if the node has no displayed properties or children.
   String get emptyBodyDescription => null;
 
@@ -761,17 +1171,29 @@ abstract class DiagnosticsNode {
   @mustCallSuper
   Map<String, Object> toJsonMap() {
     final Map<String, Object> data = <String, Object>{
-      'name': name,
-      'showSeparator': showSeparator,
       'description': toDescription(),
-      'level': describeEnum(level),
-      'showName': showName,
-      'emptyBodyDescription': emptyBodyDescription,
-      'style': describeEnum(style),
-      'valueToString': value.toString(),
       'type': runtimeType.toString(),
-      'hasChildren': getChildren().isNotEmpty,
     };
+    if (name != null)
+      data['name'] = name;
+
+    if (!showSeparator)
+      data['showSeparator'] = showSeparator;
+    if (level != DiagnosticLevel.info)
+      data['level'] = describeEnum(level);
+    if (showName == false)
+      data['showName'] = showName;
+    if (emptyBodyDescription != null)
+      data['emptyBodyDescription'] = emptyBodyDescription;
+    if (style != DiagnosticsTreeStyle.sparse)
+      data['style'] = describeEnum(style);
+
+    bool hasChildren = getChildren().isNotEmpty;
+    if (hasChildren)
+      data['hasChildren'] = hasChildren;
+
+    if (linePrefix?.isNotEmpty == true)
+      data['linePrefix'] = linePrefix;
     return data;
   }
 
@@ -821,6 +1243,14 @@ abstract class DiagnosticsNode {
         return transitionTextConfiguration;
       case DiagnosticsTreeStyle.singleLine:
         return singleLineTextConfiguration;
+      case DiagnosticsTreeStyle.indentedSingleLine:
+        return singleLineTextConfigurationIndented;
+      case DiagnosticsTreeStyle.shallow:
+        return shallowTextConfiguration;
+      case DiagnosticsTreeStyle.error:
+        return errorTextConfiguration;
+      case DiagnosticsTreeStyle.truncateChildren:
+        return null;
     }
     return null;
   }
@@ -835,8 +1265,9 @@ abstract class DiagnosticsNode {
     DiagnosticsNode child,
     TextTreeConfiguration textStyle,
   ) {
-    return (child != null && child.style != DiagnosticsTreeStyle.singleLine) ?
-        child.textTreeConfiguration : textStyle;
+    return child.textTreeConfiguration;
+// XXX    return (child != null && child.style != DiagnosticsTreeStyle.singleLine) ?
+  // XXX      child.textTreeConfiguration : textStyle;
   }
 
   /// Returns a string representation of this node and its descendants.
@@ -863,150 +1294,13 @@ abstract class DiagnosticsNode {
     TextTreeConfiguration parentConfiguration,
     DiagnosticLevel minLevel = DiagnosticLevel.debug,
   }) {
-    assert(minLevel != null);
-    prefixOtherLines ??= prefixLineOne;
-
-    final List<DiagnosticsNode> children = getChildren();
-    final TextTreeConfiguration config = textTreeConfiguration;
-    if (prefixOtherLines.isEmpty)
-      prefixOtherLines += config.prefixOtherLinesRootNode;
-
-    final _PrefixedStringBuilder builder = _PrefixedStringBuilder(
-      prefixLineOne,
-      prefixOtherLines,
+    return TextRenderer.renderToString(
+      this,
+      prefixLineOne: prefixLineOne,
+      prefixOtherLines: prefixOtherLines,
+      parentConfiguration: parentConfiguration,
+      minLevel: minLevel,
     );
-
-    final String description = toDescription(parentConfiguration: parentConfiguration);
-    if (description == null || description.isEmpty) {
-      if (showName && name != null)
-        builder.write(name);
-    } else {
-      if (name != null && name.isNotEmpty && showName) {
-        builder.write(name);
-        if (showSeparator)
-          builder.write(config.afterName);
-
-        builder.write(
-            config.isNameOnOwnLine || description.contains('\n') ? '\n' : ' ');
-        if (description.contains('\n') && style == DiagnosticsTreeStyle.singleLine)
-          builder.prefixOtherLines += '  ';
-      }
-      builder.prefixOtherLines += children.isEmpty ?
-          config.propertyPrefixNoChildren : config.propertyPrefixIfChildren;
-      builder.write(description);
-    }
-
-    final List<DiagnosticsNode> properties = getProperties().where(
-      (DiagnosticsNode n) => !n.isFiltered(minLevel)
-    ).toList();
-
-    if (properties.isNotEmpty || children.isNotEmpty || emptyBodyDescription != null)
-      builder.write(config.afterDescriptionIfBody);
-
-    if (config.lineBreakProperties)
-      builder.write(config.lineBreak);
-
-    if (properties.isNotEmpty)
-      builder.write(config.beforeProperties);
-
-    builder.prefixOtherLines += config.bodyIndent;
-
-    if (emptyBodyDescription != null &&
-        properties.isEmpty &&
-        children.isEmpty &&
-        prefixLineOne.isNotEmpty) {
-      builder.write(emptyBodyDescription);
-      if (config.lineBreakProperties)
-        builder.write(config.lineBreak);
-    }
-
-    for (int i = 0; i < properties.length; ++i) {
-      final DiagnosticsNode property = properties[i];
-      if (i > 0)
-        builder.write(config.propertySeparator);
-
-      const int kWrapWidth = 65;
-      if (property.style != DiagnosticsTreeStyle.singleLine) {
-        final TextTreeConfiguration propertyStyle = property.textTreeConfiguration;
-        builder.writeRaw(property.toStringDeep(
-          prefixLineOne: '${builder.prefixOtherLines}${propertyStyle.prefixLineOne}',
-          prefixOtherLines: '${builder.prefixOtherLines}${propertyStyle.linkCharacter}${propertyStyle.prefixOtherLines}',
-          parentConfiguration: config,
-          minLevel: minLevel,
-        ));
-        continue;
-      }
-      assert(property.style == DiagnosticsTreeStyle.singleLine);
-      final String message = property.toString(parentConfiguration: config, minLevel: minLevel);
-      if (!config.lineBreakProperties || message.length < kWrapWidth) {
-        builder.write(message);
-      } else {
-        // debugWordWrap doesn't handle line breaks within the text being
-        // wrapped so we must call it on each line.
-        final List<String> lines = message.split('\n');
-        for (int j = 0; j < lines.length; ++j) {
-          final String line = lines[j];
-          if (j > 0)
-            builder.write(config.lineBreak);
-          builder.write(debugWordWrap(line, kWrapWidth, wrapIndent: '  ').join('\n'));
-        }
-      }
-      if (config.lineBreakProperties)
-        builder.write(config.lineBreak);
-    }
-    if (properties.isNotEmpty)
-      builder.write(config.afterProperties);
-
-    if (!config.lineBreakProperties)
-      builder.write(config.lineBreak);
-
-    final String prefixChildren = '$prefixOtherLines${config.bodyIndent}';
-
-    if (children.isEmpty &&
-        config.addBlankLineIfNoChildren &&
-        builder.hasMultipleLines) {
-      final String prefix = prefixChildren.trimRight();
-      if (prefix.isNotEmpty)
-        builder.writeRaw('$prefix${config.lineBreak}');
-    }
-
-    if (children.isNotEmpty && config.showChildren) {
-      if (config.isBlankLineBetweenPropertiesAndChildren &&
-          properties.isNotEmpty &&
-          children.first.textTreeConfiguration.isBlankLineBetweenPropertiesAndChildren) {
-        builder.write(config.lineBreak);
-      }
-
-      for (int i = 0; i < children.length; i++) {
-        final DiagnosticsNode child = children[i];
-        assert(child != null);
-        final TextTreeConfiguration childConfig = _childTextConfiguration(child, config);
-        if (i == children.length - 1) {
-          final String lastChildPrefixLineOne = '$prefixChildren${childConfig.prefixLastChildLineOne}';
-          builder.writeRawLine(child.toStringDeep(
-            prefixLineOne: lastChildPrefixLineOne,
-            prefixOtherLines: '$prefixChildren${childConfig.childLinkSpace}${childConfig.prefixOtherLines}',
-            parentConfiguration: config,
-            minLevel: minLevel,
-          ));
-          if (childConfig.footer.isNotEmpty)
-            builder.writeRaw('$prefixChildren${childConfig.childLinkSpace}${childConfig.footer}');
-        } else {
-          final TextTreeConfiguration nextChildStyle = _childTextConfiguration(children[i + 1], config);
-          final String childPrefixLineOne = '$prefixChildren${childConfig.prefixLineOne}';
-          final String childPrefixOtherLines ='$prefixChildren${nextChildStyle.linkCharacter}${childConfig.prefixOtherLines}';
-          builder.writeRawLine(child.toStringDeep(
-            prefixLineOne: childPrefixLineOne,
-            prefixOtherLines: childPrefixOtherLines,
-            parentConfiguration: config,
-            minLevel: minLevel,
-          ));
-          if (childConfig.footer.isNotEmpty)
-            builder.writeRaw('$prefixChildren${nextChildStyle.linkCharacter}${childConfig.footer}');
-        }
-      }
-    }
-    return builder.toString();
   }
 }
 
@@ -1118,6 +1412,33 @@ class StringProperty extends DiagnosticsProperty<String> {
     return text.toString();
   }
 }
+
+class LinkProperty extends DiagnosticsProperty<String> {
+  /// Create a diagnostics property for url links.
+  ///
+  /// The [showName], [quoted], and [level] arguments must not be null.
+  LinkProperty(String name, {
+    String url,
+    bool showName = true,
+    DiagnosticLevel level = DiagnosticLevel.info,
+  }) : assert(showName != null),
+        assert(level != null),
+        super(
+        name,
+        url,
+        showName: showName,
+        level: level,
+      );
+
+
+  @override
+  Map<String, Object> toJsonMap() {
+    final Map<String, Object> json = super.toJsonMap();
+    json['url'] = true;
+    return json;
+  }
+}
+
 
 abstract class _NumProperty<T extends num> extends DiagnosticsProperty<T> {
   _NumProperty(String name,
@@ -1456,16 +1777,18 @@ class IterableProperty<T> extends DiagnosticsProperty<Iterable<T>> {
   /// [defaultValue] is used to indicate that a specific concrete value is not
   /// interesting to display.
   ///
-  /// The [style], [showName], and [level] arguments must not be null.
+  /// The [style], [showName], [showSeparator], and [level] arguments must not be null.
   IterableProperty(String name, Iterable<T> value, {
     Object defaultValue = kNoDefaultValue,
     String ifNull,
     String ifEmpty = '[]',
     DiagnosticsTreeStyle style = DiagnosticsTreeStyle.singleLine,
     bool showName = true,
+    bool showSeparator = true,
     DiagnosticLevel level = DiagnosticLevel.info,
   }) : assert(style != null),
        assert(showName != null),
+       assert(showSeparator != null),
        assert(level != null),
        super(
     name,
@@ -1475,6 +1798,7 @@ class IterableProperty<T> extends DiagnosticsProperty<Iterable<T>> {
     ifEmpty: ifEmpty,
     style: style,
     showName: showName,
+    showSeparator: showSeparator,
     level: level,
   );
 
@@ -1700,8 +2024,10 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
     this.defaultValue = kNoDefaultValue,
     this.tooltip,
     this.missingIfNull = false,
+    String linePrefix,
     DiagnosticsTreeStyle style = DiagnosticsTreeStyle.singleLine,
     DiagnosticLevel level = DiagnosticLevel.info,
+    this.expandableValue = false,
   }) : assert(showName != null),
        assert(showSeparator != null),
        assert(style != null),
@@ -1717,6 +2043,7 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
          showName: showName,
          showSeparator: showSeparator,
          style: style,
+         linePrefix: linePrefix,
       );
 
   /// Property with a [value] that is computed only when needed.
@@ -1742,6 +2069,7 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
     this.defaultValue = kNoDefaultValue,
     this.tooltip,
     this.missingIfNull = false,
+    this.expandableValue = false,
     DiagnosticsTreeStyle style = DiagnosticsTreeStyle.singleLine,
     DiagnosticLevel level = DiagnosticLevel.info,
   }) : assert(showName != null),
@@ -1765,6 +2093,8 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
 
   final String _description;
 
+  final bool expandableValue;
+
   @override
   Map<String, Object> toJsonMap() {
     final Map<String, Object> json = super.toJsonMap();
@@ -1780,9 +2110,8 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
     if (exception != null)
       json['exception'] = exception.toString();
     json['propertyType'] = propertyType.toString();
-    json['valueToString'] = valueToString();
     json['defaultLevel'] = describeEnum(_defaultLevel);
-    if (T is Diagnosticable)
+    if (T is Diagnosticable || T is DiagnosticsNode)
       json['isDiagnosticableValue'] = true;
     return json;
   }
@@ -1950,10 +2279,32 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
   final ComputePropertyValueCallback<T> _computeValue;
 
   @override
-  List<DiagnosticsNode> getProperties() => <DiagnosticsNode>[];
+  List<DiagnosticsNode> getProperties() {
+    if (expandableValue) {
+      T object = value;
+      if (object is DiagnosticsNode) {
+        return object.getProperties();
+      }
+      if (object is Diagnosticable) {
+        return object.toDiagnosticsNode(style: style).getProperties();
+      }
+    }
+    return const <DiagnosticsNode>[];
+  }
 
   @override
-  List<DiagnosticsNode> getChildren() => <DiagnosticsNode>[];
+  List<DiagnosticsNode> getChildren() {
+    if (expandableValue) {
+      T object = value;
+      if (object is DiagnosticsNode) {
+        return object.getChildren();
+      }
+      if (object is Diagnosticable) {
+        return object.toDiagnosticsNode(style: style).getChildren();
+      }
+    }
+    return const <DiagnosticsNode>[];
+  }
 }
 
 /// [DiagnosticsNode] that lazily calls the associated [Diagnosticable] [value]
@@ -2004,6 +2355,9 @@ class DiagnosticableNode<T extends Diagnosticable> extends DiagnosticsNode {
   String toDescription({ TextTreeConfiguration parentConfiguration }) {
     return value.toStringShort();
   }
+
+  @override
+  DiagnosticLevel get level => value.debugDiagnosticLevel;
 }
 
 /// [DiagnosticsNode] for an instance of [DiagnosticableTree].
@@ -2354,6 +2708,8 @@ abstract class Diagnosticable {
   @protected
   @mustCallSuper
   void debugFillProperties(DiagnosticPropertiesBuilder properties) { }
+
+  DiagnosticLevel get debugDiagnosticLevel => DiagnosticLevel.info;
 }
 
 /// A base class for providing string and [DiagnosticsNode] debug
@@ -2516,4 +2872,53 @@ mixin DiagnosticableTreeMixin implements DiagnosticableTree {
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) { }
+
+  @override
+  DiagnosticLevel get debugDiagnosticLevel => DiagnosticLevel.info;
+}
+
+/// Use this class to create a Diagnostic that exists purely to provide a
+/// container for other diagnostics.
+///
+/// For example, use this diagnostic to nest a link and message diagnostic
+/// inside a hint.
+class DiagnosticsBlock extends DiagnosticsNode {
+  DiagnosticsBlock({
+    String name,
+    DiagnosticsTreeStyle style = DiagnosticsTreeStyle.whitespace,
+    bool showName = true,
+    bool showSeparator = true,
+    String linePrefix,
+    this.value,
+    String description,
+    this.level = DiagnosticLevel.info,
+    List<DiagnosticsNode> children = const<DiagnosticsNode>[],
+    List<DiagnosticsNode> properties = const <DiagnosticsNode>[],
+  }) : _description = description,
+       _children = children,
+       _properties = properties,
+    super(
+    name: name,
+    style: style,
+    showName: showName && name != null,
+    showSeparator: showSeparator,
+    linePrefix: linePrefix,
+  );
+
+  final List<DiagnosticsNode> _children;
+  final List<DiagnosticsNode> _properties;
+
+  @override
+  final DiagnosticLevel level;
+  final String _description;
+  final Object value;
+
+  @override
+  List<DiagnosticsNode> getChildren() => _children;
+
+  @override
+  List<DiagnosticsNode> getProperties() => _properties;
+
+  @override
+  String toDescription({TextTreeConfiguration parentConfiguration}) => _description;
 }

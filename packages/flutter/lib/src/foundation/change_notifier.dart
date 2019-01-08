@@ -102,9 +102,9 @@ class ChangeNotifier implements Listenable {
   bool _debugAssertNotDisposed() {
     assert(() {
       if (_listeners == null) {
-        throw FlutterError(
-          'A $runtimeType was used after being disposed.\n'
-          'Once you have called dispose() on a $runtimeType, it can no longer be used.'
+        throw FlutterError.detailed(
+          'A $runtimeType was used after being disposed.',
+          contract: 'Once you have called dispose() on a $runtimeType, it can no longer be used.'
         );
       }
       return true;
@@ -208,11 +208,11 @@ class ChangeNotifier implements Listenable {
             exception: exception,
             stack: stack,
             library: 'foundation library',
-            context: 'while dispatching notifications for $runtimeType',
-            informationCollector: (StringBuffer information) {
-              information.writeln('The $runtimeType sending notification was:');
-              information.write('  $this');
-            }
+            contextName: 'while dispatching notifications for',
+            contextObject: runtimeType,
+            diagnosticsCollector: () => <DiagnosticsNode>[
+              describeProperty('The $runtimeType sending notification', this)
+            ]
           ));
         }
       }

@@ -56,11 +56,11 @@ Future<void> main() async {
       exception: getAssertionErrorWithMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
-      informationCollector: (StringBuffer information) {
-        information.writeln('line 1 of extra information');
-        information.writeln('line 2 of extra information\n'); // the double trailing newlines here are intentional
-      },
+      contextName: 'testing the error handling logic',
+      diagnosticsCollector: () => <DiagnosticsNode>[
+        contractMessage('line 1 of extra information'),
+        hintMessage('line 2 of extra information\n') // the double trailing newlines here are intentional
+      ],
     ));
     expect(console.join('\n'), matches(
       '^══╡ EXCEPTION CAUGHT BY ERROR HANDLING TEST ╞═══════════════════════════════════════════════════════\n'
@@ -138,11 +138,11 @@ Future<void> main() async {
       exception: getAssertionErrorWithoutMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
-      informationCollector: (StringBuffer information) {
-        information.writeln('line 1 of extra information');
-        information.writeln('line 2 of extra information\n'); // the double trailing newlines here are intentional
-      },
+      contextName: 'testing the error handling logic',
+      diagnosticsCollector: () => <DiagnosticsNode>[
+        contractMessage('line 1 of extra information'),
+        descriptionMessage('line 2 of extra information\n'), // the double trailing newlines here are intentional
+      ],
     ));
     expect(console.join('\n'), matches(
       '^══╡ EXCEPTION CAUGHT BY ERROR HANDLING TEST ╞═══════════════════════════════════════════════════════\n'

@@ -5,6 +5,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import 'object.dart';
@@ -236,13 +237,15 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
       FlutterErrorDetailsForRendering(
         exception: 'A $runtimeType overflowed by $overflowText.',
         library: 'rendering library',
-        context: 'during layout',
+        contextName: 'during layout',
         renderObject: this,
-        informationCollector: (StringBuffer information) {
-          information.writeln(overflowHints);
-          information.writeln('The specific $runtimeType in question is:');
-          information.writeln('  ${toStringShallow(joiner: '\n  ')}');
-          information.writeln('◢◤' * (FlutterError.wrapWidth ~/ 2));
+        diagnosticsCollector: () {
+          return <DiagnosticsNode>[
+            DiagnosticsNode.message(overflowHints, level: DiagnosticLevel.hint),
+            DiagnosticsProperty('The specific $runtimeType in question is', this, style: DiagnosticsTreeStyle.shallow),
+            // TODO(jacobr): this line is ascii art that it would be nice to handle more generically in GUI clients.
+            DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), level: DiagnosticLevel.info),
+          ];
         },
       ),
     );

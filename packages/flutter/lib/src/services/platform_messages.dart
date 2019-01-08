@@ -44,7 +44,7 @@ class BinaryMessages {
           exception: exception,
           stack: stack,
           library: 'services library',
-          context: 'during a platform message response callback',
+          contextName: 'during a platform message response callback',
         ));
       }
     });
@@ -69,7 +69,7 @@ class BinaryMessages {
         exception: exception,
         stack: stack,
         library: 'services library',
-        context: 'during a platform message callback',
+        contextName: 'during a platform message callback',
       ));
     } finally {
       callback(response);
