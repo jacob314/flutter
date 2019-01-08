@@ -252,7 +252,7 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
           ..addRenderObject('The specific $runtimeType in question is', this)
           // TODO(jacobr): this line is ascii art that it would be nice to handle
           // more generically in GUI debugging clients in the future.
-          ..addDescription('◢◤' * (FlutterError.wrapWidth ~/ 2)),
+          ..addDiagnostic(DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), allowWrap: false)),
       ),
     );
   }

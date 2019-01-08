@@ -74,14 +74,13 @@ class FlutterErrorDetails {
     this.stack,
     this.library = 'Flutter framework',
     this.stackFilter,
-    InformationCollector informationCollector,
+    this.informationCollector,
     this.errorBuilder,
     String context,
     Object contextObject,
     DiagnosticsNode diagnosticContext,
     this.silent = false
-  }) : _informationCollector = informationCollector,
-       _diagnosticContext = diagnosticContext,
+  }) : _diagnosticContext = diagnosticContext,
        _contextName = context,
        _contextObject = contextObject;
   /// The exception. Often this will be an [AssertionError], maybe specifically
@@ -162,20 +161,7 @@ class FlutterErrorDetails {
   ///
   /// The text written to the information argument may contain newlines but should
   /// not end with a newline.
-  InformationCollector get informationCollector {
-    if (errorBuilder == null) {
-      return _informationCollector;
-    }
-    return (StringBuffer information) {
-      information.writeln(errorBuilder.toStringDeep());
-      // TODO(jacobr): for backwards compatibility, should informationCollector
-      // be run first or last?
-      if (_informationCollector != null) {
-        _informationCollector(information);
-      }
-    };
-  }
-  final InformationCollector _informationCollector;
+  final InformationCollector informationCollector;
 
   final FlutterErrorBuilder errorBuilder;
 
@@ -253,6 +239,9 @@ class FlutterErrorDetails {
     buffer.writeln(exceptionAsString());
     if (informationCollector != null)
       informationCollector(buffer);
+    if (errorBuilder != null && !errorBuilder.isEmpty) {
+      buffer.writeln(errorBuilder);
+    }
     if (stack != null) {
       Iterable<String> stackLines = stack.toString().trimRight().split('\n');
       if (stackFilter != null) {
@@ -274,7 +263,7 @@ class FlutterErrorBuilder {
 
   final ErrorBuilderCallback<FlutterErrorBuilder> _buildErrorCallback;
 
-  /// Overall error.
+  /// Overall error message.
   String error;
 
   final List<DiagnosticsNode> _parts = <DiagnosticsNode>[];
