@@ -208,9 +208,10 @@ class ChangeNotifier implements Listenable {
             exception: exception,
             stack: stack,
             library: 'foundation library',
-            context: 'while dispatching notifications for $runtimeType',
+            contextName: 'while dispatching notifications for',
+            contextObject: runtimeType,
             diagnosticsCollector: () => <DiagnosticsNode>[
-              errorProperty('The $runtimeType sending notification', this)
+              describeProperty('The $runtimeType sending notification', this)
             ]
           ));
         }

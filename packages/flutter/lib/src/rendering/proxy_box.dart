@@ -1962,8 +1962,8 @@ class RenderDecoratedBox extends RenderProxyBox {
             'After painting it, the canvas save count was ${context.canvas.getSaveCount()}.',
             hint: 'Every call to save() or saveLayer() must be matched by a call to restore().',
             diagnostics: <DiagnosticsNode>[
-              errorProperty('The decoration was', decoration),
-              errorProperty('The painter was', _painter),
+              describeProperty('The decoration was', decoration),
+              describeProperty('The painter was', _painter),
             ],
           );
         }

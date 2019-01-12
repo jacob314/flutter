@@ -1431,7 +1431,7 @@ class NavigatorState extends State<Navigator> with TickerProviderStateMixin {
             'If a Navigator has no onUnknownRoute, then its onGenerateRoute must never return null.',
             violation: 'When trying to build the route "$name", onGenerateRoute returned null, but there was no '
             'onUnknownRoute callback specified.\n',
-            diagnostic: errorProperty('The Navigator was:', this),
+            diagnostic: describeProperty('The Navigator was', this),
           );
         }
         return true;

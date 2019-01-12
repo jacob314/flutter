@@ -22,7 +22,7 @@ void main() {
         exception: 'Example exception',
         stack: StackTrace.current,
         library: 'Example library',
-        context: 'Example context',
+        contextName: 'Example context',
         diagnosticsCollector: () => <DiagnosticsNode>[
           descriptionMessage('Example information'),
         ],
@@ -46,7 +46,7 @@ void main() {
       FlutterErrorDetails(
         exception: 'MESSAGE',
         library: 'LIBRARY',
-        context: 'CONTEXTING',
+        contextName: 'CONTEXTING',
         diagnosticsCollector: () => <DiagnosticsNode>[
           descriptionMessage('INFO'),
         ],
@@ -58,7 +58,7 @@ void main() {
     expect(
       FlutterErrorDetails(
         library: 'LIBRARY',
-        context: 'CONTEXTING',
+        contextName: 'CONTEXTING',
         diagnosticsCollector: () => <DiagnosticsNode>[
           descriptionMessage('INFO'),
         ],
@@ -70,7 +70,7 @@ void main() {
     expect(
       FlutterErrorDetails(
         exception: 'MESSAGE',
-        context: 'CONTEXTING',
+        contextName: 'CONTEXTING',
         diagnosticsCollector: () => <DiagnosticsNode>[
           descriptionMessage('INFO'),
         ],

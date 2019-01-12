@@ -173,7 +173,7 @@ class AnimatedList extends StatefulWidget {
       'built the AnimatedList. Please see the AnimatedList documentation for examples '
       'of how to refer to an AnimatedListState object: '
       '  https://docs.flutter.io/flutter/widgets/AnimatedListState-class.html',
-      diagnostic: errorProperty('The context used was', context),
+      diagnostic: describeProperty('The context used was', context),
     );
   }
 

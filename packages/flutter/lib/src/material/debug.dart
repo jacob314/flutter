@@ -30,10 +30,6 @@ bool debugCheckHasMaterial(BuildContext context) {
         return true;
       });
       List<DiagnosticsNode> diagnostics = <DiagnosticsNode>[
-        contractMessage(
-          '${context.widget.runtimeType} widgets require a Material '
-          'widget ancestor.',
-        ),
         DiagnosticsNode.message(
           'In material design, most widgets are conceptually "printed" on '
           'a sheet of material. In Flutter\'s material library, that '
@@ -47,7 +43,7 @@ bool debugCheckHasMaterial(BuildContext context) {
           'include one, or use a widget that contains Material itself, '
           'such as a Card, Dialog, Drawer, or Scaffold.',
         ),
-        errorProperty('The specific widget that could not find a Material ancestor was', context.widget),
+        describeProperty('The specific widget that could not find a Material ancestor was', context.widget),
       ];
       if (ancestors.isNotEmpty) {
         diagnostics.add(IterableProperty('The ancestors of this widget were', ancestors, style: DiagnosticsTreeStyle.whitespace));
@@ -58,7 +54,8 @@ bool debugCheckHasMaterial(BuildContext context) {
         ));
       }
       throw FlutterError.detailed(
-        'No Material widget found.',
+        '${context.widget.runtimeType} widgets require a Material '
+        'widget ancestor, but we couldn\'t find any.',
         diagnostics: diagnostics,
       );
     }

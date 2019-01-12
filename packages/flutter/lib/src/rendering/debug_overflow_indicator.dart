@@ -237,12 +237,13 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
       FlutterErrorDetailsForRendering(
         exception: 'A $runtimeType overflowed by $overflowText.',
         library: 'rendering library',
-        context: 'during layout',
+        contextName: 'during layout',
         renderObject: this,
         diagnosticsCollector: () {
           return <DiagnosticsNode>[
             DiagnosticsNode.message(overflowHints, level: DiagnosticLevel.hint),
-            DiagnosticsProperty('The specific $runtimeType in question is:', this, style: DiagnosticsTreeStyle.shallow),
+            DiagnosticsProperty('The specific $runtimeType in question is', this, style: DiagnosticsTreeStyle.shallow),
+            // TODO(jacobr): this line is ascii art that it would be nice to handle more generically in GUI clients.
             DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), level: DiagnosticLevel.info),
           ];
         },

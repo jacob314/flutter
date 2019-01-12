@@ -184,7 +184,7 @@ abstract class GlobalKey<T extends State<StatefulWidget>> extends Key {
         throw FlutterError.detailed(
           'Multiple widgets used the same GlobalKey.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty(
+            describeProperty(
               'The key $this was used by multiple widgets. The parents of those widgets were '
               'different widgets that both had the following description',
               newer
@@ -1120,7 +1120,7 @@ abstract class State<T extends StatefulWidget> extends Diagnosticable {
     assert(() {
       if (_debugLifecycleState == _StateLifecycle.defunct) {
         throw FlutterError.diagnostic(<DiagnosticsNode>[
-          errorProperty('setState() called after dispose()', this, level: DiagnosticLevel.error),
+          describeProperty('setState() called after dispose()', this, level: DiagnosticLevel.error),
           descriptionMessage(
             'This error happens if you call setState() on a State object for a widget that '
             'no longer appears in the widget tree (e.g., whose parent widget no longer '
@@ -1144,7 +1144,7 @@ abstract class State<T extends StatefulWidget> extends Diagnosticable {
       }
       if (_debugLifecycleState == _StateLifecycle.created && !mounted) {
         throw FlutterError.diagnostic(<DiagnosticsNode>[
-          errorProperty('setState() called in constructor', this, style: DiagnosticsTreeStyle.singleLine),
+          describeProperty('setState() called in constructor', this, style: DiagnosticsTreeStyle.singleLine),
           hintMessage(
             'This happens when you call setState() on a State object for a widget that '
             'hasn\'t been inserted into the widget tree yet. It is not necessary to call '
@@ -2170,7 +2170,7 @@ class BuildOwner {
         throw FlutterError.detailed(
           'scheduleBuildFor() called for a widget that is not marked as dirty.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The method was called for the following element', element),
+            describeProperty('The method was called for the following element', element),
             violationMessage('This element is not current marked as dirty. Make sure to set the dirty flag before '
           'calling scheduleBuildFor().'),
             hintMessage(
@@ -2320,9 +2320,9 @@ class BuildOwner {
           _dirtyElements[index].rebuild();
         } catch (e, stack) {
           _debugReportException(
-            'while rebuilding dirty elements', e, stack,
+            'while rebuilding dirty elements', null, e, stack,
             diagnosticsCollector: () => <DiagnosticsNode>[
-              errorProperty('The element being rebuilt at the time was index $index of $dirtyCount', _dirtyElements[index])
+              describeProperty('The element being rebuilt at the time was index $index of $dirtyCount', _dirtyElements[index])
             ]
           );
         }
@@ -2484,7 +2484,7 @@ class BuildOwner {
         return true;
       }());
     } catch (e, stack) {
-      _debugReportException('while finalizing the widget tree', e, stack);
+      _debugReportException('while finalizing the widget tree', null, e, stack);
     } finally {
       Timeline.finishSync();
     }
@@ -2931,9 +2931,9 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
             'A GlobalKey was used multiple times inside one widget\'s child list.',
             diagnostics: <DiagnosticsNode>[
               DiagnosticsProperty('The offending GlobalKey was', key),
-              errorProperty('The parent of the widgets with that key was', parent),
-              errorProperty('The first child to get instantiated with that key became', element),
-              errorProperty('The second child that was to be instantiated with that key was', widget),
+              describeProperty('The parent of the widgets with that key was', parent),
+              describeProperty('The first child to get instantiated with that key became', element),
+              describeProperty('The second child that was to be instantiated with that key was', widget),
               contractMessage('A GlobalKey can only be specified on one widget at a time in the widget tree.'),
             ]
           );
@@ -3170,7 +3170,7 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'active, which means it is part of the tree.',
           violation: 'Instead, this element '
           'is in the $_debugLifecycleState state.',
-          diagnostic: errorProperty('The size getter was called for the following element', this),
+          diagnostic: describeProperty('The size getter was called for the following element', this),
         );
       }
       if (owner._debugBuilding) {
@@ -3187,7 +3187,7 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'tell you the layout constraints at a given location in the tree. See '
           '<https://docs.flutter.io/flutter/widgets/LayoutBuilder-class.html> '
           'for more details.\n',
-          diagnostic: errorProperty('The size getter was called for the following element', this),
+          diagnostic: describeProperty('The size getter was called for the following element', this),
         );
       }
       return true;
@@ -3202,7 +3202,7 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'render object, which typically means that the size getter was called '
           'too early in the pipeline (e.g., during the build phase) before the '
           'framework has created the render tree.',
-          diagnostic: errorProperty('The size getter was called for the following element', this),
+          diagnostic: describeProperty('The size getter was called for the following element', this),
         );
       }
       if (renderObject is RenderSliver) {
@@ -3215,8 +3215,8 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'findRenderObject and then using the "geometry" getter on the '
           'resulting object.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The size getter was called for the following element', this),
-            errorProperty('The associated render sliver was', renderObject, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The size getter was called for the following element', this),
+            describeProperty('The associated render sliver was', renderObject, style: DiagnosticsTreeStyle.shallow),
           ],
         );
       }
@@ -3228,8 +3228,8 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'render object does have a size, consider calling findRenderObject '
           'and extracting its size manually.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The size getter was called for the following element', this),
-            errorProperty('The associated render object was', renderObject, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The size getter was called for the following element', this),
+            describeProperty('The associated render object was', renderObject, style: DiagnosticsTreeStyle.shallow),
           ],
         );
       }
@@ -3243,8 +3243,8 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           '(e.g., during the build phase) before the framework has determined '
           'the size and position of the render objects during layout.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The size getter was called for the following element', this),
-            errorProperty('The render object from which the size was to be obtained was', box, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The size getter was called for the following element', this),
+            describeProperty('The render object from which the size was to be obtained was', box, style: DiagnosticsTreeStyle.shallow),
           ],
         );
       }
@@ -3257,8 +3257,8 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'before the framework has determined the size and position of the render '
           'objects during layout.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The size getter was called for the following element', this),
-            errorProperty('The render object from which the size was to be obtained was', box, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The size getter was called for the following element', this),
+            describeProperty('The render object from which the size was to be obtained was', box, style: DiagnosticsTreeStyle.shallow),
             hintMessage(
               'Consider using debugPrintMarkNeedsLayoutStacks to determine why the render '
               'object in question is dirty, if you did not expect this.'
@@ -3477,6 +3477,11 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
     return children;
   }
 
+  @override
+  DiagnosticLevel get debugDiagnosticLevel {
+    return widget != null ? widget?.debugDiagnosticLevel : super.debugDiagnosticLevel;
+  }
+
   /// Returns true if the element has been marked as needing rebuilding.
   bool get dirty => _dirty;
   bool _dirty = true;
@@ -3520,10 +3525,10 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           return true;
         if (!_debugAllowIgnoredCallsToMarkNeedsBuild) {
           final List<DiagnosticsNode> diagnostics = <DiagnosticsNode>[
-            errorProperty('The widget on which setState() or markNeedsBuild() was called was', this),
+            describeProperty('The widget on which setState() or markNeedsBuild() was called was', this),
           ];
           if (owner._debugCurrentBuildTarget != null)
-            diagnostics.add(errorProperty('The widget which was currently being built when the offending call was made was', owner._debugCurrentBuildTarget));
+            diagnostics.add(describeProperty('The widget which was currently being built when the offending call was made was', owner._debugCurrentBuildTarget));
 
           throw FlutterError.detailed(
             'setState() or markNeedsBuild() called during build.',
@@ -3545,7 +3550,7 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
           'setState() or markNeedsBuild() called when widget tree was locked.',
           contract: 'This ${widget.runtimeType} widget cannot be marked as needing to build '
           'because the framework is locked.',
-          diagnostic: errorProperty('The widget on which setState() or markNeedsBuild() was called was', this),
+          diagnostic: describeProperty('The widget on which setState() or markNeedsBuild() was called was', this),
         );
       }
       return true;
@@ -3621,7 +3626,9 @@ typedef ErrorWidgetBuilder = Widget Function(FlutterErrorDetails details);
 /// information such as the stack trace for the exception.
 class ErrorWidget extends LeafRenderObjectWidget {
   /// Creates a widget that displays the given error message.
-  ErrorWidget(Object exception) : message = _stringify(exception),
+  ErrorWidget(Object exception)
+    : message = _stringify(exception),
+      _flutterError = exception is FlutterError ? exception : null,
       super(key: UniqueKey());
 
   /// The configurable factory for [ErrorWidget].
@@ -3652,10 +3659,11 @@ class ErrorWidget extends LeafRenderObjectWidget {
 
   /// The message to display.
   final String message;
+  FlutterError _flutterError;
 
   static String _stringify(Object exception) {
     try {
-      return exception.toString();
+      return '${exception.runtimeType} -- $exception'; // XXX revert
     } catch (e) { } // ignore: empty_catches
     return 'Error';
   }
@@ -3665,9 +3673,18 @@ class ErrorWidget extends LeafRenderObjectWidget {
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    for (DiagnosticsNode part in _flutterError.messageParts) {
+      properties.add(part);
+    }
+
     super.debugFillProperties(properties);
-    properties.add(StringProperty('message', message, quoted: false));
+    if (_flutterError == null) {
+      properties.add(StringProperty('message', message, quoted: false));
+    }
   }
+
+  @override
+  DiagnosticLevel get debugDiagnosticLevel => DiagnosticLevel.error;
 }
 
 /// Signature for a function that creates a widget, e.g. [StatelessWidget.build]
@@ -3762,7 +3779,7 @@ abstract class ComponentElement extends Element {
       built = build();
       debugWidgetBuilderValue(widget, built);
     } catch (e, stack) {
-      built = ErrorWidget.builder(_debugReportException('building $this', e, stack));
+      built = ErrorWidget.builder(_debugReportException('building', this, e, stack));
     } finally {
       // We delay marking the element as clean until after calling build() so
       // that attempts to markNeedsBuild() during build() will be ignored.
@@ -3773,7 +3790,7 @@ abstract class ComponentElement extends Element {
       _child = updateChild(_child, built, slot);
       assert(_child != null);
     } catch (e, stack) {
-      built = ErrorWidget.builder(_debugReportException('building $this', e, stack));
+      built = ErrorWidget.builder(_debugReportException('building', this, e, stack));
       _child = updateChild(null, built, slot);
     }
 
@@ -3973,7 +3990,7 @@ class StatefulElement extends ComponentElement {
       if (state._debugLifecycleState == _StateLifecycle.defunct) {
         throw FlutterError.diagnostic(<DiagnosticsNode>[
           // XXX I am assuming it is a bug that this was all on a single line before.
-            errorProperty('inheritFromWidgetOfExactType($targetType) or inheritFromElement() was called after dispose()', this, level: DiagnosticLevel.error),
+            describeProperty('inheritFromWidgetOfExactType($targetType) or inheritFromElement() was called after dispose()', this, level: DiagnosticLevel.error),
             descriptionMessage(
               'This error happens if you call inheritFromWidgetOfExactType() on the '
               'BuildContext for a widget that no longer appears in the widget tree '
@@ -5037,6 +5054,7 @@ class _DebugCreator {
 
 FlutterErrorDetails _debugReportException(
   String context,
+  Object contextObject,
   dynamic exception,
   StackTrace stack, {
   DiagnosticsCollector diagnosticsCollector
@@ -5045,7 +5063,8 @@ FlutterErrorDetails _debugReportException(
     exception: exception,
     stack: stack,
     library: 'widgets library',
-    context: context,
+    contextName: context,
+    contextObject: contextObject,
     diagnosticsCollector: diagnosticsCollector,
   );
   FlutterError.reportError(details);

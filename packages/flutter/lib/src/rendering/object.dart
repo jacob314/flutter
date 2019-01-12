@@ -17,7 +17,7 @@ import 'binding.dart';
 import 'debug.dart';
 import 'layer.dart';
 
-export 'package:flutter/foundation.dart' show FlutterError, InformationCollector, DiagnosticsNode, DiagnosticsProperty, StringProperty, DoubleProperty, EnumProperty, FlagProperty, IntProperty, DiagnosticPropertiesBuilder, errorProperty, hintMessage;
+export 'package:flutter/foundation.dart' show FlutterError, InformationCollector, DiagnosticsNode, DiagnosticsProperty, StringProperty, DoubleProperty, EnumProperty, FlagProperty, IntProperty, DiagnosticPropertiesBuilder, describeProperty, hintMessage;
 export 'package:flutter/gestures.dart' show HitTestEntry, HitTestResult;
 export 'package:flutter/painting.dart';
 
@@ -1178,7 +1178,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
       exception: exception,
       stack: stack,
       library: 'rendering library',
-      context: 'during $method()',
+      contextName: 'during $method()',
       renderObject: this,
       diagnosticsCollector: () {
         final List<DiagnosticsNode> information = <DiagnosticsNode>[];
@@ -1545,7 +1545,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
           final Pattern targetFramePattern = RegExp(r'^#[0-9]+ +(.+)$');
           final Match targetFrameMatch = targetFramePattern.matchAsPrefix(stack[targetFrame]);
           final String problemFunction = (targetFrameMatch != null && targetFrameMatch.groupCount > 0) ? targetFrameMatch.group(1) : stack[targetFrame].trim();
-          information.add(errorProperty(
+          information.add(describeProperty(
             'These invalid constraints were provided to $runtimeType\'s layout() '
             'function by the following function, which probably computed the '
             'invalid constraints in question',
@@ -2028,7 +2028,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
         throw FlutterError.detailed(
           'Tried to paint a RenderObject reentrantly.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty(
+            describeProperty(
               'The following RenderObject was already being painted when it was '
               'painted again',
               this,
@@ -2058,7 +2058,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
           'Tried to paint a RenderObject before its compositing bits were '
           'updated.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The following RenderObject was marked as having dirty compositing '
+            describeProperty('The following RenderObject was marked as having dirty compositing '
                 'bits at the time that it was painted', this, style: DiagnosticsTreeStyle.shallow),
             hintMessage(
               'A RenderObject that still has dirty compositing bits cannot be '
@@ -2714,9 +2714,9 @@ mixin RenderObjectWithChildMixin<ChildType extends RenderObject> on RenderObject
           'example, a RenderSliver cannot be the child of a RenderBox because '
           'a RenderSliver does not understand the RenderBox layout protocol.\n',
           diagnostics: <DiagnosticsNode>[
-            errorProperty<dynamic>('The $runtimeType that expected a $ChildType child was created by', debugCreator),
+            describeProperty<dynamic>('The $runtimeType that expected a $ChildType child was created by', debugCreator),
             DiagnosticsNode.message(''),
-            errorProperty<dynamic>(
+            describeProperty<dynamic>(
               'The ${child.runtimeType} that did not match the expected child type '
               'was created by',
               child.debugCreator,
@@ -2845,9 +2845,9 @@ mixin ContainerRenderObjectMixin<ChildType extends RenderObject, ParentDataType 
           'example, a RenderSliver cannot be the child of a RenderBox because '
           'a RenderSliver does not understand the RenderBox layout protocol.\n',
           diagnostics: <DiagnosticsNode>[
-            errorProperty<dynamic>('The $runtimeType that expected a $ChildType child was created by', debugCreator),
+            describeProperty<dynamic>('The $runtimeType that expected a $ChildType child was created by', debugCreator),
             errorSeparator(),
-            errorProperty<dynamic>(
+            describeProperty<dynamic>(
               'The ${child.runtimeType} that did not match the expected child type '
               'was created by',
               child.debugCreator,
@@ -3090,7 +3090,7 @@ class FlutterErrorDetailsForRendering extends FlutterErrorDetails {
     dynamic exception,
     StackTrace stack,
     String library,
-    String context,
+    String contextName,
     this.renderObject,
     InformationCollector informationCollector,
     DiagnosticsCollector diagnosticsCollector,
@@ -3099,7 +3099,7 @@ class FlutterErrorDetailsForRendering extends FlutterErrorDetails {
     exception: exception,
     stack: stack,
     library: library,
-    context: context,
+    contextName: contextName,
     informationCollector: informationCollector,
     diagnosticsCollector: diagnosticsCollector,
     silent: silent

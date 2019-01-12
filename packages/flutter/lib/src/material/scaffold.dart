@@ -989,7 +989,7 @@ class Scaffold extends StatefulWidget {
         'introduces a new context from which you can obtain the Scaffold. In this solution, '
         'you would have an outer widget that creates the Scaffold populated by instances of '
         'your new inner widgets, and then in these inner widgets you would use Scaffold.geometryOf().\n',
-        diagnostic: errorProperty('The context used was', context),
+        diagnostic: describeProperty('The context used was', context),
       );
 
     return scaffoldScope.geometryNotifier;

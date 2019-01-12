@@ -695,7 +695,7 @@ FloatingCursorDragState _toTextCursorAction(String state) {
       return FloatingCursorDragState.End;
   }
   throw FlutterError.diagnostic(<DiagnosticsNode>[
-    errorProperty('Unknown text cursor action',  state, level: DiagnosticLevel.error),
+    describeProperty('Unknown text cursor action',  state, level: DiagnosticLevel.error),
   ]);
 }
 

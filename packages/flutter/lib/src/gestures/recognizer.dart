@@ -105,10 +105,10 @@ abstract class GestureRecognizer extends GestureArenaMember with DiagnosticableT
         exception: exception,
         stack: stack,
         library: 'gesture',
-        context: 'while handling a gesture',
+        contextName: 'while handling a gesture',
         diagnosticsCollector: () => <DiagnosticsNode>[
           StringProperty('Handler', name),
-          errorProperty('Recognizer', this)
+          describeProperty('Recognizer', this)
         ]
       ));
     }

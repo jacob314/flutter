@@ -483,7 +483,7 @@ class MediaQuery extends InheritedWidget {
       'to MediaQuery.of(). This can happen because you do not have a WidgetsApp or '
       'MaterialApp widget (those widgets introduce a MediaQuery), or it can happen '
       'if the context you use comes from a widget above those widgets.',
-      diagnostic: errorProperty('The context used was', context),
+      diagnostic: describeProperty('The context used was', context),
     );
   }
 

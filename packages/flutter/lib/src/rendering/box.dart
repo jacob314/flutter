@@ -1542,7 +1542,7 @@ abstract class RenderBox extends RenderObject {
         description: violation,
         hint: hint,
         contract: contract,
-        diagnostic: DiagnosticsProperty('The RenderBox in question is:', this),
+        diagnostic: DiagnosticsProperty('The RenderBox in question is', this),
       );
     }());
     assert(() {
@@ -1575,8 +1575,8 @@ abstract class RenderBox extends RenderObject {
             throw FlutterError.detailed(
               'The size property was assigned a size inappropriately.',
               diagnostics: <DiagnosticsNode>[
-                errorProperty('The following render object', this),
-                errorProperty(
+                describeProperty('The following render object', this),
+                describeProperty(
                     '...was assigned a size obtained from', value._owner),
                 DiagnosticsNode.message(
                     'However, this second render object is not, or is no longer, a '
@@ -1604,8 +1604,8 @@ abstract class RenderBox extends RenderObject {
             throw FlutterError.detailed(
               'A child\'s size was used without setting parentUsesSize.',
                 diagnostics: <DiagnosticsNode>[
-                errorProperty('The following render object', this),
-                errorProperty('...was assigned a size obtained from its child', value._owner),
+                describeProperty('The following render object', this),
+                describeProperty('...was assigned a size obtained from its child', value._owner),
                 DiagnosticsNode.message(
                   'However, when the child was laid out, the parentUsesSize argument '
                   'was not set or set to false. Subsequently this transpired to be '
@@ -1745,7 +1745,7 @@ abstract class RenderBox extends RenderObject {
           diagnostics: <DiagnosticsNode>[
             contractMessage(contract),
             DiagnosticsNode.message('It appears that this did not happen; layout completed, but the size property is still null.'),
-            errorProperty('The RenderBox in question is:', this),
+            describeProperty('The RenderBox in question is', this),
           ],
         );
       }
@@ -1782,8 +1782,8 @@ abstract class RenderBox extends RenderObject {
         throw FlutterError.detailed(
           '$runtimeType does not meet its constraints.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('Constraints', constraints),
-            errorProperty('Size', _size),
+            describeProperty('Constraints', constraints),
+            describeProperty('Size', _size),
             DiagnosticsNode.message(
               'If you are not writing your own RenderBox subclass, then this is not '
               'your fault. Contact support: https://github.com/flutter/flutter/issues/new?template=BUG.md',
@@ -1801,10 +1801,10 @@ abstract class RenderBox extends RenderObject {
         double testIntrinsic(double function(double extent), String name, double constraint) {
           final double result = function(constraint);
           if (result < 0) {
-            failures.add(errorProperty(' * $name($constraint) returned a negative value', result, level: DiagnosticLevel.error));
+            failures.add(describeProperty(' * $name($constraint) returned a negative value', result, level: DiagnosticLevel.error));
           }
           if (!result.isFinite) {
-            failures.add(errorProperty(' * $name($constraint) returned a non-finite value', result, level: DiagnosticLevel.error));
+            failures.add(describeProperty(' * $name($constraint) returned a non-finite value', result, level: DiagnosticLevel.error));
           }
           return result;
         }
@@ -1834,10 +1834,9 @@ abstract class RenderBox extends RenderObject {
             diagnostics: <DiagnosticsNode>[
               DiagnosticsNode.message('The following ${failures.length > 1 ? "failures" : "failure"} was detected:'), // should this be level error or not?
             ]..addAll(failures)
-             ..add(DiagnosticsNode.message(
+             ..add(hintMessage(
                'If you are not writing your own RenderBox subclass, then this is not\n'
-               'your fault. Contact support: https://github.com/flutter/flutter/issues/new?template=BUG.md',
-               level: DiagnosticLevel.hint,
+               'your fault. Contact support: https://github.com/flutter/flutter/issues/new?template=BUG.md'
              ))
           );
         }
@@ -2005,8 +2004,8 @@ abstract class RenderBox extends RenderObject {
         throw FlutterError.detailed(
          '$runtimeType does not implement applyPaintTransform.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The following $runtimeType object', this, style: DiagnosticsTreeStyle.shallow),
-            errorProperty('...did not use a BoxParentData class for the parentData field of the following child', child.toDiagnosticsNode, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The following $runtimeType object', this, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('...did not use a BoxParentData class for the parentData field of the following child', child.toDiagnosticsNode, style: DiagnosticsTreeStyle.shallow),
             DiagnosticsNode.message('The $runtimeType class inherits from RenderBox.'),
             DiagnosticsNode.message(
               'The default applyPaintTransform implementation provided by RenderBox assumes that the '

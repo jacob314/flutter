@@ -655,14 +655,13 @@ class RenderFlex extends RenderBox with ContainerRenderObjectMixin<RenderBox, Fl
           final String axis = _direction == Axis.horizontal ? 'horizontal' : 'vertical';
           final String dimension = _direction == Axis.horizontal ? 'width' : 'height';
           String error, message;
-          String addendum = '';
+          final List<DiagnosticsNode> addendum = <DiagnosticsNode>[];
           if (!canFlex && (mainAxisSize == MainAxisSize.max || _getFit(child) == FlexFit.tight)) {
             error = 'RenderFlex children have non-zero flex but incoming $dimension constraints are unbounded.';
             message = 'When a $identity is in a parent that does not provide a finite $dimension constraint, for example '
                       'if it is in a $axis scrollable, it will try to shrink-wrap its children along the $axis '
                       'axis. Setting a flex on a child (e.g. using Expanded) indicates that the child is to '
                       'expand to fill the remaining space in the $axis direction.';
-            final StringBuffer information = StringBuffer();
             RenderBox node = this;
             switch (_direction) {
               case Axis.horizontal:
@@ -679,12 +678,15 @@ class RenderFlex extends RenderBox with ContainerRenderObjectMixin<RenderBox, Fl
                 break;
             }
             if (node != null) {
-              information.writeln('The nearest ancestor providing an unbounded width constraint is:');
-              information.write('  ');
-              information.writeln(node.toStringShallow(joiner: '\n  '));
+              addendum.add(DiagnosticsBlock(
+                name: 'The nearest ancestor providing an unbounded width constraint is',
+                children: <DiagnosticsNode>[
+                  errorSeparator(), // TODO(jacobr): is this extra whitespace really desired?
+                  node.toDiagnosticsNode(style: DiagnosticsTreeStyle.whitespace),
+                ],
+              ));
             }
-            information.writeln('See also: https://flutter.io/layout/');
-            addendum = information.toString();
+            addendum.add(hintMessage('See also: https://flutter.io/layout/'));
           } else {
             return true;
           }
@@ -702,18 +704,16 @@ class RenderFlex extends RenderBox with ContainerRenderObjectMixin<RenderBox, Fl
                 'rather than expanding to fit the maximum constraints provided by the parent.',
                 level: DiagnosticLevel.hint,
               ),
-              DiagnosticsProperty<RenderFlex>('The affected RenderFlex is:', this, style: DiagnosticsTreeStyle.indentedSingleLine),
+              DiagnosticsProperty<RenderFlex>('The affected RenderFlex is', this, style: DiagnosticsTreeStyle.indentedSingleLine),
               DiagnosticsProperty<dynamic>('The creator information is set to', debugCreator, style: DiagnosticsTreeStyle.indentedSingleLine),
-              DiagnosticsNode.message(addendum),
-              DiagnosticsNode.message(
-                'If this message did not help you determine the problem, consider using debugDumpRenderTree():\n'
-                '  https://flutter.io/debugging/#rendering-layer\n'
-                '  http://docs.flutter.io/flutter/rendering/debugDumpRenderTree.html\n'
-                'If none of the above helps enough to fix this problem, please don\'t hesitate to file a bug:\n'
-                '  https://github.com/flutter/flutter/issues/new?template=BUG.md',
-                level: DiagnosticLevel.hint,
-              ),
-            ]
+            ]..addAll(addendum)
+             ..add(hintMessage(
+               'If this message did not help you determine the problem, consider using debugDumpRenderTree():\n'
+               '  https://flutter.io/debugging/#rendering-layer\n'
+               '  http://docs.flutter.io/flutter/rendering/debugDumpRenderTree.html\n'
+               'If none of the above helps enough to fix this problem, please don\'t hesitate to file a bug:\n'
+               '  https://github.com/flutter/flutter/issues/new?template=BUG.md',
+             ))
           );
         }());
         totalFlex += childParentData.flex;

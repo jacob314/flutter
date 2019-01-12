@@ -56,7 +56,7 @@ Future<void> main() async {
       exception: getAssertionErrorWithMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
+      contextName: 'testing the error handling logic',
       diagnosticsCollector: () => <DiagnosticsNode>[
         contractMessage('line 1 of extra information'),
         hintMessage('line 2 of extra information\n') // the double trailing newlines here are intentional
@@ -138,7 +138,7 @@ Future<void> main() async {
       exception: getAssertionErrorWithoutMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
+      contextName: 'testing the error handling logic',
       diagnosticsCollector: () => <DiagnosticsNode>[
         contractMessage('line 1 of extra information'),
         descriptionMessage('line 2 of extra information\n'), // the double trailing newlines here are intentional

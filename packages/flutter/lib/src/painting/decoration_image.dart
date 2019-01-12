@@ -225,8 +225,8 @@ class DecorationImagePainter {
             description: 'When DecorationImagePainter.paint() was called, there was no text direction provided '
             'in the ImageConfiguration object to match.',
             diagnostics: <DiagnosticsNode>[
-              errorProperty('The DecorationImage was', _details),
-              errorProperty('The ImageConfiguration was', configuration),
+              describeProperty('The DecorationImage was', _details),
+              describeProperty('The ImageConfiguration was', configuration),
             ],
           );
         }

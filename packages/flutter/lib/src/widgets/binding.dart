@@ -930,7 +930,7 @@ class RenderObjectToWidgetElement<T extends RenderObject> extends RootRenderObje
         exception: exception,
         stack: stack,
         library: 'widgets library',
-        context: 'attaching to the render tree'
+        contextName: 'attaching to the render tree'
       );
       FlutterError.reportError(details);
       final Widget error = ErrorWidget.builder(details);

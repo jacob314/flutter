@@ -371,7 +371,7 @@ mixin SchedulerBinding on BindingBase, ServicesBinding {
           exception: exception,
           stack: exceptionStack,
           library: 'scheduler library',
-          context: 'during a task callback',
+          contextName: 'during a task callback',
           diagnosticsCollector: (callbackStack == null) ? null : () => <DiagnosticsNode>[
             errorSeparator(),
             StackTraceProperty(
@@ -997,7 +997,7 @@ mixin SchedulerBinding on BindingBase, ServicesBinding {
         exception: exception,
         stack: exceptionStack,
         library: 'scheduler library',
-        context: 'during a scheduler callback',
+        contextName: 'during a scheduler callback',
         diagnosticsCollector: (callbackStack == null) ? null : () => <DiagnosticsNode>[
           errorSeparator(),
           StackTraceProperty(

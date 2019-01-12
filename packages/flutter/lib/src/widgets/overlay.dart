@@ -239,11 +239,11 @@ class Overlay extends StatefulWidget {
     assert(() {
       if (debugRequiredFor != null && result == null) {
         List<DiagnosticsNode> diagnostics = <DiagnosticsNode>[
-          errorProperty('The specific widget that failed to find an overlay was', debugRequiredFor),
+          describeProperty('The specific widget that failed to find an overlay was', debugRequiredFor),
         ];
 
         if (context.widget != debugRequiredFor) {
-          diagnostics.add(errorProperty('The context from which that widget was searching for an overlay was', context));
+          diagnostics.add(describeProperty('The context from which that widget was searching for an overlay was', context));
         }
         throw FlutterError.detailed(
           'No Overlay widget found.',

@@ -680,6 +680,7 @@ class _SerializeConfig {
     this.pathToInclude,
     this.includeProperties = false,
     this.expandPropertyValues = true,
+    this.includeToStringDeep = false,
   });
 
   _SerializeConfig.merge(
@@ -692,7 +693,9 @@ class _SerializeConfig {
     subtreeDepth = subtreeDepth ?? base.subtreeDepth,
     pathToInclude = pathToInclude ?? base.pathToInclude,
     includeProperties = base.includeProperties,
-    expandPropertyValues = base.expandPropertyValues;
+    expandPropertyValues = base.expandPropertyValues,
+    includeToStringDeep = base.includeToStringDeep;
+
 
   /// Optional object group name used to manage manage lifetimes of object
   /// references in the returned JSON.
@@ -726,6 +729,9 @@ class _SerializeConfig {
   /// If [interactive] is true, a call to `ext.flutter.inspector.disposeGroup`
   /// is required before objects in the tree will ever be garbage collected.
   bool get interactive => groupName != null;
+
+  /// Include the text rendering of the nodes (helpful for debugging).
+  final bool includeToStringDeep;
 }
 
 // Production implementation of [WidgetInspectorService].
@@ -939,6 +945,7 @@ mixin WidgetInspectorService {
 
   static const DEBUG_JSON_PROTOCOL = true;
   void _reportError(FlutterErrorDetails details) {
+    final serializeConfig = _SerializeConfig(groupName: _consoleObjectGroup, includeToStringDeep: true);
     if (DEBUG_JSON_PROTOCOL) {
       print("----- ERROR AS IT WOULD BE DUMPED TO CONSOLE --- XXXX");
       FlutterError.dumpErrorToConsole(details);
@@ -948,14 +955,14 @@ mixin WidgetInspectorService {
       'exceptionId': toId(details.exception, _consoleObjectGroup),
       'stackId' : toId(details.stack, _consoleObjectGroup),
       'library': details.library,
-      'context': details.context,
-      'id': toId(details, _consoleObjectGroup),
+      'context': _nodeToJson(details.diagnosticContext, serializeConfig),
+      'id': toId(details, _consoleObjectGroup), // TODO(jacobr): is this actually useful?
       'silent': details.silent,
     };
     final dynamic exception = details.exception;
     if (exception is FlutterError) {
       if (exception.messageParts != null) {
-        json['exceptionMessageParts'] = _nodesToJson(exception.messageParts, _SerializeConfig(groupName: _consoleObjectGroup));
+        json['exceptionMessageParts'] = _nodesToJson(exception.messageParts, serializeConfig);
       } else {
         json['exceptionMessage'] = exception.message;
       }
@@ -974,13 +981,15 @@ mixin WidgetInspectorService {
     if (details.diagnosticsCollector != null) {
       final List<DiagnosticsNode> diagnostics = details.diagnosticsCollector();
       if (diagnostics != null && diagnostics.isNotEmpty) {
-        json['diagnostics'] = _nodesToJson(diagnostics, _SerializeConfig(groupName: _consoleObjectGroup));
+        json['diagnostics'] = _nodesToJson(diagnostics, serializeConfig);
       }
     } else if (details.informationCollector != null) {
       StringBuffer information = StringBuffer();
       details.informationCollector(information);
       json['information'] = information.toString();
     }
+    // TODO(jacobr): there are other subtypes with relevant objects as well such
+    // as the one for event. Normalize this by passing the core object more places.
     if (details is FlutterErrorDetailsForRendering) {
       json['renderObject'] = toId(details.renderObject, _consoleObjectGroup);
     }
@@ -1665,6 +1674,9 @@ mixin WidgetInspectorService {
   }
 
   bool _shouldShowInSummaryTree(DiagnosticsNode node) {
+    if (node.level == DiagnosticLevel.error) {
+      return true;
+    }
     final Object value = node.value;
     if (value is! Diagnosticable) {
       return true;

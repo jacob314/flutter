@@ -401,7 +401,7 @@ class SliverConstraints extends Constraints {
         throw FlutterError.detailed(
           '$runtimeType is not valid: $message',
           description: information.toString(),
-          diagnostic: errorProperty('The offending constraints were', this),
+          diagnostic: describeProperty('The offending constraints were', this),
         );
       }
       verify(axis != null, 'The "axis" is null.');
@@ -1053,7 +1053,7 @@ abstract class RenderSliver extends RenderObject {
         diagnostics.add(hintMessage(hint));
       }
       diagnostics.add(contractMessage(contract));
-      diagnostics.add(errorProperty('The RenderSliver in question is', this));
+      diagnostics.add(describeProperty('The RenderSliver in question is', this));
 
       throw FlutterError.detailed(
         'RenderSliver geometry setter called incorrectly.',
@@ -1094,7 +1094,7 @@ abstract class RenderSliver extends RenderObject {
     assert(geometry.debugAssertIsValid(
       diagnosticCollector: () {
         return <DiagnosticsNode>[
-          errorProperty('The RenderSliver that returned the offending geometry was', this, style: DiagnosticsTreeStyle.shallow),
+          describeProperty('The RenderSliver that returned the offending geometry was', this, style: DiagnosticsTreeStyle.shallow),
         ];
       },
     ));
@@ -1103,7 +1103,7 @@ abstract class RenderSliver extends RenderObject {
         throw FlutterError.detailed(
           'SliverGeometry has a paintOffset that exceeds the remainingPaintExtent from the constraints.',
           diagnostics: <DiagnosticsNode>[
-            errorProperty('The render object whose geometry violates the constraints is the following', this, style: DiagnosticsTreeStyle.shallow),
+            describeProperty('The render object whose geometry violates the constraints is the following', this, style: DiagnosticsTreeStyle.shallow),
           ]..addAll(
             _debugCompareFloats('remainingPaintExtent', constraints.remainingPaintExtent,
                               'paintExtent', geometry.paintExtent)

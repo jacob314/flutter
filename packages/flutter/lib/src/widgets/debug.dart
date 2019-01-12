@@ -180,8 +180,8 @@ bool debugCheckHasTable(BuildContext context) {
         'No Table widget found.',
         contract: '${context.widget.runtimeType} widgets require a Table widget ancestor.',
         diagnostics: <DiagnosticsNode>[
-          errorProperty('The specific widget that could not find a Table ancestor was', context.widget),
-          errorProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
+          describeProperty('The specific widget that could not find a Table ancestor was', context.widget),
+          describeProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
         ],
       );
     }
@@ -211,8 +211,8 @@ bool debugCheckHasMediaQuery(BuildContext context) {
         'No MediaQuery widget found.',
         violation: '${context.widget.runtimeType} widgets require a MediaQuery widget ancestor.',
         diagnostics: <DiagnosticsNode>[
-          errorProperty('The specific widget that could not find a MediaQuery ancestor was', context.widget),
-          errorProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
+          describeProperty('The specific widget that could not find a MediaQuery ancestor was', context.widget),
+          describeProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
           hintMessage(
             'Typically, the MediaQuery widget is introduced by the MaterialApp or '
             'WidgetsApp widget at the top of your application widget tree.'
@@ -246,8 +246,8 @@ bool debugCheckHasDirectionality(BuildContext context) {
         'No Directionality widget found.',
         contract: '${context.widget.runtimeType} widgets require a Directionality widget ancestor.\n',
         diagnostics: <DiagnosticsNode>[
-          errorProperty('The specific widget that could not find a Directionality ancestor was', context.widget),
-          errorProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
+          describeProperty('The specific widget that could not find a Directionality ancestor was', context.widget),
+          describeProperty('The ownership chain for the affected widget is', element.debugGetCreatorChain(10)),
           hintMessage(
             'Typically, the Directionality widget is introduced by the MaterialApp '
             'or WidgetsApp widget at the top of your application widget tree. It '
@@ -276,7 +276,7 @@ void debugWidgetBuilderValue(Widget widget, Widget built) {
       throw FlutterError.detailed(
         'A build function returned null.',
         diagnostics: <DiagnosticsNode>[
-          errorProperty('The offending widget is', widget),
+          describeProperty('The offending widget is', widget),
           contractMessage('Build functions must never return null.'),
           hintMessage('To return an empty space that causes the building widget to fill available room, return "new Container()".'),
           hintMessage('To return an empty space that takes as little room as possible, return "new Container(width: 0.0, height: 0.0)".'),
@@ -287,7 +287,7 @@ void debugWidgetBuilderValue(Widget widget, Widget built) {
       throw FlutterError.detailed(
         'A build function returned context.widget.',
         diagnostics: <DiagnosticsNode>[
-          errorProperty('The offending widget is', widget),
+          describeProperty('The offending widget is', widget),
           contractMessage(
             'Build functions must never return their BuildContext parameter\'s widget or a child that contains "context.widget". '
             'Doing so introduces a loop in the widget tree that can cause the app to crash.'

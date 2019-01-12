@@ -269,7 +269,7 @@ abstract class ImageProvider<T> {
       imageCompleter.setError(
         exception: exception,
         stack: stack,
-        context: 'while resolving an image',
+        contextName: 'while resolving an image',
         silent: true, // could be a network error or whatnot
         diagnosticsCollector: () {
           return <DiagnosticsNode>[
@@ -787,14 +787,16 @@ class _ErrorImageCompleter extends ImageStreamCompleter {
   _ErrorImageCompleter();
 
   void setError({
-    String context,
+    String contextName,
+    Object contextObject,
     dynamic exception,
     StackTrace stack,
     DiagnosticsCollector diagnosticsCollector,
     bool silent = false,
   }) {
     reportError(
-      context: context,
+      contextName: contextName,
+      contextObject: contextObject,
       exception: exception,
       stack: stack,
       diagnosticsCollector: diagnosticsCollector,
