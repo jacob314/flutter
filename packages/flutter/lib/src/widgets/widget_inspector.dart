@@ -945,12 +945,15 @@ mixin WidgetInspectorService {
 
   static const DEBUG_JSON_PROTOCOL = true;
   void _reportError(FlutterErrorDetails details) {
-    final serializeConfig = _SerializeConfig(groupName: _consoleObjectGroup, includeToStringDeep: true);
+    final serializeConfig = _SerializeConfig(groupName: _consoleObjectGroup, includeToStringDeep: true, subtreeDepth: 15);
     if (DEBUG_JSON_PROTOCOL) {
       print("----- ERROR AS IT WOULD BE DUMPED TO CONSOLE --- XXXX");
       FlutterError.dumpErrorToConsole(details);
       print("----- END OF DUMP -----");
     }
+    Map<String, Object> json = _nodeToJson(FlutterError.errorToDiagnostic(details), serializeConfig);
+
+    /*
     Map<String, Object> json = {
       'exceptionId': toId(details.exception, _consoleObjectGroup),
       'stackId' : toId(details.stack, _consoleObjectGroup),
@@ -993,6 +996,7 @@ mixin WidgetInspectorService {
     if (details is FlutterErrorDetailsForRendering) {
       json['renderObject'] = toId(details.renderObject, _consoleObjectGroup);
     }
+    */
     if (DEBUG_JSON_PROTOCOL) {
       _debugJson(json);
     }
