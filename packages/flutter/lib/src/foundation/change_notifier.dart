@@ -208,11 +208,9 @@ class ChangeNotifier implements Listenable {
             exception: exception,
             stack: stack,
             library: 'foundation library',
-            contextName: 'while dispatching notifications for',
+            context: 'while dispatching notifications for',
             contextObject: runtimeType,
-            diagnosticsCollector: () => <DiagnosticsNode>[
-              describeProperty('The $runtimeType sending notification', this)
-            ]
+            errorBuilder: FlutterErrorBuilder ()..addProperty('The $runtimeType sending notification', this)
           ));
         }
       }

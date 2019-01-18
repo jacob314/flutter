@@ -271,13 +271,10 @@ abstract class ImageProvider<T> {
         stack: stack,
         contextName: 'while resolving an image',
         silent: true, // could be a network error or whatnot
-        diagnosticsCollector: () {
-          return <DiagnosticsNode>[
-            DiagnosticsProperty<ImageProvider>('Image provider', this),
-            DiagnosticsProperty('Image configuration', configuration),
-            DiagnosticsProperty('Image key', obtainedKey, defaultValue: null),
-          ];
-        }
+        errorBuilder: FlutterErrorBuilder()
+          ..addProperty('Image provider', this, style: DiagnosticsTreeStyle.singleLine)
+          ..addProperty('Image configuration', configuration)
+          ..addProperty('Image key', obtainedKey, defaultValue: null)
       );
     }
     obtainKey(configuration).then<void>((T key) {
@@ -417,12 +414,9 @@ abstract class AssetBundleImageProvider extends ImageProvider<AssetBundleImageKe
     return MultiFrameImageStreamCompleter(
       codec: _loadAsync(key),
       scale: key.scale,
-      diagnosticCollector: () {
-        return <DiagnosticsNode>[
-          DiagnosticsProperty('Image provider', this),
-          DiagnosticsProperty('Image key', key),
-        ];
-      }
+      errorBuilder: FlutterErrorBuilder()
+        ..addProperty('Image provider', this, style: DiagnosticsTreeStyle.singleLine)
+        ..addProperty('Image key', key, style: DiagnosticsTreeStyle.singleLine)
     );
   }
 
@@ -476,12 +470,9 @@ class NetworkImage extends ImageProvider<NetworkImage> {
     return MultiFrameImageStreamCompleter(
       codec: _loadAsync(key),
       scale: key.scale,
-      diagnosticCollector: () {
-        return <DiagnosticsNode>[
-          DiagnosticsProperty('Image provider', this),
-          DiagnosticsProperty('Image key', key),
-        ];
-      }
+      errorBuilder: FlutterErrorBuilder()
+        ..addProperty('Image provider', this, style: DiagnosticsTreeStyle.singleLine)
+        ..addProperty('Image key', key, style: DiagnosticsTreeStyle.singleLine)
     );
   }
 
@@ -552,9 +543,7 @@ class FileImage extends ImageProvider<FileImage> {
     return MultiFrameImageStreamCompleter(
       codec: _loadAsync(key),
       scale: key.scale,
-      diagnosticCollector: () {
-        return <DiagnosticsNode>[DiagnosticsProperty<String>('Path', file?.path)];
-      }
+      errorBuilder: FlutterErrorBuilder()..addProperty('Path', file?.path, style: DiagnosticsTreeStyle.singleLine)
     );
   }
 
@@ -791,7 +780,7 @@ class _ErrorImageCompleter extends ImageStreamCompleter {
     Object contextObject,
     dynamic exception,
     StackTrace stack,
-    DiagnosticsCollector diagnosticsCollector,
+    FlutterErrorBuilder errorBuilder,
     bool silent = false,
   }) {
     reportError(
@@ -799,7 +788,7 @@ class _ErrorImageCompleter extends ImageStreamCompleter {
       contextObject: contextObject,
       exception: exception,
       stack: stack,
-      diagnosticsCollector: diagnosticsCollector,
+      errorBuilder: errorBuilder,
       silent: silent,
     );
   }

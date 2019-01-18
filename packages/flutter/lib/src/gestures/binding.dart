@@ -164,10 +164,9 @@ mixin GestureBinding on BindingBase implements HitTestable, HitTestDispatcher, H
           contextName: 'while dispatching a pointer event',
           event: event,
           hitTestEntry: entry,
-          diagnosticsCollector: () => <DiagnosticsNode>[
-            describeProperty('Event', event),
-            describeProperty('Target', entry.target),
-          ],
+          errorBuilder: FlutterErrorBuilder()
+            ..addProperty('Event', event)
+            ..addProperty('Target', entry.target)
         ));
       }
     }
@@ -204,16 +203,16 @@ class FlutterErrorDetailsForPointerEventDispatcher extends FlutterErrorDetails {
     this.event,
     this.hitTestEntry,
     InformationCollector informationCollector,
-    DiagnosticsCollector diagnosticsCollector,
+    FlutterErrorBuilder errorBuilder,
     bool silent = false
   }) : super(
     exception: exception,
     stack: stack,
     library: library,
-    contextName: contextName,
+    context: contextName,
     contextObject: contextObject,
     informationCollector: informationCollector,
-    diagnosticsCollector: diagnosticsCollector,
+    errorBuilder: errorBuilder,
     silent: silent
   );
 

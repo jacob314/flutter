@@ -60,16 +60,14 @@ void validateNodeJsonSerialization(DiagnosticsNode node) {
 
 void validateNodeJsonSerializationHelper(Map<String, Object> json, DiagnosticsNode node) {
   expect(json['name'], equals(node.name));
-  expect(json['showSeparator'], equals(node.showSeparator));
+  expect(json['showSeparator'] ?? true, equals(node.showSeparator));
   expect(json['description'], equals(node.toDescription()));
-  expect(json['level'], equals(describeEnum(node.level)));
-  expect(json['showName'], equals(node.showName));
+  expect(json['level'] ?? describeEnum(DiagnosticLevel.info), equals(describeEnum(node.level)));
+  expect(json['showName'] ?? true, equals(node.showName));
   expect(json['emptyBodyDescription'], equals(node.emptyBodyDescription));
-  expect(json['style'], equals(describeEnum(node.style)));
-  final String valueToString = node is DiagnosticsProperty ? node.valueToString() : node.value.toString();
-  expect(json['valueToString'], equals(valueToString));
+  expect(json['style'] ?? describeEnum(DiagnosticsTreeStyle.sparse), equals(describeEnum(node.style)));
   expect(json['type'], equals(node.runtimeType.toString()));
-  expect(json['hasChildren'], equals(node.getChildren().isNotEmpty));
+  expect(json['hasChildren'] ?? false, equals(node.getChildren().isNotEmpty));
 }
 
 void validatePropertyJsonSerialization(DiagnosticsProperty<Object> property) {
@@ -168,7 +166,6 @@ void validatePropertyJsonSerializationHelper(final Map<String, Object> json, Dia
     expect(json.containsKey('exception'), isFalse);
   }
   expect(json['propertyType'], equals(property.propertyType.toString()));
-  expect(json['valueToString'], equals(property.valueToString()));
   expect(json.containsKey('defaultLevel'), isTrue);
   if (property.value is Diagnosticable) {
     expect(json['isDiagnosticableValue'], isTrue);
@@ -264,12 +261,30 @@ void main() {
       '   ╚═══════════\n',
     );
 
-    // You would never really want to make everything a leaf child like this
-    // but you can and still get a readable tree.
+    goldenStyleTest(
+      'error children',
+      style: DiagnosticsTreeStyle.sparse,
+      lastChildStyle: DiagnosticsTreeStyle.error,
+      golden:
+      'TestTree#00000\n'
+          ' ├─child node A: TestTree#00000\n'
+          ' ├─child node B: TestTree#00000\n'
+          ' │ ├─child node B1: TestTree#00000\n'
+          ' │ ├─child node B2: TestTree#00000\n'
+          ' │ ╘═╦══ child node B3 ═══\n'
+          ' │   ║ TestTree#00000\n'
+          ' │   ╚═══════════\n'
+          ' ╘═╦══ child node C ═══\n'
+          '   ║ TestTree#00000\n'
+          '   ╚═══════════\n',
+    );
+
+    // You would never really want to make everything a transition child like
+    // this but you can and still get a readable tree.
     // The joint between single and double lines here is a bit clunky
     // but we could correct that if there is any real use for this style.
     goldenStyleTest(
-      'leaf',
+      'transition',
       style: DiagnosticsTreeStyle.transition,
       golden:
       'TestTree#00000:\n'
@@ -291,6 +306,31 @@ void main() {
       '  ╘═╦══ child node C ═══\n'
       '    ║ TestTree#00000\n'
       '    ╚═══════════\n',
+    );
+
+    goldenStyleTest(
+      'error',
+      style: DiagnosticsTreeStyle.error,
+      golden:
+      'TestTree#00000:\n'
+          '  ╞═╦══ child node A ═══\n'
+          '  │ ║ TestTree#00000\n'
+          '  │ ╚═══════════\n'
+          '  ╞═╦══ child node B ═══\n'
+          '  │ ║ TestTree#00000:\n'
+          '  │ ║   ╞═╦══ child node B1 ═══\n'
+          '  │ ║   │ ║ TestTree#00000\n'
+          '  │ ║   │ ╚═══════════\n'
+          '  │ ║   ╞═╦══ child node B2 ═══\n'
+          '  │ ║   │ ║ TestTree#00000\n'
+          '  │ ║   │ ╚═══════════\n'
+          '  │ ║   ╘═╦══ child node B3 ═══\n'
+          '  │ ║     ║ TestTree#00000\n'
+          '  │ ║     ╚═══════════\n'
+          '  │ ╚═══════════\n'
+          '  ╘═╦══ child node C ═══\n'
+          '    ║ TestTree#00000\n'
+          '    ╚═══════════\n',
     );
 
     goldenStyleTest(
@@ -454,7 +494,7 @@ void main() {
     );
 
     goldenStyleTest(
-      'leaf children',
+      'transition children',
       style: DiagnosticsTreeStyle.sparse,
       lastChildStyle: DiagnosticsTreeStyle.transition,
       golden:
@@ -487,6 +527,42 @@ void main() {
       '   ║     value!\n'
       '   ╚═══════════\n',
     );
+
+    goldenStyleTest(
+      'error children',
+      style: DiagnosticsTreeStyle.sparse,
+      lastChildStyle: DiagnosticsTreeStyle.error,
+      golden:
+      'TestTree#00000\n'
+          ' │ stringProperty1: value1\n'
+          ' │ doubleProperty1: 42.5\n'
+          ' │ roundedProperty: 0.3\n'
+          ' │ nullProperty: null\n'
+          ' │ <root node>\n'
+          ' │\n'
+          ' ├─child node A: TestTree#00000\n'
+          ' ├─child node B: TestTree#00000\n'
+          ' │ │ p1: v1\n'
+          ' │ │ p2: v2\n'
+          ' │ │\n'
+          ' │ ├─child node B1: TestTree#00000\n'
+          ' │ ├─child node B2: TestTree#00000\n'
+          ' │ │   property1: value1\n'
+          ' │ │\n'
+          ' │ ╘═╦══ child node B3 ═══\n'
+          ' │   ║ TestTree#00000:\n'
+          ' │   ║   <leaf node>\n'
+          ' │   ║   foo: 42\n'
+          ' │   ╚═══════════\n'
+          ' ╘═╦══ child node C ═══\n'
+          '   ║ TestTree#00000:\n'
+          '   ║   foo:\n'
+          '   ║     multi\n'
+          '   ║     line\n'
+          '   ║     value!\n'
+          '   ╚═══════════\n',
+    );
+
 
     // You would never really want to make everything a transition child like
     // this but you can and still get a readable tree.
@@ -556,6 +632,32 @@ void main() {
         '      value!\n',
     );
 
+    goldenStyleTest(
+      'flat',
+      style: DiagnosticsTreeStyle.flat,
+      golden:
+        'TestTree#00000:\n'
+        'stringProperty1: value1\n'
+        'doubleProperty1: 42.5\n'
+        'roundedProperty: 0.3\n'
+        'nullProperty: null\n'
+        '<root node>\n'
+        'child node A: TestTree#00000\n'
+        'child node B: TestTree#00000:\n'
+        'p1: v1\n'
+        'p2: v2\n'
+        'child node B1: TestTree#00000\n'
+        'child node B2: TestTree#00000:\n'
+        'property1: value1\n'
+        'child node B3: TestTree#00000:\n'
+        '<leaf node>\n'
+        'foo: 42\n'
+        'child node C: TestTree#00000:\n'
+        'foo:\n'
+        'multi\n'
+        'line\n'
+        'value!\n',
+    );
     // Single line mode does not display children.
     goldenStyleTest(
       'single line',

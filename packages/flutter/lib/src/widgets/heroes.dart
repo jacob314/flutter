@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'basic.dart';
 import 'binding.dart';
+import 'debug.dart';
 import 'framework.dart';
 import 'navigator.dart';
 import 'overlay.dart';
@@ -207,17 +208,15 @@ class Hero extends StatefulWidget {
           assert(tag != null);
           assert(() {
             if (result.containsKey(tag)) {
-              throw FlutterError.detailed(
-                'There are multiple heroes that share the same tag within a subtree.',
-                diagnostics: <DiagnosticsNode>[
-                  contractMessage(
-                    'Within each subtree for which heroes are to be animated (typically a PageRoute subtree), '
-                    'each Hero must have a unique non-null tag.'
-                  ),
-                  DiagnosticsProperty<Object>('In this case, multiple heroes had the following tag', tag, level: DiagnosticLevel.violation),
-                  element.toDiagnosticsNode(name: 'Here is the subtree for one of the offending heroes'),
-                  // TODO(jacobr): prefix every line in the subtree with '# '.
-                ]
+              throw FlutterError.from(WidgetErrorBuilder()
+                ..addError('There are multiple heroes that share the same tag within a subtree.')
+                ..addContract(
+                  'Within each subtree for which heroes are to be animated (typically a PageRoute subtree), '
+                  'each Hero must have a unique non-null tag.'
+                )
+                ..addProperty('In this case, multiple heroes had the following tag', tag, level: DiagnosticLevel.violation)
+              // TODO(jacobr): prefix every line in the subtree with '# '.
+                ..describeElement('Here is the subtree for one of the offending heroes', element, style: DiagnosticsTreeStyle.truncateChildren)
               );
             }
             return true;

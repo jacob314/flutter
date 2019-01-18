@@ -22,10 +22,8 @@ void main() {
         exception: 'Example exception',
         stack: StackTrace.current,
         library: 'Example library',
-        contextName: 'Example context',
-        diagnosticsCollector: () => <DiagnosticsNode>[
-          descriptionMessage('Example information'),
-        ],
+        context: 'Example context',
+        errorBuilder: FlutterErrorBuilder ()..addDescription('Example information'),
       );
 
       FlutterError.dumpErrorToConsole(details);
@@ -46,10 +44,8 @@ void main() {
       FlutterErrorDetails(
         exception: 'MESSAGE',
         library: 'LIBRARY',
-        contextName: 'CONTEXTING',
-        diagnosticsCollector: () => <DiagnosticsNode>[
-          descriptionMessage('INFO'),
-        ],
+        context: 'CONTEXTING',
+        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
       ).toString(),
       'Error caught by LIBRARY, thrown CONTEXTING.\n'
       'MESSAGE\n'
@@ -58,10 +54,8 @@ void main() {
     expect(
       FlutterErrorDetails(
         library: 'LIBRARY',
-        contextName: 'CONTEXTING',
-        diagnosticsCollector: () => <DiagnosticsNode>[
-          descriptionMessage('INFO'),
-        ],
+        context: 'CONTEXTING',
+        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
       ).toString(),
       'Error caught by LIBRARY, thrown CONTEXTING.\n'
       '  null\n'
@@ -70,10 +64,8 @@ void main() {
     expect(
       FlutterErrorDetails(
         exception: 'MESSAGE',
-        contextName: 'CONTEXTING',
-        diagnosticsCollector: () => <DiagnosticsNode>[
-          descriptionMessage('INFO'),
-        ],
+        context: 'CONTEXTING',
+        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
       ).toString(),
       'Error caught by Flutter framework, thrown CONTEXTING.\n'
       'MESSAGE\n'

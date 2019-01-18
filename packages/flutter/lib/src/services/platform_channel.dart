@@ -493,7 +493,7 @@ class EventChannel {
           exception: exception,
           stack: stack,
           library: 'services library',
-          contextName: 'while activating platform stream on channel',
+          context: 'while activating platform stream on channel',
           contextObject: name,
         ));
       }
@@ -506,7 +506,7 @@ class EventChannel {
           exception: exception,
           stack: stack,
           library: 'services library',
-          contextName: 'while de-activating platform stream on channel',
+          context: 'while de-activating platform stream on channel',
           contextObject: name,
         ));
       }

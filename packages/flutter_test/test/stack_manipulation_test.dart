@@ -11,9 +11,9 @@ void main() {
       expect(false, isTrue);
       throw 'unexpectedly did not throw';
     } catch (e, stack) {
-      final List<DiagnosticsNode> information = <DiagnosticsNode>[];
-      expect(reportExpectCall(stack, information), 4);
-      final List<String> lines = information.map<String>((DiagnosticsNode node) => node.toStringDeep()).join('\n').split('\n');
+      final FlutterErrorBuilder information = FlutterErrorBuilder();
+      expect(reportExpectCallErrorBuilder(stack, information), 4);
+      final List<String> lines = information.toStringDeep().split('\n');
       expect(lines[0], 'This was caught by the test expectation on the following line:');
       expect(lines[1], matches(r'^  .*stack_manipulation_test.dart line [0-9]+$'));
     }
@@ -21,9 +21,9 @@ void main() {
     try {
       throw null;
     } catch (e, stack) {
-      final List<DiagnosticsNode> information = <DiagnosticsNode>[];
-      expect(reportExpectCall(stack, information), 0);
-      expect(information, isEmpty);
+      final FlutterErrorBuilder information = FlutterErrorBuilder();
+      expect(reportExpectCallErrorBuilder(stack, information), 0);
+      expect(information.toDiagnostics(), isEmpty);
     }
   });
 }

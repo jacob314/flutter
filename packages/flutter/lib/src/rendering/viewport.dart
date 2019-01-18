@@ -1144,51 +1144,51 @@ class RenderViewport extends RenderViewportBase<SliverPhysicalContainerParentDat
               );
             }
             if (!constraints.hasBoundedWidth) {
-              throw FlutterError.detailed(
-                'Vertical viewport was given unbounded width.',
-                // TODO(jacobr): this refactor is a judgment call.
-                diagnostics: <DiagnosticsNode>[
-                  descriptionMessage(
-                    'Viewports expand in the cross axis to fill their container and '
-                    'constrain their children to match their extent in the cross axis.'
-                  ),
-                  violationMessage(
-                    'In this case, a vertical viewport was given an unlimited amount of '
-                    'horizontal space in which to expand.'
-                  ),
-                ],
+              throw FlutterError.from(RenderErrorBuilder()
+                ..addError('Vertical viewport was given unbounded width.')
+                // TODO(jacobr): this refactor is a judgment call. XXX review
+                ..addDescription(
+                  'Viewports expand in the cross axis to fill their container and '
+                  'constrain their children to match their extent in the cross axis.'
+                )
+                ..addViolation(
+                  'In this case, a vertical viewport was given an unlimited amount of '
+                  'horizontal space in which to expand.'
+                )
               );
             }
             break;
           case Axis.horizontal:
             if (!constraints.hasBoundedWidth) {
-              throw FlutterError.detailed(
-                'Horizontal viewport was given unbounded width.',
-                description: 'Viewports expand in the scrolling direction to fill their container.'
-                'In this case, a horizontal viewport was given an unlimited amount of '
-                'horizontal space in which to expand. This situation typically happens '
-                'when a scrollable widget is nested inside another scrollable widget.',
-                hint: 'If this widget is always nested in a scrollable widget there '
-                'is no need to use a viewport because there will always be enough '
-                'horizontal space for the children. In this case, consider using a '
-                'Row instead. Otherwise, consider using the "shrinkWrap" property '
-                '(or a ShrinkWrappingViewport) to size the width of the viewport '
-                'to the sum of the widths of its children.'
+              throw FlutterError.from(RenderErrorBuilder()
+                ..addError('Horizontal viewport was given unbounded width.')
+                ..addDescription(
+                  'Viewports expand in the scrolling direction to fill their container.'
+                  'In this case, a horizontal viewport was given an unlimited amount of '
+                  'horizontal space in which to expand. This situation typically happens '
+                  'when a scrollable widget is nested inside another scrollable widget.'
+                )
+                ..addHint(
+                  'If this widget is always nested in a scrollable widget there '
+                  'is no need to use a viewport because there will always be enough '
+                  'horizontal space for the children. In this case, consider using a '
+                  'Row instead. Otherwise, consider using the "shrinkWrap" property '
+                  '(or a ShrinkWrappingViewport) to size the width of the viewport '
+                  'to the sum of the widths of its children.'
+                )
               );
             }
             if (!constraints.hasBoundedHeight) {
-              throw FlutterError.detailed(
-                'Horizontal viewport was given unbounded height.',
-                diagnostics: <DiagnosticsNode>[
-                  DiagnosticsNode.message(
+              throw FlutterError.from(RenderErrorBuilder()
+                ..addError('Horizontal viewport was given unbounded height.')
+                ..addDescription(
                   'Viewports expand in the cross axis to fill their container and '
-                'constrain their children to match their extent in the cross axis.'),
-                  DiagnosticsNode.message(
-                    'In this case, a horizontal viewport was given an unlimited amount of '
-                    'vertical space in which to expand.',
-                    level: DiagnosticLevel.violation,
-                  ),
-                ],
+                  'constrain their children to match their extent in the cross axis.'
+                )
+                ..addViolation(
+                  'In this case, a horizontal viewport was given an unlimited amount of '
+                  'vertical space in which to expand.'
+                )
               );
             }
             break;

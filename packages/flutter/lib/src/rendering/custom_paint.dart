@@ -601,13 +601,13 @@ class RenderCustomPaint extends RenderProxyBox {
   ) {
     assert(() {
       if (child == null && children.isNotEmpty) {
-        throw FlutterError.diagnostic(<DiagnosticsNode>[
-          IterableProperty<SemanticsNode>(
+        throw FlutterError.from(FlutterErrorBuilder()
+          ..addIterable<SemanticsNode>(
             '$runtimeType does not have a child widget but received a non-empty list of child SemanticsNode',
             children,
-            style: DiagnosticsTreeStyle.whitespace,
-          ),
-        ]);
+            level: DiagnosticLevel.error,
+          )
+        );
       }
       return true;
     }());
@@ -671,22 +671,20 @@ class RenderCustomPaint extends RenderProxyBox {
 
     assert(() {
       final Map<Key, int> keys = HashMap<Key, int>();
-      final List<DiagnosticsNode> errors = <DiagnosticsNode>[];
+      final FlutterErrorBuilder errorBuilder = FlutterErrorBuilder();
       for (int i = 0; i < newChildSemantics.length; i += 1) {
         final CustomPainterSemantics child = newChildSemantics[i];
         if (child.key != null) {
           if (keys.containsKey(child.key)) {
-            errors.add(DiagnosticsNode.message('- duplicate key ${child.key} found at position $i', level: DiagnosticLevel.error));
+            errorBuilder.addError('- duplicate key ${child.key} found at position $i');
           }
           keys[child.key] = i;
         }
       }
 
-      if (errors.isNotEmpty) {
-        throw FlutterError.detailed(
-          'Failed to update the list of CustomPainterSemantics:',
-          diagnostics: errors,
-        );
+      if (!errorBuilder.isEmpty) {
+        errorBuilder.error = 'Failed to update the list of CustomPainterSemantics:';
+        throw errorBuilder.build();
       }
 
       return true;

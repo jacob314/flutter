@@ -428,14 +428,13 @@ class AnimationController extends Animation<double>
   TickerFuture forward({ double from }) {
     assert(() {
       if (duration == null) {
-        throw FlutterError.diagnostic(<DiagnosticsNode>[
-          DiagnosticsNode.message('AnimationController.forward() called with no default Duration.', level: DiagnosticLevel.error),
-          DiagnosticsNode.message(
+        throw FlutterError.from(FlutterErrorBuilder()
+          ..addError('AnimationController.forward() called with no default Duration.')
+          ..addHint(
             'The "duration" property should be set, either in the constructor or later, before '
-            'calling the forward() function.',
-            level: DiagnosticLevel.hint,
-          ),
-        ]);
+            'calling the forward() function.'
+          )
+        );
       }
       return true;
     }());
@@ -663,10 +662,10 @@ class AnimationController extends Animation<double>
   void dispose() {
     assert(() {
       if (_ticker == null) {
-        throw FlutterError.detailed(
-          'AnimationController.dispose() called more than once.',
-          fix: 'A given $runtimeType cannot be disposed more than once.\n',
-          diagnostic: DiagnosticsProperty('The following $runtimeType object was disposed multiple times:\n', this),
+        throw FlutterError.from(FlutterErrorBuilder()
+          ..addError('AnimationController.dispose() called more than once.')
+          ..addHint('A given $runtimeType cannot be disposed more than once.\n')
+          ..addProperty('The following $runtimeType object was disposed multiple times', this)
         );
       }
       return true;

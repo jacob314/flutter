@@ -524,14 +524,16 @@ class WidgetTester extends WidgetController implements HitTestDispatcher, Ticker
     if (_tickers != null) {
       for (Ticker ticker in _tickers) {
         if (ticker.isActive) {
-          throw FlutterError.detailed(
-            'A Ticker was active $when.',
-            contract: 'All Tickers must be disposed.',
-            hint: 'Tickers used by AnimationControllers '
-            'should be disposed by calling dispose() on the AnimationController itself. '
-            'Otherwise, the ticker will leak.',
+          throw FlutterError.from(WidgetErrorBuilder()
+            ..addError('A Ticker was active $when.')
+            ..addContract('All Tickers must be disposed.')
+            ..addHint(
+              'Tickers used by AnimationControllers '
+              'should be disposed by calling dispose() on the AnimationController itself. '
+              'Otherwise, the ticker will leak.'
+            )
             // XXX fixup this line.
-            diagnostic: errorProperty<String>('The offending ticker was', ticker.toString(debugIncludeStack: true)),
+            ..describeTicker('The offending ticker was', ticker)
           );
         }
       }

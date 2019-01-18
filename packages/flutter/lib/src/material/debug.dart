@@ -24,40 +24,27 @@ import 'material_localizations.dart';
 bool debugCheckHasMaterial(BuildContext context) {
   assert(() {
     if (context.widget is! Material && context.ancestorWidgetOfExactType(Material) == null) {
-      final List<Widget> ancestors = <Widget>[];
-      context.visitAncestorElements((Element element) {
-        ancestors.add(element.widget);
-        return true;
-      });
-      List<DiagnosticsNode> diagnostics = <DiagnosticsNode>[
-        DiagnosticsNode.message(
+      final WidgetErrorBuilder errorBuilder = WidgetErrorBuilder()
+        ..addError(
+          '${context.widget.runtimeType} widgets require a Material '
+          'widget ancestor, but we couldn\'t find any.'
+        )
+        ..addDescription(
           'In material design, most widgets are conceptually "printed" on '
           'a sheet of material. In Flutter\'s material library, that '
           'material is represented by the Material widget. It is the '
           'Material widget that renders ink splashes, for instance. '
           'Because of this, many material library widgets require that '
           'there be a Material widget in the tree above them.'
-        ),
-        hintMessage(
+        )
+        ..addHint(
           'To introduce a Material widget, you can either directly '
           'include one, or use a widget that contains Material itself, '
           'such as a Card, Dialog, Drawer, or Scaffold.',
-        ),
-        describeProperty('The specific widget that could not find a Material ancestor was', context.widget),
-      ];
-      if (ancestors.isNotEmpty) {
-        diagnostics.add(IterableProperty('The ancestors of this widget were', ancestors, style: DiagnosticsTreeStyle.whitespace));
-      } else {
-        diagnostics.add(DiagnosticsNode.message(
-          'This widget is the root of the tree, so it has no '
-          'ancestors, let alone a "Material" ancestor.'
-        ));
-      }
-      throw FlutterError.detailed(
-        '${context.widget.runtimeType} widgets require a Material '
-        'widget ancestor, but we couldn\'t find any.',
-        diagnostics: diagnostics,
-      );
+        )
+        ..describeMissingAncestor(context, expectedAncestorType: Material, showWidgetLast: true);
+
+      throw errorBuilder.build();
     }
     return true;
   }());
@@ -82,35 +69,21 @@ bool debugCheckHasMaterial(BuildContext context) {
 bool debugCheckHasMaterialLocalizations(BuildContext context) {
   assert(() {
     if (Localizations.of<MaterialLocalizations>(context, MaterialLocalizations) == null) {
-      final List<Widget> ancestors = <Widget>[];
-      context.visitAncestorElements((Element element) {
-        ancestors.add(element.widget);
-        return true;
-      });
-      List<DiagnosticsNode> diagnostics = <DiagnosticsNode>[];
-      diagnostics.add(DiagnosticsProperty('The specific widget that could not find a MaterialLocalizations ancestor was', context.widget));
-
-      if (ancestors.isNotEmpty) {
-        diagnostics.add(IterableProperty('The ancestors of this widget were', ancestors, style: DiagnosticsTreeStyle.whitespace));
-      } else {
-        diagnostics.add(DiagnosticsNode.message(
-          'This widget is the root of the tree, so it has no '
-          'ancestors, let alone a "Localizations" ancestor.'
-        ));
-      }
-
-      throw FlutterError.detailed(
-        'No MaterialLocalizations found.',
-        description:
-        '${context.widget.runtimeType} widgets require MaterialLocalizations '
-        'to be provided by a Localizations widget ancestor.\n'
-        'Localizations are used to generate many different messages, labels,'
-        'and abbreviations which are used by the material library.\n',
-        fix: 'To introduce a MaterialLocalizations, either use a '
-        ' MaterialApp at the root of your application to include them '
-        'automatically, or add a Localization widget with a '
-        'MaterialLocalizations delegate.',
-        diagnostics: diagnostics,
+      throw FlutterError.from(WidgetErrorBuilder()
+        ..addError('No MaterialLocalizations found.')
+        ..addDescription(
+          '${context.widget.runtimeType} widgets require MaterialLocalizations '
+          'to be provided by a Localizations widget ancestor.\n'
+          'Localizations are used to generate many different messages, labels,'
+          'and abbreviations which are used by the material library.\n'
+        )
+        ..addFix(
+          'To introduce a MaterialLocalizations, either use a '
+          ' MaterialApp at the root of your application to include them '
+          'automatically, or add a Localization widget with a '
+          'MaterialLocalizations delegate.'
+        )
+        ..describeMissingAncestor(context, expectedAncestorType: MaterialLocalizations, showWidgetLast: false)
       );
     }
     return true;

@@ -511,15 +511,15 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
       // directly called again.
       DiagnosticsNode treeDump;
       try {
-        treeDump = renderViewElement?.toDiagnosticsNode() ?? descriptionMessage('<no tree>');
+        treeDump = renderViewElement?.toDiagnosticsNode() ?? DiagnosticsNode.message('<no tree>');
         // TODO(jacobr): this is a hack to make sure the tree can safely be fully dumped.
         // Potentially everything is good enough without this case.
         treeDump.toStringDeep();
       } catch (exception) {
-        treeDump = descriptionMessage('<additional error caught while dumping tree: $exception>');
+        treeDump = DiagnosticsNode.message('<additional error caught while dumping tree: $exception>', level: DiagnosticLevel.error);
       }
-      final List<DiagnosticsNode> expectLineDiagnostics = <DiagnosticsNode>[];
-      final int stackLinesToOmit = reportExpectCall(stack, expectLineDiagnostics);
+      final FlutterErrorBuilder omittedFrames = FlutterErrorBuilder();
+      final int stackLinesToOmit = reportExpectCallErrorBuilder(stack, omittedFrames);
       FlutterError.reportError(FlutterErrorDetails(
         exception: exception,
         stack: _unmangle(stack),
@@ -528,17 +528,18 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
         stackFilter: (Iterable<String> frames) {
           return FlutterError.defaultStackFilter(frames.skip(stackLinesToOmit));
         },
-        diagnosticsCollector: () {
-          final List<DiagnosticsNode> information = <DiagnosticsNode>[];
+        errorBuilder: WidgetErrorBuilder.lazy(() {
+          final WidgetErrorBuilder errorBuilder = WidgetErrorBuilder();
           if (stackLinesToOmit > 0)
-            information.addAll(expectLineDiagnostics);
+            errorBuilder.addAll(omittedFrames.toDiagnostics());
           if (showAppDumpInErrors) {
-            information.add(errorProperty('At the time of the failure, the widget tree looked as follows', treeDump, linePrefix: '# '));
+            errorBuilder.addErrorProperty('At the time of the failure, the widget tree looked as follows', treeDump, linePrefix: '# ');
           }
           if (description.isNotEmpty) {
-            information.add(errorProperty('The test description was', description));
+            errorBuilder.addErrorProperty('The test description was', description);
           }
-        }
+          return errorBuilder;
+        })
       ));
       assert(_parentZone != null);
       assert(_pendingExceptionDetails != null, 'A test overrode FlutterError.onError but either failed to return it to its original state, or had unexpected additional errors that it could not handle. Typically, this is caused by using expect() before restoring FlutterError.onError.');

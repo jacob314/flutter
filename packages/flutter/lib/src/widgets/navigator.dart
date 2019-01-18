@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'basic.dart';
 import 'binding.dart';
+import 'debug.dart';
 import 'focus_manager.dart';
 import 'focus_scope.dart';
 import 'framework.dart';
@@ -1427,11 +1428,13 @@ class NavigatorState extends State<Navigator> with TickerProviderStateMixin {
     if (route == null && !allowNull) {
       assert(() {
         if (widget.onUnknownRoute == null) {
-          throw FlutterError.detailed(
-            'If a Navigator has no onUnknownRoute, then its onGenerateRoute must never return null.',
-            violation: 'When trying to build the route "$name", onGenerateRoute returned null, but there was no '
-            'onUnknownRoute callback specified.\n',
-            diagnostic: describeProperty('The Navigator was', this),
+          throw FlutterError.from(WidgetErrorBuilder()
+            ..addError('If a Navigator has no onUnknownRoute, then its onGenerateRoute must never return null.')
+            ..addViolation(
+              'When trying to build the route "$name", onGenerateRoute returned null, but there was no '
+              'onUnknownRoute callback specified.'
+            )
+            ..addProperty<NavigatorState>('The Navigator was', this),
           );
         }
         return true;

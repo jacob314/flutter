@@ -1962,15 +1962,17 @@ class RenderDecoratedBox extends RenderProxyBox {
       _painter.paint(context.canvas, offset, filledConfiguration);
       assert(() {
         if (debugSaveCount != context.canvas.getSaveCount()) {
-          throw FlutterError.detailed(
-            '${_decoration.runtimeType} painter had mismatching save and restore calls.',
-            description: 'Before painting the decoration, the canvas save count was $debugSaveCount. '
-            'After painting it, the canvas save count was ${context.canvas.getSaveCount()}.',
-            hint: 'Every call to save() or saveLayer() must be matched by a call to restore().',
-            diagnostics: <DiagnosticsNode>[
-              describeProperty('The decoration was', decoration),
-              describeProperty('The painter was', _painter),
-            ],
+          throw FlutterError.from(RenderErrorBuilder()
+            ..addError('${_decoration.runtimeType} painter had mismatching save and restore calls.')
+            ..addDescription(
+              'Before painting the decoration, the canvas save count was $debugSaveCount. '
+              'After painting it, the canvas save count was ${context.canvas.getSaveCount()}.'
+            )
+            ..addHint(
+              'Every call to save() or saveLayer() must be matched by a call to restore().'
+            )
+            ..addProperty('The decoration was', decoration)
+            ..addProperty('The painter was', _painter)
           );
         }
         return true;

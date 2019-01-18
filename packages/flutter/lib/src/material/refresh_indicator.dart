@@ -362,7 +362,7 @@ class RefreshIndicatorState extends State<RefreshIndicator> with TickerProviderS
                   'The onRefresh callback returned null.',
                   hint: 'The RefreshIndicator onRefresh callback must return a Future.'
                 ),
-                contextName: 'when calling onRefresh',
+                context: 'when calling onRefresh',
                 library: 'material library',
               ));
             return true;

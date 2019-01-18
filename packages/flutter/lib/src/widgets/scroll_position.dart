@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'basic.dart';
+import 'debug.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 import 'page_storage.dart';
@@ -203,11 +204,12 @@ abstract class ScrollPosition extends ViewportOffset with ScrollMetrics {
       assert(() {
         final double delta = newPixels - pixels;
         if (overscroll.abs() > delta.abs()) {
-          throw FlutterError.detailed(
-            '$runtimeType.applyBoundaryConditions returned invalid overscroll value.',
-            violation: 'setPixels() was called to change the scroll offset from $pixels to $newPixels.\n'
-            'That is a delta of $delta units.\n',
-            diagnostic: DiagnosticsNode.message('$runtimeType.applyBoundaryConditions reported an overscroll of $overscroll units.', level: DiagnosticLevel.error),
+          throw FlutterError.from(WidgetErrorBuilder()
+            ..addError('$runtimeType.applyBoundaryConditions returned invalid overscroll value.')
+            ..addViolation('setPixels() was called to change the scroll offset from $pixels to $newPixels.')
+            ..addDescription('That is a delta of $delta units.')
+            // TODO(jacobr): make this a doubleProperty with custom formatting.
+            ..addError('$runtimeType.applyBoundaryConditions reported an overscroll of $overscroll units.')
           );
         }
         return true;

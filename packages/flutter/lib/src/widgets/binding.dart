@@ -577,30 +577,26 @@ mixin WidgetsBinding on BindingBase, SchedulerBinding, GestureBinding, RendererB
     // should not trigger a new frame.
     assert(() {
       if (debugBuildingDirtyElements) {
-        throw FlutterError.detailed(
-          'Build scheduled during frame.',
-          diagnostics: <DiagnosticsNode>[
-            DiagnosticsNode.message(
-              'While the widget tree was being built, laid out, and painted, '
-              'a new frame was scheduled to rebuild the widget tree.',
-              level: DiagnosticLevel.violation,
-            ),
-            DiagnosticsNode.message(
-              'This might be because setState() was called from a layout or '
-              'paint callback. '
-              'If a change is needed to the widget tree, it should be applied '
-              'as the tree is being built. Scheduling a change for the subsequent '
-              'frame instead results in an interface that lags behind by one frame. '
-              'If this was done to make your build dependent on a size measured at '
-              'layout time, consider using a LayoutBuilder, CustomSingleChildLayout, '
-              'or CustomMultiChildLayout. If, on the other hand, the one frame delay '
-              'is the desired effect, for example because this is an '
-              'animation, consider scheduling the frame in a post-frame callback '
-              'using SchedulerBinding.addPostFrameCallback or '
-              'using an AnimationController to trigger the animation.',
-              level: DiagnosticLevel.hint,
-            ),
-          ],
+        throw FlutterError.from(FlutterErrorBuilder()
+          ..addError('Build scheduled during frame.')
+          ..addViolation(
+            'While the widget tree was being built, laid out, and painted, '
+            'a new frame was scheduled to rebuild the widget tree.'
+          )
+          ..addHint(
+            'This might be because setState() was called from a layout or '
+            'paint callback. '
+            'If a change is needed to the widget tree, it should be applied '
+            'as the tree is being built. Scheduling a change for the subsequent '
+            'frame instead results in an interface that lags behind by one frame. '
+            'If this was done to make your build dependent on a size measured at '
+            'layout time, consider using a LayoutBuilder, CustomSingleChildLayout, '
+            'or CustomMultiChildLayout. If, on the other hand, the one frame delay '
+            'is the desired effect, for example because this is an '
+            'animation, consider scheduling the frame in a post-frame callback '
+            'using SchedulerBinding.addPostFrameCallback or '
+            'using an AnimationController to trigger the animation.',
+          )
         );
       }
       return true;
@@ -930,7 +926,7 @@ class RenderObjectToWidgetElement<T extends RenderObject> extends RootRenderObje
         exception: exception,
         stack: stack,
         library: 'widgets library',
-        contextName: 'attaching to the render tree'
+        context: 'attaching to the render tree'
       );
       FlutterError.reportError(details);
       final Widget error = ErrorWidget.builder(details);
