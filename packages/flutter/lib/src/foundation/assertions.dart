@@ -257,6 +257,8 @@ class FlutterErrorDetails {
 
 typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 
+/// Helper class used to collect different pieces of information
+/// for constructing an instance of [FlutterError]. 
 class FlutterErrorBuilder {
   FlutterErrorBuilder() : _buildErrorCallback = null;
   FlutterErrorBuilder.lazy(this._buildErrorCallback);
