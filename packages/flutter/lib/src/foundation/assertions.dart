@@ -257,28 +257,72 @@ class FlutterErrorDetails {
 
 typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 
+/// Helper class used for collecting different pieces of information
+/// for constructing an instance of [FlutterError]. It provides a number
+/// of methods with names starting with 'add' to make it
+/// convenient to add different parts to an error report. 
+/// In general, the client (e.g., an IDE) displays error parts in the same order 
+/// of adding them to the error builder. 
+/// {@tool sample}
+/// ```dart
+/// throw FlutterErrorBuilder()
+///   ..addError('A short summary of the error. This is usually required.')
+///   ..addDescription('A more detailed description of the error.')
+///   ..addFix('A resolution that is straightforward to implement.')
+///   ..addHint('A suggestion about a potential approach to resolving the error.')
+///   ..addHint('You can add another suggestion if needed.')
+///   ..addProperty('name of the object', object)
+///   // adds a named object.The client can display it appropriated based on its type.
+///   ..build(); // returns a FlutterError with all the specified parts.
+/// ```
+/// {@end-tool}
+/// {@tool sample}
+/// 
+/// See also:
+/// 
+///  * [WidgetErrorBuilder], which adds a few ready-made error elements 
+///    for reporting errors at the widget layer.
+///  * [RenderErrorBuilder], which adds a few ready-made error elements 
+///    for reporting errors at the rendering layer.
 class FlutterErrorBuilder {
+  /// Creates a [FlutterErrorBuilder]
   FlutterErrorBuilder() : _buildErrorCallback = null;
+  
+  /// Creates a [FlutterErrorBuilder] with its details computed only when needed.
+  /// Use if computing the error details may throw an exception or is expensive.
   FlutterErrorBuilder.lazy(this._buildErrorCallback);
 
+  /// Function called when building the error parts lazily. 
   final ErrorBuilderCallback<FlutterErrorBuilder> _buildErrorCallback;
 
   /// Overall error message.
   String error;
 
   final List<DiagnosticsNode> _parts = <DiagnosticsNode>[];
-
+  
+  /// Whether the error report is empty. 
   bool get isEmpty => _parts.isEmpty && error == null && _buildErrorCallback == null;
 
-  // Inject to add extra whitepsace between blocks of text.
+  /// Adds extra space between two parts of the error report.
+  /// The client can decide how the "separator" is rendered.
+  /// It falls back to an extra line break in the console.
   void addSeparator() {
     _parts.add(DiagnosticsNode.message(''));
   }
 
+  /// Adds a more elaborate description of the error.
+  /// It's strongly encouraged to show a summary of the error 
+  /// using [addError] before showing more details.
+  /// The description should include at least the following elements
+  /// * Claim: Explanation of the assertion failure or contract violation.
+  /// * Grounds: Facts about the user's code that led to the error.
+  /// * Warranty: Connections between the grounds and the claim.   
   void addDescription(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight()));
   }
 
+  /// Adds one or more suggestions for resolving the error.
+  /// An optional url may be included in the hint to reference external material.  
   void addHint(String description, {String url}) {
     if (url != null)
       _parts.add(UrlProperty(description.trimRight(), url: url, level: DiagnosticLevel.hint));
@@ -286,22 +330,33 @@ class FlutterErrorBuilder {
       _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.hint));
   }
 
+  /// Adds a straightforward fix for resolving the error.
+  /// A fix should be unambiguous and context-agnostic. 
+  /// If there isn't enough confidence in the general applicability of the fix, 
+  /// consider adding it as a hint using [addHint].
   void addFix(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.fix));
   }
 
+  /// Adds a formal contract that has been violated. 
   void addContract(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.contract));
   }
 
+  /// Adds a statement of contract violation.
   void addViolation(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.violation));
   }
 
+  /// Adds a short summary of the error to the report.
+  /// The summary is usually no longer than 2 lines,
+  /// and it should concisely states what was the assertion failure or contract violation.
+  /// The client (e.g., an IDE) usually displays the error summary in red. 
   void addError(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.error));
   }
 
+  /// Adds a [StringProperty] to the error report.
   void addStringProperty(String name, String value, {DiagnosticLevel level = DiagnosticLevel.info}) {
     _parts.add(StringProperty(name, value, level: level));
   }
@@ -330,6 +385,8 @@ class FlutterErrorBuilder {
     ));
   }
 
+  /// Adds a named property with a [value] of type [T]
+  /// to the error report.
   void addErrorProperty<T>(
     String name,
     T value, {
@@ -338,7 +395,9 @@ class FlutterErrorBuilder {
   }) {
     addProperty<T>(name, value, level: DiagnosticLevel.error, style: style, linePrefix: linePrefix);
   }
-
+  
+  /// Returns a list of DiagnosticsNode objects including all parts of 
+  /// the error report.
   List<DiagnosticsNode> toDiagnostics() {
     if (error == null && _buildErrorCallback == null) {
       return _parts;
@@ -357,7 +416,7 @@ class FlutterErrorBuilder {
     return diagnostics;
   }
   
-  /// Add a property only displayed in GUI debugging tools and not in text
+  /// Adds a property only displayed in GUI debugging tools and not in text
   /// messages.
   void addDebugProperty<T>(String name, T value) {
     _parts.add(DiagnosticsProperty<T>(name, value, level: DiagnosticLevel.debug));
@@ -368,6 +427,7 @@ class FlutterErrorBuilder {
     _parts.add(node.toDiagnosticsNode(name: name, style: DiagnosticsTreeStyle.shallow));
   }
 
+  /// Adds a property with an `Iterable<T>` [value] to the error report.
   void addIterable<T>(String name, Iterable<T> children, {DiagnosticLevel level = DiagnosticLevel.info}) {
     _parts.add(IterableProperty<T>(
       name,
@@ -377,36 +437,39 @@ class FlutterErrorBuilder {
     ));
   }
 
-  void addBlock(String name, FlutterErrorBuilder blockContents) {
-    throw 'XXX implement';
-  }
-
-  /// Use this method to describe a [StackTrace] relevant to the error.
-  ///
-  /// There won't be
+  /// Adds a [StackTrace] relevant to the error.
   void addStackTrace(String name, StackTrace stackTrace, {IterableFilter<String> stackFilter}) {
     _parts.add(DiagnosticsStackTrace(name, stackTrace, stackFilter: stackFilter));
   }
 
+  /// Adds an [IntProperty]
   void addIntProperty(String name, int value) {
     _parts.add(IntProperty(name, value));
   }
 
+  /// Adds an instance of [DiagnosticNode] to the error report.
+  /// In general, other methods that add specific error parts should be used
+  /// before resorting to this method, since the other methods will by default 
+  /// use styles consistent with other error displays. 
+  /// For example, indenting values to show on the next line, etc.
   void addDiagnostic(DiagnosticsNode diagnostic) {
     _parts.add(diagnostic);
   }
 
+  /// Adds a list of [DiagnosticNode] instances to the error report.
+  /// See also:
+  /// 
+  ///  * [addDiagnostic], which adds a single diagnostic.
   void addAll(Iterable<DiagnosticsNode> diagnostics) {
     _parts.addAll(diagnostics);
   }
 
+  /// Builds a FlutterError based on the message parts collected by
+  /// this instance of FlutterErrorBuilder.
   FlutterError build() {
     return FlutterError.from(this);
   }
 
-  String toStringDeep() {
-    return _parts.map((DiagnosticsNode node) => node.toStringDeep()).join('\n');
-  }
 }
 
 /// Error class used to report Flutter-specific assertion failures and
