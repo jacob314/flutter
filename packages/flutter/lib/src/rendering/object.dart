@@ -3094,17 +3094,26 @@ mixin ContainerRenderObjectMixin<ChildType extends RenderObject, ParentDataType 
 }
 
 /// Variant of [FlutterErrorBuilder] with extra methods for describing rendering
-/// errors.
+/// errors. It it important to add basic parts of an error report using base class
+/// methods such as addError, addDescription, addHint, etc.
+/// 
+/// If the error you want to report is from the widget layer, consider using
+/// [WidgetErrorBuilder] instead. 
 class RenderErrorBuilder extends FlutterErrorBuilder {
-
+  /// Creates a [RenderErrorBuilder]
   RenderErrorBuilder();
-
+  
+  /// Creates a [RenderErrorBuilder] with its details computed only when needed.
+  /// Use if computing the error details may throw an exception or is expensive.
   RenderErrorBuilder.lazy(ErrorBuilderCallback<RenderErrorBuilder> callback) : super.lazy(callback);
-
+  
+  /// Adds layout constraints of the render object to the error report.
   void addConstraintsProperty(String name, Constraints constraints) {
     addProperty<Constraints>(name, constraints, level: DiagnosticLevel.contract);
   }
 
+  /// Adds a debug representation of a RenderObject, usually the one causing
+  /// the failure or contract violation to the error report.
   void addRenderObject(
       String name,
       RenderObject renderObject, {
