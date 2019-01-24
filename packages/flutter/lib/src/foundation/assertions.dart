@@ -261,6 +261,27 @@ typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 /// for constructing an instance of [FlutterError]. It provides a number
 /// of methods with names starting with 'add' to make it
 /// convenient to add different parts to an error report. 
+/// In general, error parts will be displayed in the same order 
+/// of getting them added to the error builder. 
+/// {@tool sample}
+///
+/// Here is a stateful [Foo] widget. Its [State] uses the
+/// [SingleTickerProviderStateMixin] to implement the necessary
+/// [TickerProvider], creating its controller in the [initState] method and
+/// disposing of it in the [dispose] method. The duration of the controller is
+/// configured from a property in the [Foo] widget; as that changes, the
+/// [didUpdateWidget] method is used to update the controller.
+///
+/// ```dart
+/// throw FlutterErrorBuilder()
+///   ..addError('A short summary of the error. This is usually required.`)
+///   ..addDescription('A more detailed description of the error.')
+///   ..addFix('A resolution that is straightforward to implement.')
+///   ..addHint('A suggestion about a potential approach to resolving the error.')
+///   ..build(); // returns a FlutterError with all the specified parts.
+/// ```
+/// {@end-tool}
+/// {@tool sample}
 /// 
 /// See also:
 /// 
