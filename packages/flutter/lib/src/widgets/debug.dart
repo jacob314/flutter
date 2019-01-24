@@ -111,16 +111,32 @@ Key _firstNonUniqueKey(Iterable<Widget> widgets) {
   return null;
 }
 
+/// Variant of [FlutterErrorBuilder] with extra methods for describing widget
+/// errors. It it important to add basic parts to the error report using base
+/// class methods such as addError, addDescription, addHint, etc.
+/// 
+/// If the error you want to report is from the rendering layer, consider using
+/// [RenderErrorBuilder] instead. 
 class WidgetErrorBuilder extends RenderErrorBuilder {
+  /// Creates a [WidgetErrorBuilder]
   WidgetErrorBuilder();
 
+  /// Creates a [RenderErrorBuilder] with its details computed only when needed.
+  /// Use if computing the error details may throw an exception or is expensive.
   WidgetErrorBuilder.lazy(ErrorBuilderCallback<WidgetErrorBuilder> callback) : super.lazy(callback);
 
+  /// Creates a [WidgetErrorBuilder]
   @override
   RenderErrorBuilder createBuilder() {
     return WidgetErrorBuilder();
   }
 
+  /// Adds a description of a specific type of widget missing from the current
+  /// build context's ancestry tree. If the parameter [showWidgetLast] is true,
+  /// the widget that depends on the ancestor will be identified in the error
+  /// report. 
+  /// 
+  /// You can find an example of using this method in [debugCheckHasMaterial].
   void describeMissingAncestor(
     BuildContext context, {
     @required Type expectedAncestorType,
@@ -152,14 +168,27 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
   }
 
   // XXX make sure no Element properties are leaking in.
+  /// Adds a description of the specific widget the error is originated from
+  /// to the error report. The description will include the widget's type and
+  /// its properties.
+  /// {@tool sample}
+  /// ```dart
+  /// WidgetErrorBuilder()
+  ///   ..addWidgetContext('The specific widget that could not find a Table ancestor was', context)
+  /// ```
+  /// {@end-tool}
+  /// {@tool sample}
   void addWidgetContext(String name, BuildContext context) {
     addDiagnostic(DiagnosticsProperty<Element>(name, context));
   }
-
+  
+  /// Adds a description of an [Element] from the current build context
+  /// to the error report.
   void describeElement(String name, Element element, {DiagnosticsTreeStyle style = DiagnosticsTreeStyle.indentedSingleLine}) {
     addDiagnostic(DiagnosticsProperty<Element>(name, element, style: style));
   }
-
+  
+  /// Adds a list of [Element]s from the current build context to the error report.  
   void describeElements(String name, Iterable<Element> elements) {
     addDiagnostic(DiagnosticsBlock(
       name: name,
@@ -168,11 +197,14 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
     ));
   }
 
+  /// Adds a description of a specific [Ticker] to the error report. 
   void describeTicker(String name, Ticker ticker) {
     // TODO(jacobr): this toString includes a StackTrace. create a TickerProperty DiagnosticsNode.
     addDiagnostic(DiagnosticsProperty('The offending ticker was', ticker, description: ticker.toString(debugIncludeStack: true)));
   }
 
+  /// Adds a description of the ownership chain from a specific [Element]
+  /// to the error report. It's useful for debugging the source of an element.
   void describeOwnershipChain(String name, Element element) {
     // XXX make this structured so clients can allow clicks on individual entries.
     // For example, is this an iterable with arrows as the separators?
