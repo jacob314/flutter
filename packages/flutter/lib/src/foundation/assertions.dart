@@ -271,6 +271,8 @@ typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 ///   ..addFix('A resolution that is straightforward to implement.')
 ///   ..addHint('A suggestion about a potential approach to resolving the error.')
 ///   ..addHint('You can add another suggestion if needed.')
+///   ..addProperty('name of the object', object)
+///   // adds a named object.The client can display it appropriated based on its type.
 ///   ..build(); // returns a FlutterError with all the specified parts.
 /// ```
 /// {@end-tool}
@@ -307,6 +309,7 @@ class FlutterErrorBuilder {
   void addSeparator() {
     _parts.add(DiagnosticsNode.message(''));
   }
+
   /// Adds a more elaborate description of the error.
   /// It's strongly encouraged to show a summary of the error 
   /// using [addError] before showing more details.
@@ -317,14 +320,16 @@ class FlutterErrorBuilder {
   void addDescription(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight()));
   }
+
   /// Adds one or more suggestions for resolving the error.
-  /// An optional URL may be included in the hint to reference external material.  
+  /// An optional url may be included in the hint to reference external material.  
   void addHint(String description, {String url}) {
     if (url != null)
       _parts.add(UrlProperty(description.trimRight(), url: url, level: DiagnosticLevel.hint));
     else
       _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.hint));
   }
+
   /// Adds a straightforward fix for resolving the error.
   /// A fix should be unambiguous and context-agnostic. 
   /// If there isn't enough confidence in the general applicability of the fix, 
@@ -332,20 +337,25 @@ class FlutterErrorBuilder {
   void addFix(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.fix));
   }
+
   /// Adds a formal contract that has been violated. 
   void addContract(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.contract));
   }
+
   /// Adds a statement of contract violation.
   void addViolation(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.violation));
   }
+
   /// Adds a short summary of the error to the report.
   /// The summary is usually no longer than 2 lines,
-  /// and it consicely states what was the assertion failure or contract violation.
+  /// and it should concisely states what was the assertion failure or contract violation.
+  /// The client (e.g., an IDE) usually displays the error summary in red. 
   void addError(String description) {
     _parts.add(DiagnosticsNode.message(description.trimRight(), level: DiagnosticLevel.error));
   }
+
   /// Adds a [StringProperty] to the error report.
   void addStringProperty(String name, String value, {DiagnosticLevel level = DiagnosticLevel.info}) {
     _parts.add(StringProperty(name, value, level: level));
@@ -417,8 +427,7 @@ class FlutterErrorBuilder {
     _parts.add(node.toDiagnosticsNode(name: name, style: DiagnosticsTreeStyle.shallow));
   }
 
-  /// Adds an property with an `Iterable<T>` [value] that can be displayed with
-  /// different [DiagnosticsTreeStyle] for custom rendering.
+  /// Adds a property with an `Iterable<T>` [value] to the error report.
   void addIterable<T>(String name, Iterable<T> children, {DiagnosticLevel level = DiagnosticLevel.info}) {
     _parts.add(IterableProperty<T>(
       name,
@@ -439,11 +448,18 @@ class FlutterErrorBuilder {
   }
 
   /// Adds an instance of [DiagnosticNode] to the error report.
+  /// In general, other methods that add specific error parts should be used
+  /// before resorting to this method, since the other methods will by default 
+  /// use styles consistent with other error displays. 
+  /// For example, indenting values to show on the next line, etc.
   void addDiagnostic(DiagnosticsNode diagnostic) {
     _parts.add(diagnostic);
   }
 
   /// Adds a list of [DiagnosticNode] instances to the error report.
+  /// See also:
+  /// 
+  ///  * [addDiagnostic], which adds a single diagnostic.
   void addAll(Iterable<DiagnosticsNode> diagnostics) {
     _parts.addAll(diagnostics);
   }
@@ -454,10 +470,6 @@ class FlutterErrorBuilder {
     return FlutterError.from(this);
   }
 
-  /// Dumps a string representation of this error report.
-  String toStringDeep() {
-    return _parts.map((DiagnosticsNode node) => node.toStringDeep()).join('\n');
-  }
 }
 
 /// Error class used to report Flutter-specific assertion failures and
