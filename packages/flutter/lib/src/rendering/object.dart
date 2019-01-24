@@ -3094,7 +3094,7 @@ mixin ContainerRenderObjectMixin<ChildType extends RenderObject, ParentDataType 
 }
 
 /// Variant of [FlutterErrorBuilder] with extra methods for describing rendering
-/// errors. It it important to add basic parts of an error report using base class
+/// errors. It it important to add basic parts to the error report using base class
 /// methods such as addError, addDescription, addHint, etc.
 /// 
 /// If the error you want to report is from the widget layer, consider using
