@@ -42,7 +42,7 @@ bool debugCheckHasMaterial(BuildContext context) {
           'include one, or use a widget that contains Material itself, '
           'such as a Card, Dialog, Drawer, or Scaffold.',
         )
-        ..describeMissingAncestor(context, expectedAncestorType: Material, showWidgetLast: true);
+        ..describeMissingAncestor(context, expectedAncestorType: Material);
 
       throw errorBuilder.build();
     }
@@ -83,7 +83,7 @@ bool debugCheckHasMaterialLocalizations(BuildContext context) {
           'automatically, or add a Localization widget with a '
           'MaterialLocalizations delegate.'
         )
-        ..describeMissingAncestor(context, expectedAncestorType: MaterialLocalizations, showWidgetLast: false)
+        ..describeMissingAncestor(context, expectedAncestorType: MaterialLocalizations)
       );
     }
     return true;

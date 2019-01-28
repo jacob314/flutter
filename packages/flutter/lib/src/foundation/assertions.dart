@@ -534,7 +534,8 @@ class FlutterError extends AssertionError {
     if (messageParts == null) {
       return super.message;
     }
-    return messageParts.map((DiagnosticsNode node) => node.toStringDeep()).join('\n');
+    final TextRenderer renderer = TextRenderer(wrapWidth: wrapWidth);
+    return messageParts.map((DiagnosticsNode node) => renderer.render(node).trimRight()).join('\n');
   }
 
   @override
@@ -641,15 +642,15 @@ class FlutterError extends AssertionError {
     if (details.stack != null) {
       errorBuilder.addSeparator();
       errorBuilder.addStackTrace('When the exception was thrown, this was the stack', details.stack, stackFilter: details.stackFilter);
+      if (details.informationCollector != null || details.errorBuilder != null)
+        errorBuilder.addSeparator();
     }
     if (details.informationCollector != null) {
       final StringBuffer information = StringBuffer();
       details.informationCollector(information);
-      errorBuilder.addSeparator();
       errorBuilder.addDescription(information.toString().trimRight());
     }
     if (details.errorBuilder != null) {
-      errorBuilder.addSeparator();
       errorBuilder.addAll(details.errorBuilder.toDiagnostics());
     }
     return DiagnosticsBlock(name: 'EXCEPTION CAUGHT BY', description: details.library.toUpperCase(),

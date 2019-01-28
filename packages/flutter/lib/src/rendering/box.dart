@@ -499,7 +499,7 @@ class BoxConstraints extends Constraints {
   }) {
     assert(() {
       void throwError(String message) {
-        final FlutterErrorBuilder builder = FlutterErrorBuilder()
+        final RenderErrorBuilder builder = RenderErrorBuilder()
           ..addError(message);
         if (informationCollector != null) {
           final StringBuffer information = StringBuffer();
@@ -509,7 +509,7 @@ class BoxConstraints extends Constraints {
         if (errorBuilder != null)
           builder.addAll(errorBuilder.toDiagnostics());
 
-        builder.addProperty('The offending constraints were', this, style: DiagnosticsTreeStyle.singleLine);
+        builder.addConstraintsProperty('The offending constraints were', this);
         throw FlutterError.from(builder);
       }
       if (minWidth.isNaN || maxWidth.isNaN || minHeight.isNaN || maxHeight.isNaN) {
@@ -1725,9 +1725,9 @@ abstract class RenderBox extends RenderObject {
         assert(!debugNeedsLayout); // this is called in the size= setter during layout, but in that case we have a size
         String contract;
         if (sizedByParent)
-          contract = 'Because this RenderBox has sizedByParent set to true, it must set its size in performResize().\n';
+          contract = 'Because this RenderBox has sizedByParent set to true, it must set its size in performResize().';
         else
-          contract = 'Because this RenderBox has sizedByParent set to false, it must set its size in performLayout().\n';
+          contract = 'Because this RenderBox has sizedByParent set to false, it must set its size in performLayout().';
         throw FlutterError.from(FlutterErrorBuilder()
           ..addError('RenderBox did not set its size during layout.')
           ..addContract(contract)

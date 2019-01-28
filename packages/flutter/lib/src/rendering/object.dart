@@ -3102,7 +3102,12 @@ class RenderErrorBuilder extends FlutterErrorBuilder {
   RenderErrorBuilder.lazy(ErrorBuilderCallback<RenderErrorBuilder> callback) : super.lazy(callback);
 
   void addConstraintsProperty(String name, Constraints constraints) {
-    addProperty<Constraints>(name, constraints, level: DiagnosticLevel.contract);
+    addProperty<Constraints>(
+      name,
+      constraints,
+      level: DiagnosticLevel.contract,
+      style: DiagnosticsTreeStyle.indentedSingleLine,
+    );
   }
 
   void addRenderObject(
