@@ -235,7 +235,7 @@ class RenderFlow extends RenderBox
   }
 
   Size _getSize(BoxConstraints constraints) {
-    assert(constraints.debugAssertIsValid());
+    assert(constraints.debugAssertIsValidStructured());
     return constraints.constrain(_delegate.getSize(constraints));
   }
 

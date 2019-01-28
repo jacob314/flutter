@@ -182,7 +182,7 @@ class BoxConstraints extends Constraints {
   /// Returns new box constraints that are smaller by the given edge dimensions.
   BoxConstraints deflate(EdgeInsets edges) {
     assert(edges != null);
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     final double horizontal = edges.horizontal;
     final double vertical = edges.vertical;
     final double deflatedMinWidth = math.max(0.0, minWidth - horizontal);
@@ -197,7 +197,7 @@ class BoxConstraints extends Constraints {
 
   /// Returns new box constraints that remove the minimum width and height requirements.
   BoxConstraints loosen() {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     return BoxConstraints(
       minWidth: 0.0,
       maxWidth: maxWidth,
@@ -248,14 +248,14 @@ class BoxConstraints extends Constraints {
   /// Returns the width that both satisfies the constraints and is as close as
   /// possible to the given width.
   double constrainWidth([double width = double.infinity]) {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     return width.clamp(minWidth, maxWidth);
   }
 
   /// Returns the height that both satisfies the constraints and is as close as
   /// possible to the given height.
   double constrainHeight([double height = double.infinity]) {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     return height.clamp(minHeight, maxHeight);
   }
 
@@ -399,7 +399,7 @@ class BoxConstraints extends Constraints {
 
   /// Whether the given size satisfies the constraints.
   bool isSatisfiedBy(Size size) {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     return (minWidth <= size.width) && (size.width <= maxWidth) &&
            (minHeight <= size.height) && (size.height <= maxHeight);
   }
@@ -458,8 +458,8 @@ class BoxConstraints extends Constraints {
       return b * t;
     if (b == null)
       return a * (1.0 - t);
-    assert(a.debugAssertIsValid());
-    assert(b.debugAssertIsValid());
+    assert(a.debugAssertIsValidStructured());
+    assert(b.debugAssertIsValidStructured());
     assert((a.minWidth.isFinite && b.minWidth.isFinite) || (a.minWidth == double.infinity && b.minWidth == double.infinity), 'Cannot interpolate between finite constraints and unbounded constraints.');
     assert((a.maxWidth.isFinite && b.maxWidth.isFinite) || (a.maxWidth == double.infinity && b.maxWidth == double.infinity), 'Cannot interpolate between finite constraints and unbounded constraints.');
     assert((a.minHeight.isFinite && b.minHeight.isFinite) || (a.minHeight == double.infinity && b.minHeight == double.infinity), 'Cannot interpolate between finite constraints and unbounded constraints.');
@@ -492,7 +492,7 @@ class BoxConstraints extends Constraints {
   }
 
   @override
-  bool debugAssertIsValid({
+  bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
     FlutterErrorBuilder errorBuilder,
@@ -580,13 +580,13 @@ class BoxConstraints extends Constraints {
 
   @override
   bool operator ==(dynamic other) {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     if (identical(this, other))
       return true;
     if (other is! BoxConstraints)
       return false;
     final BoxConstraints typedOther = other;
-    assert(typedOther.debugAssertIsValid());
+    assert(typedOther.debugAssertIsValidStructured());
     return minWidth == typedOther.minWidth &&
            maxWidth == typedOther.maxWidth &&
            minHeight == typedOther.minHeight &&
@@ -595,7 +595,7 @@ class BoxConstraints extends Constraints {
 
   @override
   int get hashCode {
-    assert(debugAssertIsValid());
+    assert(debugAssertIsValidStructured());
     return hashValues(minWidth, maxWidth, minHeight, maxHeight);
   }
 

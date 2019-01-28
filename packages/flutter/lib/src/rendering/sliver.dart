@@ -413,7 +413,7 @@ class SliverConstraints extends Constraints {
   }
 
   @override
-  bool debugAssertIsValid({
+  bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
     RenderErrorBuilder errorBuilder,
@@ -461,7 +461,7 @@ class SliverConstraints extends Constraints {
     if (other is! SliverConstraints)
       return false;
     final SliverConstraints typedOther = other;
-    assert(typedOther.debugAssertIsValid());
+    assert(typedOther.debugAssertIsValidStructured());
     return typedOther.axisDirection == axisDirection
         && typedOther.growthDirection == growthDirection
         && typedOther.scrollOffset == scrollOffset

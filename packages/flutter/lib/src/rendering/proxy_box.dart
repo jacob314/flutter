@@ -192,7 +192,7 @@ class RenderConstrainedBox extends RenderProxyBox {
     RenderBox child,
     @required BoxConstraints additionalConstraints,
   }) : assert(additionalConstraints != null),
-       assert(additionalConstraints.debugAssertIsValid()),
+       assert(additionalConstraints.debugAssertIsValidStructured()),
        _additionalConstraints = additionalConstraints,
        super(child);
 
@@ -201,7 +201,7 @@ class RenderConstrainedBox extends RenderProxyBox {
   BoxConstraints _additionalConstraints;
   set additionalConstraints(BoxConstraints value) {
     assert(value != null);
-    assert(value.debugAssertIsValid());
+    assert(value.debugAssertIsValidStructured());
     if (_additionalConstraints == value)
       return;
     _additionalConstraints = value;
@@ -452,7 +452,7 @@ class RenderAspectRatio extends RenderProxyBox {
   }
 
   Size _applyAspectRatio(BoxConstraints constraints) {
-    assert(constraints.debugAssertIsValid());
+    assert(constraints.debugAssertIsValidStructured());
     assert(() {
       if (!constraints.hasBoundedWidth && !constraints.hasBoundedHeight) {
         throw FlutterError.detailed(

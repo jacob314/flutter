@@ -527,14 +527,14 @@ class PaintingContext extends ClipContext {
 ///   width is equivalent to one where the maximum width is set to that minimum
 ///   width (`2<w<1` is equivalent to `2<w<2`, since minimum constraints have
 ///   priority). This getter is used by the default implementation of
-///   [debugAssertIsValid].
+///   [debugAssertIsValidStructured].
 ///
-/// * The [debugAssertIsValid] method, which should assert if there's anything
+/// * The [debugAssertIsValidStructured] method, which should assert if there's anything
 ///   wrong with the constraints object. (We use this approach rather than
 ///   asserting in constructors so that our constructors can be `const` and so
 ///   that it is possible to create invalid constraints temporarily while
 ///   building valid ones.) See the implementation of
-///   [BoxConstraints.debugAssertIsValid] for an example of the detailed checks
+///   [BoxConstraints.debugAssertIsValidStructured] for an example of the detailed checks
 ///   that can be made.
 ///
 /// * The [==] operator and the [hashCode] getter, so that constraints can be
@@ -581,13 +581,23 @@ abstract class Constraints {
   /// error line.
   //
   /// Returns the same as [isNormalized] if asserts are disabled.
-  bool debugAssertIsValid({
+  bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
     RenderErrorBuilder errorBuilder,
   }) {
     assert(isNormalized);
     return isNormalized;
+  }
+
+  bool debugAssertIsValid({
+    bool isAppliedConstraint = false,
+    InformationCollector informationCollector,
+  }) {
+    return debugAssertIsValidStructured(
+      isAppliedConstraint: isAppliedConstraint,
+      informationCollector: informationCollector,
+    );
   }
 }
 
@@ -1533,7 +1543,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
   /// work to update its layout information.
   void layout(Constraints constraints, { bool parentUsesSize = false }) {
     assert(constraints != null);
-    assert(constraints.debugAssertIsValid(
+    assert(constraints.debugAssertIsValidStructured(
       isAppliedConstraint: true,
       errorBuilder: RenderErrorBuilder.lazy(() {
         RenderErrorBuilder errorBuilder = RenderErrorBuilder();

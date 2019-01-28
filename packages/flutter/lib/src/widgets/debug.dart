@@ -124,7 +124,6 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
   void describeMissingAncestor(
     BuildContext context, {
     @required Type expectedAncestorType,
-    @required bool showWidgetLast
   }) {
     final List<Element> ancestors = <Element>[];
     context.visitAncestorElements((Element element) {
@@ -133,10 +132,11 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
     });
 
     // TODO(jacobr): indicate this is the context on the error.
-    final DiagnosticsNode widgetDiagnostic = DiagnosticsProperty<Element>('The specific widget that could not find a $expectedAncestorType ancestor was', context);
-
-    if (!showWidgetLast)
-      addDiagnostic(widgetDiagnostic);
+    addDiagnostic(DiagnosticsProperty<Element>(
+      'The specific widget that could not find a $expectedAncestorType ancestor was',
+      context,
+      style: DiagnosticsTreeStyle.indentedSingleLine,
+    ));
 
     if (ancestors.isNotEmpty) {
       describeElements('The ancestors of this widget were', ancestors);
@@ -146,9 +146,6 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
               'ancestors, let alone a "$expectedAncestorType" ancestor.'
       ));
     }
-
-    if (showWidgetLast)
-      addDiagnostic(widgetDiagnostic);
   }
 
   // XXX make sure no Element properties are leaking in.
