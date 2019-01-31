@@ -1016,27 +1016,30 @@ class Scaffold extends StatefulWidget {
     final ScaffoldState result = context.ancestorStateOfType(const TypeMatcher<ScaffoldState>());
     if (nullOk || result != null)
       return result;
-    throw FlutterError.from(FlutterErrorBuilder()
-      ..addError('Scaffold.of() called with a context that does not contain a Scaffold.')
-      ..addDescription(
-        'No Scaffold ancestor could be found starting from the context that was passed to Scaffold.of(). '
+    throw FlutterError.from(
+      '${FlutterError.error}Scaffold.of() called with a context that does not contain a Scaffold.\n'
+      'No Scaffold ancestor could be found starting from the context that was passed to Scaffold.of(). '
       'This usually happens when the context provided is from the same StatefulWidget as that '
-      'whose build function actually creates the Scaffold widget being sought.')
-      ..addHint(
-        'There are several ways to avoid this problem. The simplest is to use a Builder to get a '
-        'context that is "under" the Scaffold. For an example of this, please see the '
-        'documentation for Scaffold.of()',
-        url: 'https://docs.flutter.io/flutter/material/Scaffold/of.html'
-      )
-      ..addHint('A more efficient solution is to split your build function into several widgets. This '
+      'whose build function actually creates the Scaffold widget being sought.\n'
+      // For this hint we can infer that the URL is associated with the hint and
+      // not a separate block of content due to the trailing colon on the previous
+      // Line. If there was a period instead we would not know the two blocks are
+      // associated and so it would not be safe to do things like make the whole
+      // hint clickable linking to the url.
+      '${FlutterError.hint}There are several ways to avoid this problem. The simplest is to use a Builder to get a '
+      'context that is "under" the Scaffold. For an example of this, please see the '
+      'documentation for Scaffold.of():\n'
+      '  https://docs.flutter.io/flutter/material/Scaffold/of.html\n'
+      '${flutterError.hint}A more efficient solution is to split your build function into several widgets. This '
       'introduces a new context from which you can obtain the Scaffold. In this solution, '
       'you would have an outer widget that creates the Scaffold populated by instances of '
       'your new inner widgets, and then in these inner widgets you would use Scaffold.of().\n'
       'A less elegant but more expedient solution is assign a GlobalKey to the Scaffold, '
       'then use the key.currentState property to obtain the ScaffoldState rather than '
-      'using the Scaffold.of() function.')
-      ..addSeparator()
-      ..addProperty('The context used was', context)
+      'using the Scaffold.of() function.\n'
+      '\n'
+      'The context used was:\n'
+       '  $context\n'
     );
   }
 

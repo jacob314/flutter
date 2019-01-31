@@ -737,13 +737,15 @@ class FlutterError extends AssertionError {
         }
       }
       if (ourFault) {
-        errorBuilder.addSeparator();
-        errorBuilder.addHint(
-          'Either the assertion indicates an error in the framework itself, or we should '
+        errorBuilder.write('\n'
+          // Here some sort of block tag is definitely required as the hint
+          // has 3 paragraphs and indentation cannot be used to infer the block
+          // scope.
+          '${FlutterError.hint}${FlutterError.blockStart}Either the assertion indicates an error in the framework itself, or we should '
           'provide substantially more information in this error message to help you determine '
           'and fix the underlying cause.\n'
-          'In either case, please report this assertion by filing a bug on GitHub',
-          url: 'https://github.com/flutter/flutter/issues/new?template=BUG.md',
+          'In either case, please report this assertion by filing a bug on GitHub:\n',
+          '  https://github.com/flutter/flutter/issues/new?template=BUG.md\n${FlutterError.blockEnd}',
         );
       }
     }
