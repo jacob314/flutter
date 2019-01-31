@@ -21,8 +21,8 @@ typedef InformationCollector = void Function(StringBuffer information);
 ///
 /// See also:
 ///
-///  * [FlutterErrorBuilder.addStackTrace], which is the typical way StackTrace
-///    objects are added to a [FlutterError].
+/// * [FlutterErrorBuilder.addStackTrace], which is the typical way [StackTrace]
+///   objects are added to a [FlutterError].
 class DiagnosticsStackTrace extends DiagnosticsBlock {
 
   /// Creates a diagnostic for a stack trace.
@@ -285,11 +285,14 @@ class FlutterErrorDetails {
 typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 
 /// Helper class used for collecting different pieces of information
-/// for constructing an instance of [FlutterError]. It provides a number
-/// of methods with names starting with 'add' to make it
-/// convenient to add different parts to an error report.
-/// In general, the client (e.g., an IDE) displays error parts in the same order
-/// of adding them to the error builder.
+/// for constructing an instance of [FlutterError].
+///
+/// It provides a number of methods with names starting with 'add' to make it
+/// convenient to add different parts to an error report. In general, the client
+/// (e.g., an IDE) displays error parts in the same order of adding them to the
+/// error builder. All builder methods may be called multiple times although it
+/// is generally recommended to only call [addError] one time as an error with
+/// multiple short error summaries is typically difficult for users to read.
 /// {@tool sample}
 /// ```dart
 /// throw FlutterErrorBuilder()
@@ -298,12 +301,12 @@ typedef ErrorBuilderCallback<B extends FlutterErrorBuilder> = B Function();
 ///   ..addFix('A resolution that is straightforward to implement.')
 ///   ..addHint('A suggestion about a potential approach to resolving the error.')
 ///   ..addHint('You can add another suggestion if needed.')
+///   // Adds a named object. The client can display it appropriately based on
+///   // its type.
 ///   ..addProperty('name of the object', object)
-///   // adds a named object.The client can display it appropriated based on its type.
 ///   ..build(); // returns a FlutterError with all the specified parts.
 /// ```
 /// {@end-tool}
-/// {@tool sample}
 ///
 /// See also:
 ///
