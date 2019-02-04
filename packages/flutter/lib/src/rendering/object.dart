@@ -584,7 +584,6 @@ abstract class Constraints {
   bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
-    RenderErrorBuilder errorBuilder,
   }) {
     assert(isNormalized);
     return isNormalized;
@@ -620,6 +619,14 @@ abstract class Constraints {
       isAppliedConstraint: isAppliedConstraint,
       informationCollector: informationCollector,
     );
+  }
+
+  FlutterError describeError(String error, {String description, String constraintsName = 'The offending constraints were'}) {
+    final RenderErrorBuilder builder = RenderErrorBuilder()
+      ..addError(error)
+      ..addDescription(description)
+      ..addConstraintsProperty(constraintsName, this);
+    return builder.build();
   }
 }
 
@@ -1112,6 +1119,46 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
     _needsCompositing = isRepaintBoundary || alwaysNeedsCompositing;
   }
 
+  FlutterError describeError(
+    String error, {
+    @required String renderObjectName,
+    String contract,
+    String description,
+    List<String> hints,
+    String hint,
+    DiagnosticsNode diagnostic,
+  }) {
+    final RenderErrorBuilder builder = RenderErrorBuilder()
+      ..addError(error)
+      ..addRenderObject(renderObjectName, this)
+      ..addContract(contract)
+      ..addDescription(description)
+      ..addHint(hint)
+      ..addHints(hints)
+      ..addDiagnostic(diagnostic);
+
+    return builder.build();
+  }
+
+  FlutterError describeChildError(
+    String error, {
+    @required String renderObjectName,
+    @required String childName,
+    @required RenderObject childObject,
+    String contract,
+    String description,
+    String hint,
+  }) {
+    final RenderErrorBuilder builder = RenderErrorBuilder()
+      ..addError(error)
+      ..addRenderObject(renderObjectName, this)
+      ..addRenderObject(childName, childObject)
+      ..addContract(contract)
+      ..addDescription(description)
+      ..addHint(hint);
+    return builder.build();
+  }
+
   /// Cause the entire subtree rooted at the given [RenderObject] to be marked
   /// dirty for layout, paint, etc, so that the effects of a hot reload can be
   /// seen, or so that the effect of changing a global debug flag (such as
@@ -1567,7 +1614,7 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
     assert(constraints != null);
     assert(constraints.debugAssertIsValidStructured(
       isAppliedConstraint: true,
-      errorBuilder: RenderErrorBuilder.lazy(() {
+      informationCollector: (StringBuffer information) {
         final RenderErrorBuilder errorBuilder = RenderErrorBuilder();
         final List<String> stack = StackTrace.current.toString().split('\n');
         int targetFrame;
@@ -1582,16 +1629,15 @@ abstract class RenderObject extends AbstractNode with DiagnosticableTreeMixin im
           final Pattern targetFramePattern = RegExp(r'^#[0-9]+ +(.+)$');
           final Match targetFrameMatch = targetFramePattern.matchAsPrefix(stack[targetFrame]);
           final String problemFunction = (targetFrameMatch != null && targetFrameMatch.groupCount > 0) ? targetFrameMatch.group(1) : stack[targetFrame].trim();
-          errorBuilder.addErrorProperty<String>(
+          information.writeln(
             'These invalid constraints were provided to $runtimeType\'s layout() '
             'function by the following function, which probably computed the '
-            'invalid constraints in question',
-            problemFunction
+            'invalid constraints in question:'
+            '  $problemFunction',
           );
         }
-        return errorBuilder;
       })
-    ));
+    );
     assert(!_debugDoingThisResize);
     assert(!_debugDoingThisLayout);
     RenderObject relayoutBoundary;
@@ -2743,34 +2789,31 @@ mixin RenderObjectWithChildMixin<ChildType extends RenderObject> on RenderObject
   ///
   /// Always returns true.
   bool debugValidateChild(RenderObject child) {
-    assert(() {
-      if (child is! ChildType) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError(
-            'A $runtimeType expected a child of type $ChildType but received a '
-            'child of type ${child.runtimeType}.'
-          )
-          ..addDescription(
-            'RenderObjects expect specific types of children because they '
-            'coordinate with their children during layout and paint. For '
-            'example, a RenderSliver cannot be the child of a RenderBox because '
-            'a RenderSliver does not understand the RenderBox layout protocol.',
-          )
-          ..addSeparator()
-          ..addProperty<dynamic>(
-            'The $runtimeType that expected a $ChildType child was created by',
-            debugCreator,
-          )
-          ..addSeparator()
-          ..addProperty<dynamic>(
-            'The ${child.runtimeType} that did not match the expected child type '
-            'was created by',
-            child.debugCreator,
-          )
-        );
-      }
-      return true;
-    }());
+    assert(child is ChildType,
+      FlutterError.from(FlutterErrorBuilder()
+        ..addError(
+          'A $runtimeType expected a child of type $ChildType but received a '
+          'child of type ${child.runtimeType}.'
+        )
+        ..addDescription(
+          'RenderObjects expect specific types of children because they '
+          'coordinate with their children during layout and paint. For '
+          'example, a RenderSliver cannot be the child of a RenderBox because '
+          'a RenderSliver does not understand the RenderBox layout protocol.',
+        )
+        ..addSeparator()
+        ..addProperty<dynamic>(
+          'The $runtimeType that expected a $ChildType child was created by',
+          debugCreator,
+        )
+        ..addSeparator()
+        ..addProperty<dynamic>(
+          'The ${child.runtimeType} that did not match the expected child type '
+          'was created by',
+          child.debugCreator,
+        )
+      ),
+    );
     return true;
   }
 

@@ -80,7 +80,7 @@ class FlutterErrorDetails {
   /// their default values. (`throw null` results in a
   /// [NullThrownError] exception.)
   const FlutterErrorDetails({
-    this.exception,
+    dynamic exception,
     this.stack,
     this.library = 'Flutter framework',
     this.stackFilter,
@@ -91,10 +91,24 @@ class FlutterErrorDetails {
     this.silent = false
   }) : _contextName = context,
        _contextObject = contextObject,
-       _errorBuilder = errorBuilder;
+       _errorBuilder = errorBuilder,
+       _exception = exception;
+
+
   /// The exception. Often this will be an [AssertionError], maybe specifically
   /// a [FlutterError]. However, this could be any value at all.
-  final dynamic exception;
+  dynamic get exception {
+    // If the exception is an AssertionError and its value happens to be a
+    // FlutterError, then treat that FlutterError as the actual exception that
+    // occurred. This enabled the convenient pattern of
+    // assert(a==b, FlutterError('some structured error message', hint: 'bar'));
+    if (_exception is AssertionError && _exception.message is FlutterError) {
+      final AssertionError assertionError = _exception;
+      return assertionError.message;
+    }
+    return _exception;
+  }
+  final dynamic _exception;
 
   /// The stack trace from where the [exception] was thrown (as opposed to where
   /// it was caught).
@@ -215,7 +229,7 @@ class FlutterErrorDetails {
       // some code snippets. This leads to ugly messages. To avoid this, we move
       // the assertion message up to before the code snippets, separated by a
       // newline, if we recognise that format is being used.
-      final String message = exception.message;
+      final String message = exception.message.toString();
       final String fullMessage = exception.toString();
       if (message is String && message != fullMessage) {
         if (fullMessage.length > message.length) {
@@ -339,9 +353,11 @@ class FlutterErrorBuilder {
   /// concisely states what the assertion failure or contract violation was.
   ///
   /// The client (e.g., an IDE) usually displays the error summary in red.
-  void addError(String sumnmary) {
+  void addError(String summary) {
+    if (summary == null)
+      return;
     _parts.add(DiagnosticsNode.message(
-      sumnmary.trimRight(),
+      summary.trimRight(),
       style: DiagnosticsTreeStyle.flat,
       level: DiagnosticLevel.error,
     ));
@@ -356,6 +372,8 @@ class FlutterErrorBuilder {
   /// * Grounds: Facts about the user's code that led to the error.
   /// * Warranty: Connections between the grounds and the claim.
   void addDescription(String description) {
+    if (description == null)
+      return;
     _parts.add(DiagnosticsNode.message(description.trimRight(), style: DiagnosticsTreeStyle.flat));
   }
 
@@ -364,6 +382,9 @@ class FlutterErrorBuilder {
   /// An optional [url] may be included in the hint to reference external
   /// material.
   void addHint(String description, {String url}) {
+    if (description == null)
+      return;
+
     if (url != null)
       _parts.add(UrlProperty(
         description.trimRight(),
@@ -380,12 +401,19 @@ class FlutterErrorBuilder {
       ));
   }
 
+  void addHints(List<String> hints) {
+    hints?.forEach(addHint);
+  }
+
   /// Adds a straightforward fix for resolving the error.
   /// A fix should be unambiguous and context-agnostic.
   ///
   /// If there isn't enough confidence in the general applicability of the fix,
   /// consider adding it as a hint using [addHint].
   void addFix(String description) {
+    if (description == null)
+      return;
+
     _parts.add(DiagnosticsNode.message(
       description.trimRight(),
       style: DiagnosticsTreeStyle.flat,
@@ -395,6 +423,9 @@ class FlutterErrorBuilder {
 
   /// Adds a formal contract that has been violated.
   void addContract(String description) {
+    if (description == null)
+      return;
+
     _parts.add(DiagnosticsNode.message(
       description.trimRight(),
       style: DiagnosticsTreeStyle.flat,
@@ -404,6 +435,9 @@ class FlutterErrorBuilder {
 
   /// Adds a statement of contract violation.
   void addViolation(String description) {
+    if (description == null)
+      return;
+
     _parts.add(DiagnosticsNode.message(
       description.trimRight(),
       style: DiagnosticsTreeStyle.flat,
@@ -685,30 +719,30 @@ class FlutterError extends AssertionError {
       // method that indicate what the header should be in each case if we care.
       errorBuilder.addDiagnostic(details._diagnosticContext('$namePrefix thrown'));
     }
-    if (details.exception is NullThrownError) {
+    Object exception = details.exception;
+    if (exception is NullThrownError) {
       addContextHeader('The null value was', '.');
-    } else if (details.exception is num) {
-      addContextHeader('The number ${details.exception} was', '.');
-    } else if (details.exception is FlutterError) {
-      final FlutterError flutterError = details.exception;
+    } else if (exception is num) {
+      addContextHeader('The number ${exception} was', '.');
+    } else if (exception is FlutterError) {
       addContextHeader('The following assertion was');
-      errorBuilder.addAll(flutterError.messageParts);
+      errorBuilder.addAll(exception.messageParts);
     }
     else {
       String errorName;
-      if (details.exception is AssertionError) {
+      if (exception is AssertionError) {
         errorName = 'assertion';
-      } else if (details.exception is String) {
+      } else if (exception is String) {
         errorName = 'message';
-      } else if (details.exception is Error || details.exception is Exception) {
-        errorName = '${details.exception.runtimeType}';
+      } else if (exception is Error || exception is Exception) {
+        errorName = '${exception.runtimeType}';
       } else {
-        errorName = '${details.exception.runtimeType} object';
+        errorName = '${exception.runtimeType} object';
       }
       // Many exception classes put their type at the head of their message.
       // This is redundant with the way we display exceptions, so attempt to
       // strip out that header when we see it.
-      final String prefix = '${details.exception.runtimeType}: ';
+      final String prefix = '${exception.runtimeType}: ';
       String message = details.exceptionAsString();
       if (message.startsWith(prefix))
         message = message.substring(prefix.length);

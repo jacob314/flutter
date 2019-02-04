@@ -187,6 +187,8 @@ class WidgetErrorBuilder extends RenderErrorBuilder {
     addDiagnostic(DiagnosticsProperty<Element>(name, element, style: style));
   }
 
+  // Conclusion: this is a power user method and FlutterErrorBuilder is as good
+  // as anything for this case.
   /// Adds a list of [Element]s from the current build context to the error report.
   void describeElements(String name, Iterable<Element> elements) {
     addDiagnostic(DiagnosticsBlock(
@@ -279,11 +281,11 @@ bool debugCheckHasTable(BuildContext context) {
   assert(() {
     if (context.widget is! Table && context.ancestorWidgetOfExactType(Table) == null) {
       final Element element = context;
-      throw FlutterError.from(WidgetErrorBuilder()
-        ..addError('No Table widget found.')
-        ..addContract('${context.widget.runtimeType} widgets require a Table widget ancestor.')
-        ..addWidgetContext('The specific widget that could not find a Table ancestor was', context)
-        ..describeOwnershipChain('The ownership chain for the affected widget is', element)
+      throw context.describeError(
+         'No Table widget found.',
+         contract: '${context.widget.runtimeType} widgets require a Table widget ancestor.',
+         contextName: 'The specific widget that could not find a Table ancestor was',
+         describeOwnershipChain: true,
       );
     }
     return true;
@@ -305,22 +307,17 @@ bool debugCheckHasTable(BuildContext context) {
 ///
 /// Does nothing if asserts are disabled. Always returns true.
 bool debugCheckHasMediaQuery(BuildContext context) {
-  assert(() {
-    if (context.widget is! MediaQuery && context.ancestorWidgetOfExactType(MediaQuery) == null) {
-      final Element element = context;
-      throw FlutterError.from(WidgetErrorBuilder()
-        ..addError('No MediaQuery widget found.')
-        ..addViolation('${context.widget.runtimeType} widgets require a MediaQuery widget ancestor.')
-        ..addWidgetContext('The specific widget that could not find a MediaQuery ancestor was', context)
-        ..describeOwnershipChain('The ownership chain for the affected widget is', element)
-        ..addHint(
-          'Typically, the MediaQuery widget is introduced by the MaterialApp or '
-          'WidgetsApp widget at the top of your application widget tree.'
-        )
-      );
-    }
-    return true;
-  }());
+  assert(context.widget is MediaQuery || context.ancestorWidgetOfExactType(MediaQuery) != null,
+    context.describeError(
+      'No MediaQuery widget found.',
+      violation: '${context.widget.runtimeType} widgets require a MediaQuery widget ancestor.',
+      contextName: 'The specific widget that could not find a MediaQuery ancestor was',
+      describeOwnershipChain: true,
+      hint:
+        'Typically, the MediaQuery widget is introduced by the MaterialApp or '
+        'WidgetsApp widget at the top of your application widget tree.',
+    ),
+  );
   return true;
 }
 
@@ -338,26 +335,21 @@ bool debugCheckHasMediaQuery(BuildContext context) {
 ///
 /// Does nothing if asserts are disabled. Always returns true.
 bool debugCheckHasDirectionality(BuildContext context) {
-  assert(() {
-    if (context.widget is! Directionality && context.ancestorWidgetOfExactType(Directionality) == null) {
-      final Element element = context;
-      throw FlutterError.from(WidgetErrorBuilder()
-        ..addError('No Directionality widget found.')
-        ..addContract('${context.widget.runtimeType} widgets require a Directionality widget ancestor.\n')
-        ..addWidgetContext('The specific widget that could not find a Directionality ancestor was', context)
-        ..describeOwnershipChain('The ownership chain for the affected widget is', element)
-        ..addHint(
-          'Typically, the Directionality widget is introduced by the MaterialApp '
-          'or WidgetsApp widget at the top of your application widget tree. It '
-          'determines the ambient reading direction and is used, for example, to '
-          'determine how to lay out text, how to interpret "start" and "end" '
-          'values, and to resolve EdgeInsetsDirectional, '
-          'AlignmentDirectional, and other *Directional objects.'
-        )
-      );
-    }
-    return true;
-  }());
+  assert(context.widget is Directionality || context.ancestorWidgetOfExactType(Directionality) != null,
+    context.describeError(
+     'No Directionality widget found.',
+      description: '${context.widget.runtimeType} widgets require a Directionality widget ancestor.',
+      contextName: 'The specific widget that could not find a Directionality ancestor was',
+      describeOwnershipChain: true,
+      hint:
+        'Typically, the Directionality widget is introduced by the MaterialApp '
+        'or WidgetsApp widget at the top of your application widget tree. It '
+        'determines the ambient reading direction and is used, for example, to '
+        'determine how to lay out text, how to interpret "start" and "end" '
+        'values, and to resolve EdgeInsetsDirectional, '
+        'AlignmentDirectional, and other *Directional objects.'
+    ),
+  );
   return true;
 }
 

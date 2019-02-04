@@ -199,15 +199,15 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
     return regions;
   }
 
-  void _reportOverflow(RelativeRect overflow, RenderErrorBuilder overflowHints) {
+  void _reportOverflow(RelativeRect overflow, {String description, List<String> overflowHints}) {
     if (overflowHints.isEmpty) {
-      overflowHints.addHint(
+      overflowHints.add(
         'The edge of the $runtimeType that is '
         'overflowing has been marked in the rendering with a yellow and black '
         'striped pattern. This is usually caused by the contents being too big '
         'for the $runtimeType.'
       );
-      overflowHints.addHint(
+      overflowHints.add(
         'This is considered an error condition because it indicates that there '
         'is content that cannot be seen. If the content is legitimately bigger '
         'than the available space, consider clipping it with a ClipRect widget '
@@ -243,16 +243,18 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
     // be visualized in debugging tools.
     FlutterError.reportError(
       FlutterErrorDetailsForRendering(
-        exception: 'A $runtimeType overflowed by $overflowText.',
         library: 'rendering library',
         context: 'during layout',
         renderObject: this,
-        errorBuilder: RenderErrorBuilder()
-          ..addAll(overflowHints.toDiagnostics())
-          ..addRenderObject('The specific $runtimeType in question is', this)
+        exception: describeError(
+          'A $runtimeType overflowed by $overflowText.',
+          renderObjectName: 'The specific $runtimeType in question is',
+          description: description,
+          hints: overflowHints,
           // TODO(jacobr): this line is ascii art that it would be nice to handle
           // more generically in GUI debugging clients in the future.
-          ..addDiagnostic(DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), allowWrap: false)),
+          diagnostic: DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), allowWrap: false)
+        ),
       ),
     );
   }
@@ -268,8 +270,9 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
     Offset offset,
     Rect containerRect,
     Rect childRect, {
+    String description,
     String overflowHints,
-    RenderErrorBuilder overflowHintsBuilder,
+    List<String> overflowHintsBuilder,
   }) {
     final RelativeRect overflow = RelativeRect.fromRect(containerRect, childRect);
 
@@ -305,11 +308,11 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
 
     if (_overflowReportNeeded) {
       _overflowReportNeeded = false;
-      overflowHintsBuilder ??= RenderErrorBuilder();
+      overflowHintsBuilder ??= <String>[];
       if (overflowHints != null) {
-        overflowHintsBuilder.addHint(overflowHints);
+        overflowHintsBuilder.add(overflowHints);
       }
-      _reportOverflow(overflow, overflowHintsBuilder);
+      _reportOverflow(overflow, description: description, overflowHints: overflowHintsBuilder);
     }
   }
 

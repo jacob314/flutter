@@ -507,15 +507,14 @@ class MediaQuery extends InheritedWidget {
       return query.data;
     if (nullOk)
       return null;
-    throw FlutterError.from(WidgetErrorBuilder()
-      ..addError('MediaQuery.of() called with a context that does not contain a MediaQuery.')
-      ..addViolation(
+    throw context.describeError(
+      'MediaQuery.of() called with a context that does not contain a MediaQuery.',
+      violation:
         'No MediaQuery ancestor could be found starting from the context that was passed '
         'to MediaQuery.of(). This can happen because you do not have a WidgetsApp or '
         'MaterialApp widget (those widgets introduce a MediaQuery), or it can happen '
-        'if the context you use comes from a widget above those widgets.'
-      )
-      ..describeElement('The context used was', context),
+        'if the context you use comes from a widget above those widgets.',
+      contextName: 'The context used was'
     );
   }
 

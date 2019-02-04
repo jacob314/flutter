@@ -1064,6 +1064,21 @@ abstract class State<T extends StatefulWidget> extends Diagnosticable {
   @mustCallSuper
   void reassemble() { }
 
+  FlutterError describeError(
+    String error, {
+    String description,
+    String hint,
+    List<String> hints,
+  }) {
+    // TODO(jacobr): is this general style of describing errors on Stateful
+    // widgets really desired?
+    RenderErrorBuilder builder = RenderErrorBuilder()
+      ..addErrorProperty<State>(error, this, style: DiagnosticsTreeStyle.singleLine)
+      ..addDescription(description)
+      ..addHint(hint)
+      ..addHints(hints);
+    return builder.build();
+  }
   /// Notify the framework that the internal state of this object has changed.
   ///
   /// Whenever you change the internal state of a [State] object, make the
@@ -1109,64 +1124,58 @@ abstract class State<T extends StatefulWidget> extends Diagnosticable {
   @protected
   void setState(VoidCallback fn) {
     assert(fn != null);
-    assert(() {
-      if (_debugLifecycleState == _StateLifecycle.defunct) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addErrorProperty<State>('setState() called after dispose()', this, style: DiagnosticsTreeStyle.singleLine)
-          ..addDescription(
-            'This error happens if you call setState() on a State object for a widget that '
-            'no longer appears in the widget tree (e.g., whose parent widget no longer '
-            'includes the widget in its build). This error can occur when code calls '
-            'setState() from a timer or an animation callback.'
-          )
-          ..addHint(
-            'The preferred solution is '
-            'to cancel the timer or stop listening to the animation in the dispose() '
-            'callback. Another solution is to check the "mounted" property of this '
-            'object before calling setState() to ensure the object is still in the '
-            'tree.'
-          )
-          ..addHint(
-            'This error might indicate a memory leak if setState() is being called '
-            'because another object is retaining a reference to this State object '
-            'after it has been removed from the tree. To avoid memory leaks, '
-            'consider breaking the reference to this object during dispose().'
-          )
-        );
-      }
-      if (_debugLifecycleState == _StateLifecycle.created && !mounted) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addErrorProperty('setState() called in constructor', this, style: DiagnosticsTreeStyle.singleLine)
-          ..addHint(
-            'This happens when you call setState() on a State object for a widget that '
-            'hasn\'t been inserted into the widget tree yet. It is not necessary to call '
-            'setState() in the constructor, since the state is already assumed to be dirty '
-            'when it is initially created.'
-          )
-        );
-      }
-      return true;
-    }());
+    assert(
+    _debugLifecycleState != _StateLifecycle.defunct,
+      describeError(
+        'setState() called after dispose()',
+        description:
+          'This error happens if you call setState() on a State object for a widget that '
+          'no longer appears in the widget tree (e.g., whose parent widget no longer '
+          'includes the widget in its build). This error can occur when code calls '
+          'setState() from a timer or an animation callback.',
+        hints: <String>[
+          'The preferred solution is '
+          'to cancel the timer or stop listening to the animation in the dispose() '
+          'callback. Another solution is to check the "mounted" property of this '
+          'object before calling setState() to ensure the object is still in the '
+          'tree.',
+          'This error might indicate a memory leak if setState() is being called '
+          'because another object is retaining a reference to this State object '
+          'after it has been removed from the tree. To avoid memory leaks, '
+          'consider breaking the reference to this object during dispose().'
+        ]),
+    );
+    assert(_debugLifecycleState != _StateLifecycle.created || mounted,
+      describeError(
+        'setState() called in constructor',
+        hint:
+          'This happens when you call setState() on a State object for a widget that '
+          'hasn\'t been inserted into the widget tree yet. It is not necessary to call '
+          'setState() in the constructor, since the state is already assumed to be dirty '
+          'when it is initially created.'
+      ),
+    );
     final dynamic result = fn() as dynamic;
-    assert(() {
-      if (result is Future) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('setState() callback argument returned a Future.')
-          ..addViolation(
-            'The setState() method on $this was called with a closure or method that '
-            'returned a Future. Maybe it is marked as "async".'
-          )
-          ..addHint(
-            'Instead of performing asynchronous work inside a call to setState(), first '
-            'execute the work (without updating the widget state), and then synchronously '
-           'update the state inside a call to setState().'
-          )
-        );
-      }
-      // We ignore other types of return values so that you can do things like:
-      //   setState(() => x = 3);
-      return true;
-    }());
+    // We ignore other types of return values so that you can do things like:
+    //   setState(() => x = 3);
+    assert(result is! Future,
+      /// This is a good case to consider. I've rewritten this method to match
+      /// the more typical pattern.
+      /// XXX This error message isn't as readable as it looks because
+      /// $this may expand out to a 5 line long string making this a run-on
+      /// sentence,
+      describeError(
+        'setState() callback argument returned a Future.',
+        contextName: 'The ${this.runtimeType} onject that called setState was',
+        description:
+          'The setState() method was called with a closure or method that '
+          'returned a Future. Maybe it is marked as "async".',
+        hint:
+          'Instead of performing asynchronous work inside a call to setState(), first '
+          'execute the work (without updating the widget state), and then synchronously '
+         'update the state inside a call to setState().'
+      )
+    );
     _element.markNeedsBuild();
   }
 
@@ -1856,6 +1865,27 @@ typedef ElementVisitor = void Function(Element element);
 /// [BuildContext] objects are actually [Element] objects. The [BuildContext]
 /// interface is used to discourage direct manipulation of [Element] objects.
 abstract class BuildContext {
+  /// Generates an error that occurs describing a failure that occurred for this
+  /// context.
+  /// Use [contextName] and [renderObjectName] to provide names to describe what
+  /// the [Widget] and optionally the [RenderObject] for the [BuildContext]
+  /// represent.
+  ///
+  /// Pass in [describeOwnershipChain] only if showing the onwership chain is
+  /// useful for debugging an error.
+  FlutterError describeError(
+    String error, {
+    String contract,
+    String violation,
+    String description,
+    Object descriptionObject,
+    String hint,
+    String fix,
+    @required String contextName,
+    String renderObjectName,
+    bool describeOwnershipChain = false,
+    Type expectedAncestorType,
+  });
   /// The current configuration of the [Element] that is this [BuildContext].
   Widget get widget;
 
@@ -2622,6 +2652,48 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
 
   bool _active = false;
 
+  @override
+  FlutterError describeError(
+    String error, {
+    String contract,
+    String violation,
+    String description,
+    Object descriptionObject,
+    String hint,
+    String fix,
+    @required String contextName,
+    String renderObjectName,
+    bool describeOwnershipChain = false,
+    Type expectedAncestorType,
+  }) {
+    final WidgetErrorBuilder builder = WidgetErrorBuilder()
+      ..addError(error)
+      ..addContract(contract)
+      ..addViolation(violation);
+    if (description != null) {
+      if (descriptionObject != null) {
+        builder.addProperty(description, descriptionObject);
+      } else {
+        builder.addDescription(description);
+      }
+    }
+    final BuildContext context = this;
+    builder.addHint(hint);
+    builder.addFix(fix);
+
+    if (context is Element) {
+      builder.describeElement(contextName, context);
+      if (renderObjectName != null)
+        builder.addRenderObject(renderObjectName, context.renderObject);
+      if (describeOwnershipChain) 
+        builder.describeOwnershipChain('The ownership chain for the affected widget is', context);
+    }
+    if (expectedAncestorType != null)
+      builder.describeMissingAncestor(this, expectedAncestorType: expectedAncestorType);
+
+    return builder.build();
+  }
+
   @mustCallSuper
   void _reassemble() {
     markNeedsBuild();
@@ -3151,83 +3223,76 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
 
   @override
   Size get size {
-    assert(() {
-      if (_debugLifecycleState != _ElementLifecycle.active) {
-        // TODO(jacobr): is this a good separation into contract and violation?
-        // I have added a line of white space.
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('Cannot get size of inactive element.')
-          ..addContract(
-            'In order for an element to have a valid size, the element must be '
-            'active, which means it is part of the tree.'
-          )
-          ..addViolation('Instead, this element is in the $_debugLifecycleState state.')
-          ..describeElement('The size getter was called for the following element', this)
-        );
-      }
-      if (owner._debugBuilding) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('Cannot get size during build.')
-          ..addDescription(
-            'The size of this render object has not yet been determined because '
-            'the framework is still in the process of building widgets, which '
-            'means the render tree for this frame has not yet been determined. '
-            'The size getter should only be called from paint callbacks or '
-            'interaction event handlers (e.g. gesture callbacks).\n',
-          )
-          ..addHint(
-            'If you need some sizing information during build to decide which '
-            'widgets to build, consider using a LayoutBuilder widget, which can '
-            'tell you the layout constraints at a given location in the tree. See '
-            '<https://docs.flutter.io/flutter/widgets/LayoutBuilder-class.html> '
-            'for more details.\n'
-          )
-          ..describeElement('The size getter was called for the following element', this)
-        );
-      }
-      return true;
-    }());
+    assert(
+      _debugLifecycleState == _ElementLifecycle.active,
+      // TODO(jacobr): is this a good separation into contract and violation?
+      // I have added a line of white space.
+      describeError(
+        'Cannot get size of inactive element.',
+        contract:
+          'In order for an element to have a valid size, the element must be '
+          'active, which means it is part of the tree.',
+        violation: 'Instead, this element is in the $_debugLifecycleState state.',
+        contextName: 'The size getter was called for the following element',
+      )
+    );
+    assert(
+      !owner._debugBuilding,
+      describeError(
+        'Cannot get size during build.',
+        description:
+          'The size of this render object has not yet been determined because '
+          'the framework is still in the process of building widgets, which '
+          'means the render tree for this frame has not yet been determined. '
+          'The size getter should only be called from paint callbacks or '
+          'interaction event handlers (e.g. gesture callbacks).\n',
+        hint:
+          'If you need some sizing information during build to decide which '
+          'widgets to build, consider using a LayoutBuilder widget, which can '
+          'tell you the layout constraints at a given location in the tree. See '
+          '<https://docs.flutter.io/flutter/widgets/LayoutBuilder-class.html> '
+          'for more details.\n',
+        contextName: 'The size getter was called for the following element',
+      ),
+    );
     final RenderObject renderObject = findRenderObject();
     assert(() {
       if (renderObject == null) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('Cannot get size without a render object.')
-          ..addHint(
+        throw describeError(
+          'Cannot get size without a render object.',
+          hint:
             'In order for an element to have a valid size, the element must have '
             'an associated render object. This element does not have an associated '
             'render object, which typically means that the size getter was called '
             'too early in the pipeline (e.g., during the build phase) before the '
-            'framework has created the render tree.'
-          )
-          ..describeElement('The size getter was called for the following element', this)
+            'framework has created the render tree.',
+          contextName: 'The size getter was called for the following element',
         );
       }
       if (renderObject is RenderSliver) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('Cannot get size from a RenderSliver.')
-          ..addHint(
+        throw describeError(
+          'Cannot get size from a RenderSliver.',
+           hint:
             'The render object associated with this element is a '
             '${renderObject.runtimeType}, which is a subtype of RenderSliver. '
             'Slivers do not have a size per se. They have a more elaborate '
             'geometry description, which can be accessed by calling '
             'findRenderObject and then using the "geometry" getter on the '
-            'resulting object.'
-          )
-          ..describeElement('The size getter was called for the following element', this)
-          ..addRenderObject('The associated render sliver was', renderObject),
+            'resulting object.',
+          contextName: 'The size getter was called for the following element',
+          renderObjectName: 'The associated render sliver was'
         );
       }
       if (renderObject is! RenderBox) {
-        throw FlutterError.from(WidgetErrorBuilder()
-          ..addError('Cannot get size from a render object that is not a RenderBox.')
-          ..addHint(
+        throw describeError(
+          'Cannot get size from a render object that is not a RenderBox.',
+          hint:
             'Instead of being a subtype of RenderBox, the render object associated '
             'with this element is a ${renderObject.runtimeType}. If this type of '
             'render object does have a size, consider calling findRenderObject '
-            'and extracting its size manually.'
-          )
-          ..describeElement('The size getter was called for the following element', this)
-          ..addRenderObject('The associated render object was', renderObject)
+            'and extracting its size manually.',
+          contextName: 'The size getter was called for the following element',
+          renderObjectName: 'The associated render object was',
         );
       }
       final RenderBox box = renderObject;
@@ -3676,9 +3741,6 @@ class ErrorWidget extends LeafRenderObjectWidget {
     else
       _flutterError.messageParts.forEach(properties.add);
   }
-
-  @override
-  DiagnosticLevel get debugDiagnosticLevel => DiagnosticLevel.error;
 }
 
 /// Signature for a function that creates a widget, e.g. [StatelessWidget.build]

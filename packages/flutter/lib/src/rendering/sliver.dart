@@ -422,16 +422,17 @@ class SliverConstraints extends Constraints {
       void verify(bool check, String message) {
         if (check)
           return;
-        final RenderErrorBuilder errorBuilder = RenderErrorBuilder()
-          ..addError('$runtimeType is not valid: $message');
-
+        String description;
         if (informationCollector != null) {
           final StringBuffer information = StringBuffer();
           informationCollector(information);
-          errorBuilder.addDescription(information.toString());
+          description = information.toString();
         }
-        errorBuilder.addConstraintsProperty('The offending constraints were', this);
-        throw errorBuilder.build();
+
+        throw this.describeError(
+          '$runtimeType is not valid: $message',
+          description: description,
+        );
       }
       verify(axis != null, 'The "axis" is null.');
       verify(growthDirection != null, 'The "growthDirection" is null.');

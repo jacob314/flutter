@@ -495,22 +495,17 @@ class BoxConstraints extends Constraints {
   bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
-    FlutterErrorBuilder errorBuilder,
   }) {
     assert(() {
       void throwError(String message) {
-        final RenderErrorBuilder builder = RenderErrorBuilder()
-          ..addError(message);
+        String description;
         if (informationCollector != null) {
           final StringBuffer information = StringBuffer();
           informationCollector(information);
-          builder.addDescription(information.toString());
+          description = information.toString();
         }
-        if (errorBuilder != null)
-          builder.addAll(errorBuilder.toDiagnostics());
 
-        builder.addConstraintsProperty('The offending constraints were', this);
-        throw FlutterError.from(builder);
+        throw describeError(message, description: description);
       }
       if (minWidth.isNaN || maxWidth.isNaN || minHeight.isNaN || maxHeight.isNaN) {
         final List<String> affectedFieldsList = <String>[];
@@ -1728,15 +1723,17 @@ abstract class RenderBox extends RenderObject {
           contract = 'Because this RenderBox has sizedByParent set to true, it must set its size in performResize().';
         else
           contract = 'Because this RenderBox has sizedByParent set to false, it must set its size in performLayout().';
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('RenderBox did not set its size during layout.')
-          ..addContract(contract)
-          ..addDescription('It appears that this did not happen; layout completed, but the size property is still null.')
-          ..addProperty('The RenderBox in question is', this)
+        throw describeError(
+          'RenderBox did not set its size during layout.',
+          renderObjectName: 'The RenderBox in question is',
+          contract: contract,
+          description: 'It appears that this did not happen; layout completed, but the size property is still null.'
         );
       }
       // verify that the size is not infinite
       if (!_size.isFinite) {
+        // This is an example of a complex case where true builder syntax is
+        // superior.
         final RenderErrorBuilder errorBuilder = RenderErrorBuilder()
           ..addError('$runtimeType object was given an infinite size during layout.')
           ..addHint(
@@ -1891,34 +1888,30 @@ abstract class RenderBox extends RenderObject {
     assert(() {
       if (!hasSize) {
         if (debugNeedsLayout) {
-          throw FlutterError.from(RenderErrorBuilder()
-            ..addError('Cannot hit test a render box that has never been laid out.')
-            ..addRenderObject('The hitTest() method was called on this RenderBox', this)
-            ..addDescription(
-                'Unfortunately, this object\'s geometry is not known at this time, '
-                    'probably because it has never been laid out. '
-                    'This means it cannot be accurately hit-tested.'
-            )
-            ..addHint(
-                'If you are trying '
-                    'to perform a hit test during the layout phase itself, make sure '
-                    'you only hit test nodes that have completed layout (e.g. the node\'s '
-                    'children, after their layout() method has been called).'
-            )
+          throw describeError(
+            'Cannot hit test a render box that has never been laid out.',
+            renderObjectName: 'The hitTest() method was called on this RenderBox',
+            description:
+              'Unfortunately, this object\'s geometry is not known at this time, '
+              'probably because it has never been laid out. '
+              'This means it cannot be accurately hit-tested.',
+            hint:
+              'If you are trying '
+              'to perform a hit test during the layout phase itself, make sure '
+              'you only hit test nodes that have completed layout (e.g. the node\'s '
+              'children, after their layout() method has been called).',
           );
         }
-        throw FlutterError.from(RenderErrorBuilder()
-          ..addError('Cannot hit test a render box with no size.')
-          ..addRenderObject('The hitTest() method was called on this RenderBox', this)
-          ..addDescription(
+        throw describeError(
+          'Cannot hit test a render box with no size.',
+          renderObjectName: 'The hitTest() method was called on this RenderBox',
+          description:
             'Although this node is not marked as needing layout, '
-            'its size is not set.'
-          )
-          ..addHint(
+            'its size is not set.',
+          hint:
             'A RenderBox object must have an '
             'explicit size before it can be hit-tested. Make sure '
             'that the RenderBox in question sets its size during layout.'
-          )
         );
       }
       return true;
@@ -1978,18 +1971,18 @@ abstract class RenderBox extends RenderObject {
     assert(child.parent == this);
     assert(() {
       if (child.parentData is! BoxParentData) {
-        throw FlutterError.from(RenderErrorBuilder()
-         ..addError('$runtimeType does not implement applyPaintTransform.')
-         ..addProperty('The following $runtimeType object', this, style: DiagnosticsTreeStyle.shallow)
-         ..addRenderObject('...did not use a BoxParentData class for the parentData field of the following child', child)
-         ..addDescription('The $runtimeType class inherits from RenderBox.')
-         ..addHint(
-            'The default applyPaintTransform implementation provided by RenderBox assumes that the '
-            'children all use BoxParentData objects for their parentData field. '
-            'Since $runtimeType does not in fact use that ParentData class for its children, it must '
-            'provide an implementation of applyPaintTransform that supports the specific ParentData '
-            'subclass used by its children (which apparently is ${child.parentData.runtimeType}).'
-          )
+        throw describeChildError(
+         '$runtimeType does not implement applyPaintTransform.',
+         renderObjectName: 'The following $runtimeType object',
+         childName: '...did not use a BoxParentData class for the parentData field of the following child',
+         childObject: child,
+         description: 'The $runtimeType class inherits from RenderBox.',
+         hint:
+          'The default applyPaintTransform implementation provided by RenderBox assumes that the '
+          'children all use BoxParentData objects for their parentData field. '
+          'Since $runtimeType does not in fact use that ParentData class for its children, it must '
+          'provide an implementation of applyPaintTransform that supports the specific ParentData '
+          'subclass used by its children (which apparently is ${child.parentData.runtimeType}).'
         );
       }
       return true;
