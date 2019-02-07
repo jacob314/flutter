@@ -216,7 +216,7 @@ class MockWidgetInspectorClient implements WidgetInspectorClient {
   int takeScreenshotCount = 0;
 
   @override
-  RenderObject findRenderForScreenshot() {
+  RenderObject findRenderObjectForScreenshot() {
     takeScreenshotCount++;
     return null;
   }
@@ -647,7 +647,7 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      var mockClient = MockWidgetInspectorClient();
+      final MockWidgetInspectorClient mockClient = MockWidgetInspectorClient();
       service.client = mockClient;
       service.setSelection('invalid selection');
       expect(mockClient.selectionChangedCount, equals(0));
@@ -964,7 +964,7 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       service.disposeAllGroups();
       service.selection.clear();
-      var mockClient = new MockWidgetInspectorClient();
+      final MockWidgetInspectorClient mockClient = MockWidgetInspectorClient();
       service.client = mockClient;
       service.setSelection('invalid selection');
       expect(mockClient.selectionChangedCount, equals(0));

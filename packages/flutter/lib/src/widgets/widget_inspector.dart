@@ -9,7 +9,6 @@ import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:ui' show ImageByteFormat, Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
@@ -20,8 +19,8 @@ import 'package:vector_math/vector_math_64.dart';
 import 'app.dart';
 import 'basic.dart';
 import 'binding.dart';
-import 'debug.dart';
 import 'container.dart';
+import 'debug.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
 import 'icon_data.dart';
@@ -771,25 +770,9 @@ mixin WidgetInspectorService {
   /// Ground truth tracking what object(s) are currently selected used by both
   /// GUI tools such as the Flutter IntelliJ Plugin and the [WidgetInspector]
   /// displayed on the device.
-  final InspectorSelection selection = InspectorSelection();
+  final ValueNotifier<InspectorSelection> selection = InspectorSelection();
 
-  WidgetInspectorClient client;
-
-  /// Whether the inspector is in select mode.
-  ///
-  /// In select mode, pointer interactions trigger widget selection instead of
-  /// normal interactions. Otherwise the previously selected widget is
-  /// highlighted but the application can be interacted with normally.
-  bool get isSelectMode => _isSelectMode;
-  bool _isSelectMode = true;
-  set isSelectMode(bool value) {
-    if (value == _isSelectMode)
-      return;
-    _isSelectMode = value;
-    if (client != null) {
-      client.isSelectMode = value;
-    }
-  }
+  final ValueNotifier<bool> isSelectMode = ValueNotifier<bool>(true);
 
   /// The Observatory protocol does not keep alive object references so this
   /// class needs to manually manage groups of objects that should be kept
@@ -974,7 +957,6 @@ mixin WidgetInspectorService {
     );
   }
 
-
   /// Cause the entire tree to be rebuilt. This is used by development tools
   /// when the application code has changed and is being hot-reloaded, to cause
   /// the widget tree to pick up any changed implementations.
@@ -1012,6 +994,21 @@ mixin WidgetInspectorService {
         if (WidgetsApp.debugShowWidgetInspectorOverride == value) {
           return Future<void>.value();
         }
+        WidgetsApp.debugShowWidgetInspectorOverride = value;
+        return forceRebuild();
+      },
+    );
+
+    _registerBoolServiceExtension(
+      name: 'selectOnDevice',
+      getter: () async => WidgetsApp.debugShowWidgetInspectorOverride,
+      setter: (bool value) {
+        _isSelectModeController.add(value);
+        if ( == value) {
+          return Future<void>.value();
+        }
+
+        client.isSelectMode = value;
         WidgetsApp.debugShowWidgetInspectorOverride = value;
         return forceRebuild();
       },
@@ -1500,11 +1497,7 @@ mixin WidgetInspectorService {
           // It isn't safe to trigger the selection change callback if we are in
           // the middle of rendering the frame.
           SchedulerBinding.instance.scheduleTask(
-                () {
-              if (client != null) {
-                client.onSelectionChanged();
-              }
-            },
+            () { client?.onSelectionChanged(); },
             Priority.touch,
           );
         }
@@ -1856,7 +1849,7 @@ mixin WidgetInspectorService {
   }
 
   Map<String, Object> _getRenderObjectForScreenshot(String groupName) {
-    return _nodeToJson(client?.findRenderForScreenshot()?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
+    return _nodeToJson(client?.findRenderObjectForScreenshot()?.toDiagnosticsNode(), new _SerializeConfig(groupName: groupName, includeBoundingBox: true));
   }
 
   /// Returns a JSON representation of the subtree rooted at the
@@ -2370,33 +2363,24 @@ class _WidgetForTypeTests extends Widget {
 /// wasn't present. This allows interacting with the application and viewing how
 /// the selected widget changes position. Clicking on the select icon in the
 /// bottom left corner of the application switches back to select mode.
-class WidgetInspector extends StatefulWidget {
+class WidgetInspector extends StatelessWidget {
   /// Creates a widget that enables inspection for the child.
   ///
   /// The [child] argument must not be null.
   const WidgetInspector({
     Key key,
     @required this.child,
-    @deprecated this.selectButtonBuilder,
   }) : assert(child != null),
        super(key: key);
 
   /// The widget that is being inspected.
   final Widget child;
-
-  /// A builder that is called to create the select button.
-  ///
-  /// This builder is no longer used by the code has been left temporarily to
-  /// avoid a breaking change.
-  @deprecated
-  final InspectorSelectButtonBuilder selectButtonBuilder;
-
-  @override
-  _WidgetInspectorState createState() => _WidgetInspectorState();
 }
 
 abstract class WidgetInspectorClient {
-  set isSelectMode(bool value);
+  // Called with the InspectorService has changed the desired widget select
+  // mode.
+  void onSelectionModeChanged();
   void onSelectionChanged();
 
   // XXX rename to hit test
@@ -2404,7 +2388,7 @@ abstract class WidgetInspectorClient {
 
   /// RenderObject to use to take a screenshot of the entire running user
   /// application without including any UI from the widget inspector.
-  RenderObject findRenderForScreenshot();
+  RenderObject findRenderObjectForScreenshot();
 }
 
 class _WidgetInspectorState extends State<WidgetInspector>
@@ -2464,8 +2448,8 @@ class _WidgetInspectorState extends State<WidgetInspector>
     super.initState();
 
     WidgetInspectorService.instance.client = this;
-    touchAnimationController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    selectModeController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    touchAnimationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    selectModeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     selectModeController.value = _isSelectMode ? 1.0 : 0.0;
     showSelectionController = new AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     showSelectionController.value = selection.showSelection ? 1.0 : 0.0;
@@ -2476,7 +2460,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   RenderObject inspectAt(double x, double y, bool apply) {
     // Coordinates are relative to the render object used to compute screenshots
     // for the user.
-    final RenderObject userRender = findRenderForScreenshot();
+    final RenderObject userRender = findRenderObjectForScreenshot();
     if (userRender == null) {
       return null;
     }
@@ -2504,7 +2488,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   @override
-  RenderRepaintBoundary findRenderForScreenshot() {
+  RenderRepaintBoundary findRenderObjectForScreenshot() {
     return _repaintBoundaryKey.currentContext.findRenderObject();
   }
 
@@ -2534,7 +2518,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   RenderObject findUserRender() {
-    return findRenderForScreenshot().child;
+    return findRenderObjectForScreenshot().child;
   }
 
   void _inspectAt(Offset position) {
@@ -2778,42 +2762,24 @@ class _SelectModeTargetBoxPainter extends BoxPainter {
   }
 }
 
-/// Mutable selection state of the inspector.
+/// Immutable selection state of the inspector.
 class InspectorSelection {
-  bool _show = true;
+  InspectorSelection.fromCandidates(this.candidates, {this.index = 0});
 
   /// Render objects that are candidates to be selected.
   ///
   /// Tools may wish to iterate through the list of candidates.
-  List<RenderObject> get candidates => _candidates;
-  List<RenderObject> _candidates = <RenderObject>[];
-  set candidates(List<RenderObject> value) {
-    _candidates = value;
-    _index = 0;
-    _computeCurrent();
-  }
+  final List<RenderObject> candidates;
 
   /// Index within the list of candidates that is currently selected.
-  int get index => _index;
-  int _index = 0;
-  set index(int value) {
-    _index = value;
-    _computeCurrent();
-  }
-
-  /// Set the selection to empty.
-  void clear() {
-    _candidates = <RenderObject>[];
-    _index = 0;
-    _computeCurrent();
-  }
+  final int index;
 
   /// Selected render object typically from the [candidates] list.
   ///
   /// Setting [candidates] or calling [clear] resets the selection.
   ///
   /// Returns null if the selection is invalid.
-  RenderObject get current => _current;
+  RenderObject get current => candidates[index];
   RenderObject _current;
   set current(RenderObject value) {
     if (_current != value) {
@@ -2858,12 +2824,6 @@ class InspectorSelection {
   /// Whether the selected render object is attached to the tree or has gone
   /// out of scope.
   bool get active => _current != null && _current.attached;
-
-  bool get showSelection => _show;
-
-  set showSelection(bool value) {
-    _show = value;
-  }
 }
 
 class _InspectorOverlay extends LeafRenderObjectWidget {
