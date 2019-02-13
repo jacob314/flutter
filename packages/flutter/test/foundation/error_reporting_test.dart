@@ -56,12 +56,11 @@ Future<void> main() async {
       exception: getAssertionErrorWithMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
-      errorBuilder: FlutterErrorBuilder.lazy(() {
-        return FlutterErrorBuilder()
-          ..addContract('line 1 of extra information')
-          ..addHint('line 2 of extra information\n');
-      }),
+      context: ErrorDetails('testing the error handling logic'),
+      informationCollector: (List<DiagnosticsNode> information) {
+       information.add(ErrorDetails('line 1 of extra information'));
+       information.add(ErrorHint('line 2 of extra information\n'));
+      },
     ));
     expect(console.join('\n'), matches(
       '^══╡ EXCEPTION CAUGHT BY ERROR HANDLING TEST ╞═══════════════════════════════════════════════════════\n'
@@ -143,10 +142,11 @@ Future<void> main() async {
       exception: getAssertionErrorWithoutMessage(),
       stack: sampleStack,
       library: 'error handling test',
-      context: 'testing the error handling logic',
-      errorBuilder: FlutterErrorBuilder()
-        ..addContract('line 1 of extra information')
-        ..addDescription('line 2 of extra information\n') // the double trailing newlines here are intentional
+      context: ErrorDetails('testing the error handling logic'),
+      informationCollector: (List<DiagnosticsNode> information) {
+        information.add(ErrorDetails('line 1 of extra information'));
+        information.add(ErrorDetails('line 2 of extra information\n')); // the trailing newlines here are intentional
+      }
     ));
     expect(console.join('\n'), matches(
       '^══╡ EXCEPTION CAUGHT BY ERROR HANDLING TEST ╞═══════════════════════════════════════════════════════\n'

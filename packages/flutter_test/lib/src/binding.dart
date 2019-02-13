@@ -476,7 +476,7 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
         FlutterError.dumpErrorToConsole(FlutterErrorDetails(
           exception: exception,
           stack: _unmangle(stack),
-          context: 'running a test (but after the test had completed)',
+          context: ErrorDetails('running a test (but after the test had completed)'),
           library: 'Flutter test framework'
         ), forceReport: true);
         return;
@@ -518,28 +518,26 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
       } catch (exception) {
         treeDump = DiagnosticsNode.message('<additional error caught while dumping tree: $exception>', level: DiagnosticLevel.error);
       }
-      final FlutterErrorBuilder omittedFrames = FlutterErrorBuilder();
-      final int stackLinesToOmit = reportExpectCallErrorBuilder(stack, omittedFrames);
+      final List<DiagnosticsNode> omittedFrames = <DiagnosticsNode>[];
+      final int stackLinesToOmit = reportExpectCall(stack, omittedFrames);
       FlutterError.reportError(FlutterErrorDetails(
         exception: exception,
         stack: _unmangle(stack),
-        context: 'running a test',
+        context: ErrorDetails('running a test'),
         library: 'Flutter test framework',
         stackFilter: (Iterable<String> frames) {
           return FlutterError.defaultStackFilter(frames.skip(stackLinesToOmit));
         },
-        errorBuilder: WidgetErrorBuilder.lazy(() {
-          final WidgetErrorBuilder errorBuilder = WidgetErrorBuilder();
+        informationCollector: (List<DiagnosticsNode> information) {
           if (stackLinesToOmit > 0)
-            errorBuilder.addAll(omittedFrames.toDiagnostics());
+            information.addAll(omittedFrames);
           if (showAppDumpInErrors) {
-            errorBuilder.addErrorProperty('At the time of the failure, the widget tree looked as follows', treeDump, linePrefix: '# ');
+            information.add(ErrorProperty<DiagnosticsNode>('At the time of the failure, the widget tree looked as follows', treeDump, linePrefix: '# '));
           }
           if (description.isNotEmpty) {
-            errorBuilder.addErrorProperty('The test description was', description);
+            information.add(ErrorProperty<String>('The test description was', description));
           }
-          return errorBuilder;
-        })
+        },
       ));
       assert(_parentZone != null);
       assert(_pendingExceptionDetails != null, 'A test overrode FlutterError.onError but either failed to return it to its original state, or had unexpected additional errors that it could not handle. Typically, this is caused by using expect() before restoring FlutterError.onError.');
@@ -618,9 +616,9 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
     assert(() {
       if (autoUpdateGoldenFiles != valueBeforeTest) {
         FlutterError.reportError(FlutterErrorDetails(
-          exception: FlutterError(
-              'The value of autoUpdateGoldenFiles was changed by the test.',
-          ),
+          exception: FlutterError(<DiagnosticsNode>[
+            ErrorSummary('The value of autoUpdateGoldenFiles was changed by the test.'),
+          ]),
           stack: StackTrace.current,
           library: 'Flutter test framework',
         ));
@@ -638,9 +636,9 @@ abstract class TestWidgetsFlutterBinding extends BindingBase
         // this error.
         reportTestException = valueBeforeTest;
         FlutterError.reportError(FlutterErrorDetails(
-          exception: FlutterError(
-            'The value of reportTestException was changed by the test.',
-          ),
+          exception: FlutterError(<DiagnosticsNode>[
+            ErrorSummary('The value of reportTestException was changed by the test.'),
+          ]),
           stack: StackTrace.current,
           library: 'Flutter test framework',
         ));
@@ -762,7 +760,7 @@ class AutomatedTestWidgetsFlutterBinding extends TestWidgetsFlutterBinding {
           exception: exception,
           stack: stack,
           library: 'Flutter test framework',
-          context: 'while running async test code',
+          context: ErrorDetails('while running async test code'),
         ));
         return null;
       }).whenComplete(() {
@@ -1249,7 +1247,7 @@ class LiveTestWidgetsFlutterBinding extends TestWidgetsFlutterBinding {
         exception: error,
         stack: stack,
         library: 'Flutter test framework',
-        context: 'while running async test code',
+        context: ErrorSummary('while running async test code'),
       ));
       return null;
     } finally {

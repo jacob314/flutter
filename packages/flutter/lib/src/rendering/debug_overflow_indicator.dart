@@ -199,21 +199,21 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
     return regions;
   }
 
-  void _reportOverflow(RelativeRect overflow, RenderErrorBuilder overflowHints) {
+  void _reportOverflow(RelativeRect overflow, List<DiagnosticsNode> overflowHints) {
     if (overflowHints.isEmpty) {
-      overflowHints.addHint(
+      overflowHints.add(ErrorHint(
         'The edge of the $runtimeType that is '
         'overflowing has been marked in the rendering with a yellow and black '
         'striped pattern. This is usually caused by the contents being too big '
         'for the $runtimeType.'
-      );
-      overflowHints.addHint(
+      ));
+      overflowHints.add(ErrorHint(
         'This is considered an error condition because it indicates that there '
         'is content that cannot be seen. If the content is legitimately bigger '
         'than the available space, consider clipping it with a ClipRect widget '
         'before putting it in the $runtimeType, or using a scrollable '
         'container, like a ListView.'
-      );
+      ));
     }
 
     final List<String> overflows = <String>[];
@@ -245,14 +245,17 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
       FlutterErrorDetailsForRendering(
         exception: 'A $runtimeType overflowed by $overflowText.',
         library: 'rendering library',
-        context: 'during layout',
+        context: ErrorDetails('during layout'),
         renderObject: this,
-        errorBuilder: RenderErrorBuilder()
-          ..addAll(overflowHints.toDiagnostics())
-          ..addRenderObject('The specific $runtimeType in question is', this)
-          // TODO(jacobr): this line is ascii art that it would be nice to handle
-          // more generically in GUI debugging clients in the future.
-          ..addDiagnostic(DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), allowWrap: false)),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information
+            ..addAll(overflowHints)
+            ..add(describeForError('The specific $runtimeType in question is'))
+            // TODO(jacobr): this line is ascii art that it would be nice to
+            // handle a little more generically in GUI debugging clients in the
+            // future.
+            ..add(DiagnosticsNode.message('◢◤' * (FlutterError.wrapWidth ~/ 2), allowWrap: false));
+        }
       ),
     );
   }
@@ -268,8 +271,7 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
     Offset offset,
     Rect containerRect,
     Rect childRect, {
-    String overflowHints,
-    RenderErrorBuilder overflowHintsBuilder,
+    List<DiagnosticsNode> overflowHints,
   }) {
     final RelativeRect overflow = RelativeRect.fromRect(containerRect, childRect);
 
@@ -305,11 +307,7 @@ mixin DebugOverflowIndicatorMixin on RenderObject {
 
     if (_overflowReportNeeded) {
       _overflowReportNeeded = false;
-      overflowHintsBuilder ??= RenderErrorBuilder();
-      if (overflowHints != null) {
-        overflowHintsBuilder.addHint(overflowHints);
-      }
-      _reportOverflow(overflow, overflowHintsBuilder);
+      _reportOverflow(overflow, overflowHints);
     }
   }
 

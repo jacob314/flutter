@@ -133,11 +133,11 @@ abstract class RenderSliverPersistentHeader extends RenderSliver with RenderObje
     assert(() {
       if (minExtent <= maxExtent)
         return true;
-      throw FlutterError.from(RenderErrorBuilder()
-        ..addError('The maxExtent for this $runtimeType is less than its minExtent.')
-        ..addDiagnostic(DoubleProperty('The specified maxExtent was', maxExtent))
-        ..addDiagnostic(DoubleProperty('The specified minExtent was', minExtent))
-      );
+      throw FlutterError(<DiagnosticsNode>[
+        ErrorSummary('The maxExtent for this $runtimeType is less than its minExtent.'),
+        DoubleProperty('The specified maxExtent was', maxExtent),
+        DoubleProperty('The specified minExtent was', minExtent),
+      ]);
     }());
     child?.layout(
       constraints.asBoxConstraints(maxExtent: math.max(minExtent, maxExtent - shrinkOffset)),

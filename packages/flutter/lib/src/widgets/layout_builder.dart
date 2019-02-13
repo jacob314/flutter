@@ -111,14 +111,14 @@ class _LayoutBuilderElement extends RenderObjectElement {
           built = widget.builder(this, constraints);
           debugWidgetBuilderValue(widget, built);
         } catch (e, stack) {
-          built = ErrorWidget.builder(_debugReportException('building', widget, e, stack));
+          built = ErrorWidget.builder(_debugReportException(ErrorDetails('building $widget'), e, stack));
         }
       }
       try {
         _child = updateChild(_child, built, null);
         assert(_child != null);
       } catch (e, stack) {
-        built = ErrorWidget.builder(_debugReportException('building', widget, e, stack));
+        built = ErrorWidget.builder(_debugReportException(ErrorDetails('building $widget'), e, stack));
         _child = updateChild(null, built, slot);
       }
     });
@@ -164,11 +164,13 @@ class _RenderLayoutBuilder extends RenderBox with RenderObjectWithChildMixin<Ren
   bool _debugThrowIfNotCheckingIntrinsics() {
     assert(() {
       if (!RenderObject.debugCheckingIntrinsics) {
-        throw FlutterError(
-          'LayoutBuilder does not support returning intrinsic dimensions.',
-          description: 'Calculating the intrinsic dimensions would require running the layout '
-          'callback speculatively, which might mutate the live render object tree.'
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('LayoutBuilder does not support returning intrinsic dimensions.'),
+          ErrorDetails(
+            'Calculating the intrinsic dimensions would require running the layout '
+            'callback speculatively, which might mutate the live render object tree.'
+          )
+        ]);
       }
       return true;
     }());
@@ -224,8 +226,7 @@ class _RenderLayoutBuilder extends RenderBox with RenderObjectWithChildMixin<Ren
 }
 
 FlutterErrorDetails _debugReportException(
-  String contextName,
-  Object contextObject,
+  DiagnosticsNode context,
   dynamic exception,
   StackTrace stack,
 ) {
@@ -233,8 +234,7 @@ FlutterErrorDetails _debugReportException(
     exception: exception,
     stack: stack,
     library: 'widgets library',
-    context: contextName,
-    contextObject: contextObject,
+    context: context,
   );
   FlutterError.reportError(details);
   return details;

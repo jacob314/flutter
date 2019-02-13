@@ -440,13 +440,14 @@ class CurvedAnimation extends Animation<double> with AnimationWithParentMixin<do
         final double transformedValue = activeCurve.transform(t);
         final double roundedTransformedValue = transformedValue.round().toDouble();
         if (roundedTransformedValue != t) {
-          throw FlutterError.from(FlutterErrorBuilder()
-            ..addError('Invalid curve endpoint at $t.')
-            ..addViolation('Curves must map 0.0 to near zero and 1.0 to near one but '
-            '${activeCurve.runtimeType} mapped $t to $transformedValue, which '
-            'is near $roundedTransformedValue.')
-            ..addDebugProperty('Active curve', activeCurve)
-          );
+          throw FlutterError(<DiagnosticsNode>[
+            ErrorSummary('Invalid curve endpoint at $t.'),
+            ErrorDetails(
+              'Curves must map 0.0 to near zero and 1.0 to near one but '
+              '${activeCurve.runtimeType} mapped $t to $transformedValue, which '
+              'is near $roundedTransformedValue.'
+            )
+          ]);
         }
         return true;
       }());

@@ -235,7 +235,7 @@ abstract class ImageStreamCompleter extends Diagnosticable {
         listener(_currentImage, true);
       } catch (exception, stack) {
         reportError(
-          contextName: 'by a synchronously-called image listener',
+          context: ErrorDetails('by a synchronously-called image listener'),
           exception: exception,
           stack: stack,
         );
@@ -249,7 +249,7 @@ abstract class ImageStreamCompleter extends Diagnosticable {
           FlutterErrorDetails(
             exception: exception,
             library: 'image resource service',
-            context: 'by a synchronously-called image error listener',
+            context: ErrorDetails('by a synchronously-called image error listener'),
             stack: stack,
           ),
         );
@@ -282,7 +282,7 @@ abstract class ImageStreamCompleter extends Diagnosticable {
         listener(image, false);
       } catch (exception, stack) {
         reportError(
-          contextName: 'by an image listener',
+          context: ErrorDetails('by an image listener'),
           exception: exception,
           stack: stack,
         );
@@ -297,22 +297,18 @@ abstract class ImageStreamCompleter extends Diagnosticable {
   /// instead.
   @protected
   void reportError({
-    String contextName,
-    Object contextObject,
+    DiagnosticsNode context,
     dynamic exception,
     StackTrace stack,
     InformationCollector informationCollector,
-    FlutterErrorBuilder errorBuilder,
     bool silent = false,
   }) {
     _currentError = FlutterErrorDetails(
       exception: exception,
       stack: stack,
       library: 'image resource service',
-      context: contextName,
-      contextObject: contextObject,
+      context: context,
       informationCollector: informationCollector,
-      errorBuilder: errorBuilder,
       silent: silent,
     );
 
@@ -332,7 +328,7 @@ abstract class ImageStreamCompleter extends Diagnosticable {
         } catch (exception, stack) {
           FlutterError.reportError(
             FlutterErrorDetails(
-              context: 'by an image error listener',
+              context: ErrorDetails('by an image error listener'),
               library: 'image resource service',
               exception: exception,
               stack: stack,
@@ -377,15 +373,13 @@ class OneFrameImageStreamCompleter extends ImageStreamCompleter {
   OneFrameImageStreamCompleter(
     Future<ImageInfo> image, {
     InformationCollector informationCollector,
-    FlutterErrorBuilder errorBuilder,
   }) : assert(image != null) {
     image.then<void>(setImage, onError: (dynamic error, StackTrace stack) {
       reportError(
-        contextName: 'resolving a single-frame image stream',
+        context: ErrorDetails('resolving a single-frame image stream'),
         exception: error,
         stack: stack,
         informationCollector: informationCollector,
-        errorBuilder: errorBuilder,
         silent: true,
       );
     });
@@ -437,20 +431,17 @@ class MultiFrameImageStreamCompleter extends ImageStreamCompleter {
     @required Future<ui.Codec> codec,
     @required double scale,
     InformationCollector informationCollector,
-    FlutterErrorBuilder errorBuilder,
   }) : assert(codec != null),
         _informationCollector = informationCollector,
-       _errorBuilder = errorBuilder,
        _scale = scale,
        _framesEmitted = 0,
        _timer = null {
     codec.then<void>(_handleCodecReady, onError: (dynamic error, StackTrace stack) {
       reportError(
-        contextName: 'resolving an image codec',
+        context: ErrorDetails('resolving an image codec'),
         exception: error,
         stack: stack,
         informationCollector: _informationCollector,
-        errorBuilder: _errorBuilder,
         silent: true,
       );
     });
@@ -459,7 +450,6 @@ class MultiFrameImageStreamCompleter extends ImageStreamCompleter {
   ui.Codec _codec;
   final double _scale;
   final InformationCollector _informationCollector;
-  final FlutterErrorBuilder _errorBuilder;
   ui.FrameInfo _nextFrame;
   // When the current was first shown.
   Duration _shownTimestamp;
@@ -510,11 +500,10 @@ class MultiFrameImageStreamCompleter extends ImageStreamCompleter {
       _nextFrame = await _codec.getNextFrame();
     } catch (exception, stack) {
       reportError(
-        contextName: 'resolving an image frame',
+        context: ErrorDetails('resolving an image frame'),
         exception: exception,
         stack: stack,
         informationCollector: _informationCollector,
-        errorBuilder: _errorBuilder,
         silent: true,
       );
       return;

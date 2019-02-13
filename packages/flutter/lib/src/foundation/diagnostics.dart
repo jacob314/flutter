@@ -63,23 +63,11 @@ enum DiagnosticLevel {
   /// For example, a diagnostic describing best practices for fixing an error.
   hint,
 
-  /// Diagnostics that provide a prescriptive solution for how to fix a problem.
+  /// Diagnostics that summarize other diagnostics present.
   ///
-  /// For example, a diagnostic indicating that the fix for an error is to add
-  /// a specific widget as the parent of the problem widget.
-  fix,
-
-  /// Diagnostics that describe a contract.
-  ///
-  /// For example, a diagnostic describing the constraints applying to layout or
-  /// invariants that must remain true to correctly compose objects.
-  contract,
-
-  /// Diagnostics that describe a violation that occurred.
-  ///
-  /// For example, a diagnostic indicating that a GlobalKey can only be
-  /// specified on one widget at a time in the widget tree.
-  violation,
+  /// For example, use this level for a short one or two line summary
+  /// describing other diagnostics present.
+  summary,
 
   /// Diagnostics that indicate errors or unexpected conditions.
   ///
@@ -1589,7 +1577,7 @@ abstract class DiagnosticsNode {
     if (allowTruncate)
       data['allowTruncate'] = allowTruncate;
 
-    bool hasChildren = getChildren().isNotEmpty;
+    final bool hasChildren = getChildren().isNotEmpty;
     if (hasChildren)
       data['hasChildren'] = hasChildren;
 
@@ -2745,7 +2733,7 @@ class DiagnosticsProperty<T> extends DiagnosticsNode {
   @override
   List<DiagnosticsNode> getChildren() {
     if (expandableValue) {
-      T object = value;
+      final T object = value;
       if (object is DiagnosticsNode) {
         return object.getChildren();
       }

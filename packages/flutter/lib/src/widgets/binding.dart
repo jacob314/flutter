@@ -583,13 +583,13 @@ mixin WidgetsBinding on BindingBase, SchedulerBinding, GestureBinding, RendererB
     // should not trigger a new frame.
     assert(() {
       if (debugBuildingDirtyElements) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('Build scheduled during frame.')
-          ..addViolation(
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('Build scheduled during frame.'),
+          ErrorDetails(
             'While the widget tree was being built, laid out, and painted, '
             'a new frame was scheduled to rebuild the widget tree.'
-          )
-          ..addHint(
+          ),
+          ErrorHint(
             'This might be because setState() was called from a layout or '
             'paint callback. '
             'If a change is needed to the widget tree, it should be applied '
@@ -603,7 +603,7 @@ mixin WidgetsBinding on BindingBase, SchedulerBinding, GestureBinding, RendererB
             'using SchedulerBinding.addPostFrameCallback or '
             'using an AnimationController to trigger the animation.',
           )
-        );
+        ]);
       }
       return true;
     }());
@@ -932,7 +932,7 @@ class RenderObjectToWidgetElement<T extends RenderObject> extends RootRenderObje
         exception: exception,
         stack: stack,
         library: 'widgets library',
-        context: 'attaching to the render tree'
+        context: ErrorDetails('attaching to the render tree')
       );
       FlutterError.reportError(details);
       final Widget error = ErrorWidget.builder(details);

@@ -746,15 +746,15 @@ class _TabBarState extends State<TabBar> {
     final TabController newController = widget.controller ?? DefaultTabController.of(context);
     assert(() {
       if (newController == null) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('No TabController for ${widget.runtimeType}.')
-          ..addHint(
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('No TabController for ${widget.runtimeType}.'),
+          ErrorHint(
             'When creating a ${widget.runtimeType}, you must either provide an explicit '
             'TabController using the "controller" property, or you must ensure that there '
             'is a DefaultTabController above the ${widget.runtimeType}.'
-          )
-          ..addViolation('In this case, there was neither an explicit controller nor a default controller.')
-        );
+          ),
+          ErrorDetails('In this case, there was neither an explicit controller nor a default controller.')
+        ]);
       }
       return true;
     }());
@@ -1090,15 +1090,15 @@ class _TabBarViewState extends State<TabBarView> {
     final TabController newController = widget.controller ?? DefaultTabController.of(context);
     assert(() {
       if (newController == null) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('No TabController for ${widget.runtimeType}.')
-          ..addHint(
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('No TabController for ${widget.runtimeType}.'),
+          ErrorHint(
             'When creating a ${widget.runtimeType}, you must either provide an explicit '
             'TabController using the "controller" property, or you must ensure that there '
             'is a DefaultTabController above the ${widget.runtimeType}.'
-          )
-          ..addViolation('In this case, there was neither an explicit controller nor a default controller.')
-        );
+          ),
+          ErrorDetails('In this case, there was neither an explicit controller nor a default controller.')
+        ]);
       }
       return true;
     }());
@@ -1348,15 +1348,15 @@ class TabPageSelector extends StatelessWidget {
     final TabController tabController = controller ?? DefaultTabController.of(context);
     assert(() {
       if (tabController == null) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('No TabController for $runtimeType.')
-          ..addHint(
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('No TabController for $runtimeType.'),
+          ErrorHint(
             'When creating a $runtimeType, you must either provide an explicit TabController '
             'using the "controller" property, or you must ensure that there is a '
             'DefaultTabController above the $runtimeType.'
-          )
-          ..addViolation('In this case, there was neither an explicit controller nor a default controller.')
-        );
+          ),
+          ErrorDetails('In this case, there was neither an explicit controller nor a default controller.')
+        ]);
       }
       return true;
     }());

@@ -154,14 +154,16 @@ abstract class BoxBorder extends ShapeBorder {
     }
     // XXX can we rewrite this message to be more consistent with
     // others?
-    throw FlutterError(
-      'BoxBorder.lerp can only interpolate Border and BorderDirectional classes.',
-      description: 'BoxBorder.lerp() was called with two objects of type ${a.runtimeType} and ${b.runtimeType}:\n'
-      '  $a\n'
-      '  $b\n'
-      'However, only Border and BorderDirectional classes are supported by this method.',
-      hint: 'For a more general interpolation method, consider using ShapeBorder.lerp instead.',
-    );
+    throw FlutterError(<DiagnosticsNode>[
+      ErrorSummary('BoxBorder.lerp can only interpolate Border and BorderDirectional classes.'),
+      ErrorDetails(
+        'BoxBorder.lerp() was called with two objects of type ${a.runtimeType} and ${b.runtimeType}:\n'
+        '  $a\n'
+        '  $b\n'
+        'However, only Border and BorderDirectional classes are supported by this method.'
+      ),
+      ErrorHint('For a more general interpolation method, consider using ShapeBorder.lerp instead.'),
+    ]);
   }
 
   @override

@@ -455,14 +455,15 @@ class RenderAspectRatio extends RenderProxyBox {
     assert(constraints.debugAssertIsValidStructured());
     assert(() {
       if (!constraints.hasBoundedWidth && !constraints.hasBoundedHeight) {
-        throw FlutterError(
-          '$runtimeType has unbounded constraints.',
-          violation:
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('$runtimeType has unbounded constraints.'),
+          ErrorDetails(
             'This $runtimeType was given an aspect ratio of $aspectRatio but was given '
             'both unbounded width and unbounded height constraints. Because both '
             'constraints were unbounded, this render object doesn\'t know how much '
             'size to consume.'
-        );
+          )
+        ]);
       }
       return true;
     }());
@@ -1962,18 +1963,18 @@ class RenderDecoratedBox extends RenderProxyBox {
       _painter.paint(context.canvas, offset, filledConfiguration);
       assert(() {
         if (debugSaveCount != context.canvas.getSaveCount()) {
-          throw FlutterError.from(RenderErrorBuilder()
-            ..addError('${_decoration.runtimeType} painter had mismatching save and restore calls.')
-            ..addDescription(
+          throw FlutterError(<DiagnosticsNode>[
+            ErrorSummary('${_decoration.runtimeType} painter had mismatching save and restore calls.'),
+            ErrorDetails(
               'Before painting the decoration, the canvas save count was $debugSaveCount. '
               'After painting it, the canvas save count was ${context.canvas.getSaveCount()}.'
-            )
-            ..addHint(
+            ),
+            ErrorHint(
               'Every call to save() or saveLayer() must be matched by a call to restore().'
-            )
-            ..addProperty('The decoration was', decoration)
-            ..addProperty('The painter was', _painter)
-          );
+            ),
+            ErrorProperty<Decoration>('The decoration was', decoration),
+            ErrorProperty<BoxPainter>('The painter was', _painter),
+          ]);
         }
         return true;
       }());

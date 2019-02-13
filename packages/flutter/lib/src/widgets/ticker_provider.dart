@@ -83,14 +83,15 @@ mixin SingleTickerProviderStateMixin<T extends StatefulWidget> on State<T> imple
     assert(() {
       if (_ticker == null)
         return true;
-      throw FlutterError(
-        '$runtimeType is a SingleTickerProviderStateMixin but multiple tickers were created.',
-        contract:
-        'A SingleTickerProviderStateMixin can only be used as a TickerProvider once.',
-        hint: 'If a State is used for multiple AnimationController objects, or if it is passed to other '
-        'objects and those objects might use it more than one time in total, then instead of '
-        'mixing in a SingleTickerProviderStateMixin, use a regular TickerProviderStateMixin.'
-      );
+      throw FlutterError(<DiagnosticsNode>[
+        ErrorSummary('$runtimeType is a SingleTickerProviderStateMixin but multiple tickers were created.'),
+        ErrorDetails('A SingleTickerProviderStateMixin can only be used as a TickerProvider once.'),
+        ErrorHint(
+          'If a State is used for multiple AnimationController objects, or if it is passed to other '
+          'objects and those objects might use it more than one time in total, then instead of '
+          'mixing in a SingleTickerProviderStateMixin, use a regular TickerProviderStateMixin.'
+        )
+      ]);
     }());
     _ticker = Ticker(onTick, debugLabel: 'created by $this');
     // We assume that this is called from initState, build, or some sort of
@@ -105,20 +106,20 @@ mixin SingleTickerProviderStateMixin<T extends StatefulWidget> on State<T> imple
     assert(() {
       if (_ticker == null || !_ticker.isActive)
         return true;
-      throw FlutterError.from(WidgetErrorBuilder()
-        ..addError('$this was disposed with an active Ticker.')
-        ..addViolation(
+      throw FlutterError(<DiagnosticsNode>[
+        ErrorSummary('$this was disposed with an active Ticker.'),
+        ErrorDetails(
           '$runtimeType created a Ticker via its SingleTickerProviderStateMixin, but at the time '
           'dispose() was called on the mixin, that Ticker was still active. The Ticker must '
           'be disposed before calling super.dispose().'
-        )
-        ..addHint(
+        ),
+        ErrorHint(
           'Tickers used by AnimationControllers '
           'should be disposed by calling dispose() on the AnimationController itself. '
           'Otherwise, the ticker will leak.'
-        )
-        ..describeTicker('The offending ticker was', _ticker)
-      );
+        ),
+        _ticker.describeForError('The offending ticker was')
+      ]);
     }());
     super.dispose();
   }
@@ -182,21 +183,20 @@ mixin TickerProviderStateMixin<T extends StatefulWidget> on State<T> implements 
       if (_tickers != null) {
         for (Ticker ticker in _tickers) {
           if (ticker.isActive) {
-            throw FlutterError.from(WidgetErrorBuilder()
-              ..addError('$this was disposed with an active Ticker.')
-              ..addViolation(
+            throw FlutterError(<DiagnosticsNode>[
+              ErrorSummary('$this was disposed with an active Ticker.'),
+              ErrorDetails(
                 '$runtimeType created a Ticker via its TickerProviderStateMixin, but at the time '
                 'dispose() was called on the mixin, that Ticker was still active. All Tickers must '
                 'be disposed before calling super.dispose().'
-              )
-              ..addHint(
+              ),
+              ErrorHint(
                 'Tickers used by AnimationControllers '
                 'should be disposed by calling dispose() on the AnimationController itself. '
                 'Otherwise, the ticker will leak.'
-              )
-              ..describeTicker('The offending ticker was', ticker),
-              // TODO(jacobr): expose this as a diagnostic as well.
-            );
+              ),
+              ticker.describeForError('The offending ticker was'),
+            ]);
           }
         }
       }

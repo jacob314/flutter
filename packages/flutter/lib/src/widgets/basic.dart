@@ -16,7 +16,6 @@ export 'package:flutter/animation.dart';
 export 'package:flutter/foundation.dart' show
   ChangeNotifier,
   FlutterErrorDetails,
-  FlutterErrorBuilder,
   Listenable,
   TargetPlatform,
   ValueNotifier;

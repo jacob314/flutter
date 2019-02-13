@@ -73,36 +73,37 @@ class TestAsyncUtils {
       assert(_scopeStack.contains(scope));
       bool leaked = false;
       _AsyncScope closedScope;
-      final FlutterErrorBuilder errorBuilder = FlutterErrorBuilder();
+      final List<DiagnosticsNode> information = <DiagnosticsNode>[];
       while (_scopeStack.isNotEmpty) {
         closedScope = _scopeStack.removeLast();
         if (closedScope == scope)
           break;
+        // TODO(jacobr): what is the ErrorSummary for this error?
         if (!leaked) {
-          errorBuilder.addViolation('Asynchronous call to guarded function leaked.');
-          errorBuilder.addHint('You must use "await" with all Future-returning test APIs.');
+          information.add(ErrorDetails('Asynchronous call to guarded function leaked.'));
+          information.add(ErrorHint('You must use "await" with all Future-returning test APIs.'));
           leaked = true;
         }
-        final _StackEntry originalGuarder = _findResponsibleMethod(closedScope.creationStack, 'guard', errorBuilder);
+        final _StackEntry originalGuarder = _findResponsibleMethod(closedScope.creationStack, 'guard', information);
         if (originalGuarder != null) {
-          errorBuilder.addViolation(
+          information.add(ErrorDetails(
             'The test API method "${originalGuarder.methodName}" '
             'from class ${originalGuarder.className} '
             'was called from ${originalGuarder.callerFile} '
             'on line ${originalGuarder.callerLine}, '
             'but never completed before its parent scope closed.'
-          );
+          ));
         }
       }
       if (leaked) {
         if (error != null) {
-          errorBuilder.addErrorProperty<dynamic>(
+          information.add(ErrorProperty<dynamic>(
             'An uncaught exception may have caused the guarded function leak. The exception was',
             error,
-          );
-          errorBuilder.addStackTrace('The stack trace associated with this exception was', stack);
+          ));
+          information.add(DiagnosticsStackTrace('The stack trace associated with this exception was', stack));
         }
-        throw errorBuilder.build();
+        throw FlutterError(information);
       }
       if (error != null)
         return Future<T>.error(error, stack);
@@ -184,28 +185,28 @@ class TestAsyncUtils {
       assert(candidateScope.zone != null);
     } while (candidateScope.zone != zone);
     assert(scope != null);
-    final FlutterErrorBuilder errorBuilder = FlutterErrorBuilder();
-    errorBuilder.addError('Guarded function conflict.');
-    errorBuilder.addHint('You must use "await" with all Future-returning test APIs.');
-    final _StackEntry originalGuarder = _findResponsibleMethod(scope.creationStack, 'guard', errorBuilder);
-    final _StackEntry collidingGuarder = _findResponsibleMethod(StackTrace.current, 'guardSync', errorBuilder);
+    final List<DiagnosticsNode> information = <DiagnosticsNode>[];
+    information.add(ErrorSummary('Guarded function conflict.'));
+    information.add(ErrorHint('You must use "await" with all Future-returning test APIs.'));
+    final _StackEntry originalGuarder = _findResponsibleMethod(scope.creationStack, 'guard', information);
+    final _StackEntry collidingGuarder = _findResponsibleMethod(StackTrace.current, 'guardSync', information);
     if (originalGuarder != null && collidingGuarder != null) {
       String originalName;
       if (originalGuarder.className == null) {
         originalName = '(${originalGuarder.methodName}) ';
-        errorBuilder.addDescription(
+        information.add(ErrorDetails(
           'The guarded "${originalGuarder.methodName}" function '
           'was called from ${originalGuarder.callerFile} '
           'on line ${originalGuarder.callerLine}.'
-        );
+        ));
       } else {
         originalName = '(${originalGuarder.className}.${originalGuarder.methodName}) ';
-        errorBuilder.addDescription(
+        information.add(ErrorDetails(
           'The guarded method "${originalGuarder.methodName}" '
           'from class ${originalGuarder.className} '
           'was called from ${originalGuarder.callerFile} '
           'on line ${originalGuarder.callerLine}.'
-        );
+        ));
       }
       final String again = (originalGuarder.callerFile == collidingGuarder.callerFile) &&
                            (originalGuarder.callerLine == collidingGuarder.callerLine) ?
@@ -215,53 +216,52 @@ class TestAsyncUtils {
           (originalGuarder.methodName == collidingGuarder.methodName)) {
         originalName = '';
         collidingName = '';
-        errorBuilder.addDescription(
+        information.add(ErrorDetails(
           'Then, it '
           'was called ${again}from ${collidingGuarder.callerFile} '
           'on line ${collidingGuarder.callerLine}.'
-        );
+        ));
       } else if (collidingGuarder.className == null) {
         collidingName = '(${collidingGuarder.methodName}) ';
-        errorBuilder.addDescription(
+        information.add(ErrorDetails(
           'Then, the "${collidingGuarder.methodName}" function '
           'was called ${again}from ${collidingGuarder.callerFile} '
           'on line ${collidingGuarder.callerLine}.'
-        );
+        ));
       } else {
         collidingName = '(${collidingGuarder.className}.${collidingGuarder.methodName}) ';
-        errorBuilder.addDescription(
+        information.add(ErrorDetails(
           'Then, the "${collidingGuarder.methodName}" method '
           '${originalGuarder.className == collidingGuarder.className ? "(also from class ${collidingGuarder.className})"
                                                                      : "from class ${collidingGuarder.className}"} '
           'was called ${again}from ${collidingGuarder.callerFile} '
           'on line ${collidingGuarder.callerLine}.'
-        );
+        ));
       }
-      errorBuilder.addDescription(
+      information.add(ErrorDetails(
         'The first ${originalGuarder.className == null ? "function" : "method"} $originalName'
         'had not yet finished executing at the time that '
         'the second ${collidingGuarder.className == null ? "function" : "method"} $collidingName'
         'was called. Since both are guarded, and the second was not a nested call inside the first, the '
         'first must complete its execution before the second can be called. Typically, this is achieved by '
         'putting an "await" statement in front of the call to the first.'
-      );
+      ));
       if (collidingGuarder.className == null && collidingGuarder.methodName == 'expect') {
-        errorBuilder.addHint(
+        information.add(ErrorHint(
           'If you are confident that all test APIs are being called using "await", and '
           'this expect() call is not being called at the top level but is itself being '
           'called from some sort of callback registered before the ${originalGuarder.methodName} '
-          'method was called, then consider using expectSync() instead.'
-        );
+          'method was called, then consider using expectSync() instead.\n'
+        ));
       }
-      errorBuilder.addSeparator();
-      errorBuilder.addStackTrace(
+      information.add(DiagnosticsStackTrace(
         'When the first ${originalGuarder.className == null ? "function" : "method"} '
         '$originalName'
         'was called, this was the stack',
         scope.creationStack,
-      );
+      ));
     }
-    throw errorBuilder.build();
+    throw FlutterError(information);
   }
 
   /// Verifies that there are no guarded methods currently pending (see [guard]).
@@ -269,22 +269,23 @@ class TestAsyncUtils {
   /// This is used at the end of tests to ensure that nothing leaks out of the test.
   static void verifyAllScopesClosed() {
     if (_scopeStack.isNotEmpty) {
-      final FlutterErrorBuilder errorBuilder = FlutterErrorBuilder();
-      errorBuilder.addError('Asynchronous call to guarded function leaked.');
-      errorBuilder.addHint('You must use "await" with all Future-returning test APIs.');
+      final List<DiagnosticsNode> information = <DiagnosticsNode>[
+        ErrorSummary('Asynchronous call to guarded function leaked.'),
+        ErrorHint('You must use "await" with all Future-returning test APIs.')
+      ];
       for (_AsyncScope scope in _scopeStack) {
-        final _StackEntry guarder = _findResponsibleMethod(scope.creationStack, 'guard', errorBuilder);
+        final _StackEntry guarder = _findResponsibleMethod(scope.creationStack, 'guard', information);
         if (guarder != null) {
-          errorBuilder.addViolation(
+          information.add(ErrorDetails(
             'The guarded method "${guarder.methodName}" '
             '${guarder.className != null ? "from class ${guarder.className} " : ""}'
             'was called from ${guarder.callerFile} '
             'on line ${guarder.callerLine}, '
             'but never completed before its parent scope closed.'
-          );
+          ));
         }
       }
-      throw errorBuilder.build();
+      throw FlutterError(information);
     }
   }
 
@@ -292,7 +293,7 @@ class TestAsyncUtils {
     return line != '<asynchronous suspension>';
   }
 
-  static _StackEntry _findResponsibleMethod(StackTrace rawStack, String method, FlutterErrorBuilder errors) {
+  static _StackEntry _findResponsibleMethod(StackTrace rawStack, String method, List<DiagnosticsNode> information) {
     assert(method == 'guard' || method == 'guardSync');
     final List<String> stack = rawStack.toString().split('\n').where(_stripAsynchronousSuspensions).toList();
     assert(stack.last == '');
@@ -338,18 +339,18 @@ class TestAsyncUtils {
             // One reason you might get here is if the guarding method was called directly from
             // a 'dart:' API, like from the Future/microtask mechanism, because dart: URLs in the
             // stack trace don't have a column number and so don't match the regexp above.
-            errors.addError('(Unable to parse the stack frame of the method that called the method that called $_className.$method(). The stack may be incomplete or bogus.)');
-            errors.addDescription('${stack[index]}');
+            information.add(ErrorSummary('(Unable to parse the stack frame of the method that called the method that called $_className.$method(). The stack may be incomplete or bogus.)'));
+            information.add(ErrorDetails('${stack[index]}'));
           }
         } else {
-          errors.addError('(Unable to find the stack frame of the method that called the method that called $_className.$method(). The stack may be incomplete or bogus.)');
+          information.add(ErrorSummary('(Unable to find the stack frame of the method that called the method that called $_className.$method(). The stack may be incomplete or bogus.)'));
         }
       } else {
-        errors.addError('(Unable to parse the stack frame of the method that called $_className.$method(). The stack may be incomplete or bogus.)');
-        errors.addDescription('${stack[index]}');
+        information.add(ErrorSummary('(Unable to parse the stack frame of the method that called $_className.$method(). The stack may be incomplete or bogus.)'));
+        information.add(ErrorDetails('${stack[index]}'));
       }
     } else {
-      errors.addError('(Unable to find the method that called $_className.$method(). The stack may be incomplete or bogus.)');
+      information.add(ErrorSummary('(Unable to find the method that called $_className.$method(). The stack may be incomplete or bogus.)'));
     }
     return null;
   }

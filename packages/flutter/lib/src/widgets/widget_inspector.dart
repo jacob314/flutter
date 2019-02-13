@@ -972,7 +972,7 @@ mixin WidgetInspectorService {
 
   void _reportError(FlutterErrorDetails details) {
     postEvent('Flutter.Error', _nodeToJson(
-      FlutterError.errorToDiagnostic(details),
+      details.toDiagnosticsNode(),
       _SerializeConfig(
         groupName: _consoleObjectGroup,
         includeToStringDeep: true,
@@ -1275,7 +1275,7 @@ mixin WidgetInspectorService {
 
     final _InspectorReferenceData data = _idToReferenceData[id];
     if (data == null) {
-      throw FlutterError('Id does not exist.');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('Id does not exist.')]);
     }
     return data.object;
   }
@@ -1310,9 +1310,9 @@ mixin WidgetInspectorService {
 
     final _InspectorReferenceData referenceData = _idToReferenceData[id];
     if (referenceData == null)
-      throw FlutterError('Id does not exist');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('Id does not exist')]);
     if (_groups[groupName]?.remove(referenceData) != true)
-      throw FlutterError('Id is not in group');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('Id is not in group')]);
     _decrementReferenceCount(referenceData);
   }
 
@@ -1398,7 +1398,7 @@ mixin WidgetInspectorService {
     else if (value is Element)
       path = _getElementParentChain(value, groupName);
     else
-      throw FlutterError('Cannot get parent chain for node of type ${value.runtimeType}');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('Cannot get parent chain for node of type ${value.runtimeType}')]);
 
     return path.map<Object>((_DiagnosticsPathNode node) => _pathNodeToJson(
       node,
@@ -2632,10 +2632,12 @@ class _InspectorOverlayLayer extends Layer {
       return true;
     }());
     if (inDebugMode == false) {
-      throw FlutterError(
-        'The inspector should never be used in production mode due to the '
-        'negative performance impact.'
-      );
+      throw FlutterError(<DiagnosticsNode>[
+        ErrorSummary(
+          'The inspector should never be used in production mode due to the '
+          'negative performance impact.'
+        )
+      ]);
     }
   }
 

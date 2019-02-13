@@ -96,7 +96,7 @@ class TextEditingController extends ValueNotifier<TextEditingValue> {
   /// actions, not during the build, layout, or paint phases.
   set selection(TextSelection newSelection) {
     if (newSelection.start > text.length || newSelection.end > text.length)
-      throw FlutterError.from(FlutterErrorBuilder()..addErrorProperty('invalid text selection', newSelection));
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('invalid text selection: $newSelection')]);
     value = value.copyWith(selection: newSelection, composing: TextRange.empty);
   }
 

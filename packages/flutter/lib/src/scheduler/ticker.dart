@@ -146,11 +146,11 @@ class Ticker {
   TickerFuture start() {
     assert(() {
       if (isActive) {
-        throw FlutterError.from(FlutterErrorBuilder()
-          ..addError('A ticker was started twice.')
-          ..addContract('A ticker that is already active cannot be started again without first stopping it.')
-          ..addDiagnostic(DiagnosticsProperty<Ticker>('The affected ticker was', this, description: toString(debugIncludeStack: true)))
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('A ticker was started twice.'),
+          ErrorDetails('A ticker that is already active cannot be started again without first stopping it.'),
+          describeForError('The affected ticker was'),
+        ]);
       }
       return true;
     }());
@@ -163,6 +163,11 @@ class Ticker {
         SchedulerBinding.instance.schedulerPhase.index < SchedulerPhase.postFrameCallbacks.index)
       _startTime = SchedulerBinding.instance.currentFrameTimeStamp;
     return _future;
+  }
+
+  DiagnosticsNode describeForError(String name) {
+    // TODO(jacobr): make this more structured
+    return DiagnosticsProperty<Ticker>(name, this, description: toString(debugIncludeStack: true));
   }
 
   /// Stops calling this [Ticker]'s callback.

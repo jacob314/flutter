@@ -140,22 +140,26 @@ void main() {
       real_test.expect(lines[6], 'When the first method was called, this was the stack:');
       real_test.expect(lines.length, greaterThan(7));
       // TODO(jacobr): add more tests like this if they are useful.
-      real_test.expect(e.messageParts.length, 7);
-      real_test.expect(e.messageParts[0].level, DiagnosticLevel.error);
-      real_test.expect(e.messageParts[1].level, DiagnosticLevel.hint);
-      real_test.expect(e.messageParts[2].level, DiagnosticLevel.info);
-      real_test.expect(e.messageParts[3].level, DiagnosticLevel.info);
-      real_test.expect(e.messageParts[4].level, DiagnosticLevel.info);
-      real_test.expect(e.messageParts[5].level, DiagnosticLevel.info);
-      real_test.expect(e.messageParts[6].level, DiagnosticLevel.info);
-      real_test.expect(e.messageParts[0], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[1], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[2], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[3], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[4], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[5], isInstanceOf<DiagnosticsProperty<void>>());
-      real_test.expect(e.messageParts[6], isInstanceOf<DiagnosticsStackTrace>());
-      final DiagnosticsStackTrace stackTraceProperty = e.messageParts[6];
+
+      final DiagnosticPropertiesBuilder propertiesBuilder = DiagnosticPropertiesBuilder();
+      e.debugFillProperties(propertiesBuilder);
+      final List<DiagnosticsNode> information = propertiesBuilder.properties;
+      real_test.expect(information.length, 7);
+      real_test.expect(information[0].level, DiagnosticLevel.error);
+      real_test.expect(information[1].level, DiagnosticLevel.hint);
+      real_test.expect(information[2].level, DiagnosticLevel.info);
+      real_test.expect(information[3].level, DiagnosticLevel.info);
+      real_test.expect(information[4].level, DiagnosticLevel.info);
+      real_test.expect(information[5].level, DiagnosticLevel.info);
+      real_test.expect(information[6].level, DiagnosticLevel.info);
+      real_test.expect(information[0], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[1], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[2], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[3], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[4], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[5], isInstanceOf<DiagnosticsProperty<void>>());
+      real_test.expect(information[6], isInstanceOf<DiagnosticsStackTrace>());
+      final DiagnosticsStackTrace stackTraceProperty = information[6];
       real_test.expect(stackTraceProperty.name, 'When the first method was called, this was the stack');
       real_test.expect(stackTraceProperty.value, isInstanceOf<StackTrace>());
     }
@@ -176,11 +180,14 @@ void main() {
       real_test.expect(lines[2], matches(r'^The guarded method "pump" from class WidgetTester was called from .*test_async_utils_test.dart on line [0-9]+, but never completed before its parent scope closed\.$'));
       real_test.expect(lines[3], matches(r'^The guarded method "pump" from class AutomatedTestWidgetsFlutterBinding was called from [^ ]+ on line [0-9]+, but never completed before its parent scope closed\.'));
       real_test.expect(lines.length, 4);
-      real_test.expect(e.messageParts.length, 4);
-      real_test.expect(e.messageParts[0].level, DiagnosticLevel.error);
-      real_test.expect(e.messageParts[1].level, DiagnosticLevel.hint);
-      real_test.expect(e.messageParts[2].level, DiagnosticLevel.violation);
-      real_test.expect(e.messageParts[3].level, DiagnosticLevel.violation);
+      final DiagnosticPropertiesBuilder propertiesBuilder = DiagnosticPropertiesBuilder();
+      e.debugFillProperties(propertiesBuilder);
+      final List<DiagnosticsNode> information = propertiesBuilder.properties;
+      real_test.expect(information.length, 4);
+      real_test.expect(information[0].level, DiagnosticLevel.error);
+      real_test.expect(information[1].level, DiagnosticLevel.hint);
+      real_test.expect(information[2].level, DiagnosticLevel.info);
+      real_test.expect(information[3].level, DiagnosticLevel.info);
     }
     await f1;
   });
@@ -198,11 +205,14 @@ void main() {
       real_test.expect(lines[2], matches(r'^The guarded method "pump" from class WidgetTester was called from .*test_async_utils_test.dart on line [0-9]+, but never completed before its parent scope closed\.$'));
       real_test.expect(lines[3], matches(r'^The guarded method "pump" from class AutomatedTestWidgetsFlutterBinding was called from [^ ]+ on line [0-9]+, but never completed before its parent scope closed\.'));
       real_test.expect(lines.length, 4);
-      real_test.expect(e.messageParts.length, 4);
-      real_test.expect(e.messageParts[0].level, DiagnosticLevel.error);
-      real_test.expect(e.messageParts[1].level, DiagnosticLevel.hint);
-      real_test.expect(e.messageParts[2].level, DiagnosticLevel.violation);
-      real_test.expect(e.messageParts[3].level, DiagnosticLevel.violation);
+      final DiagnosticPropertiesBuilder propertiesBuilder = DiagnosticPropertiesBuilder();
+      e.debugFillProperties(propertiesBuilder);
+      final List<DiagnosticsNode> information = propertiesBuilder.properties;
+      real_test.expect(information.length, 4);
+      real_test.expect(information[0].level, DiagnosticLevel.error);
+      real_test.expect(information[1].level, DiagnosticLevel.hint);
+      real_test.expect(information[2].level, DiagnosticLevel.info);
+      real_test.expect(information[3].level, DiagnosticLevel.info);
     }
     await f1;
   });

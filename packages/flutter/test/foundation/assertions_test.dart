@@ -22,8 +22,10 @@ void main() {
         exception: 'Example exception',
         stack: StackTrace.current,
         library: 'Example library',
-        context: 'Example context',
-        errorBuilder: FlutterErrorBuilder ()..addDescription('Example information'),
+        context: ErrorDetails('Example context'),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information.add(ErrorDetails('Example information'));
+        },
       );
 
       FlutterError.dumpErrorToConsole(details);
@@ -44,8 +46,10 @@ void main() {
       FlutterErrorDetails(
         exception: 'MESSAGE',
         library: 'LIBRARY',
-        context: 'CONTEXTING',
-        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
+        context: ErrorDetails('CONTEXTING'),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information.add(ErrorDetails('INFO'));
+        },
       ).toString(),
       'Error caught by LIBRARY, thrown CONTEXTING:\n'
       'MESSAGE\n'
@@ -54,8 +58,10 @@ void main() {
     expect(
       FlutterErrorDetails(
         library: 'LIBRARY',
-        context: 'CONTEXTING',
-        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
+        context: ErrorDetails('CONTEXTING'),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information.add(ErrorDetails('INFO'));
+        },
       ).toString(),
       'Error caught by LIBRARY, thrown CONTEXTING:\n'
       '  null\n'
@@ -64,8 +70,10 @@ void main() {
     expect(
       FlutterErrorDetails(
         exception: 'MESSAGE',
-        context: 'CONTEXTING',
-        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
+        context: ErrorDetails('CONTEXTING'),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information.add(ErrorDetails('INFO'));
+        },
       ).toString(),
       'Error caught by Flutter framework, thrown CONTEXTING:\n'
       'MESSAGE\n'
@@ -74,9 +82,10 @@ void main() {
     expect(
       FlutterErrorDetails(
         exception: 'MESSAGE',
-        context: 'CONTEXTING',
-        contextObject: 'SomeContext(BlaBla)',
-        errorBuilder: FlutterErrorBuilder()..addDescription('INFO'),
+        context: ErrorDetails('CONTEXTING ${'SomeContext(BlaBla)'}'),
+        informationCollector: (List<DiagnosticsNode> information) {
+          information.add(ErrorDetails('INFO'));
+        },
       ).toString(),
       'Error caught by Flutter framework, thrown CONTEXTING SomeContext(BlaBla):\n'
           'MESSAGE\n'

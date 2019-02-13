@@ -416,22 +416,19 @@ class SliverConstraints extends Constraints {
   bool debugAssertIsValidStructured({
     bool isAppliedConstraint = false,
     InformationCollector informationCollector,
-    RenderErrorBuilder errorBuilder,
   }) {
     assert(() {
       void verify(bool check, String message) {
         if (check)
           return;
-        final RenderErrorBuilder errorBuilder = RenderErrorBuilder()
-          ..addError('$runtimeType is not valid: $message');
+        final List<DiagnosticsNode> information = <DiagnosticsNode>[];
+        information.add(ErrorSummary('$runtimeType is not valid: $message'));
 
         if (informationCollector != null) {
-          final StringBuffer information = StringBuffer();
           informationCollector(information);
-          errorBuilder.addDescription(information.toString());
         }
-        errorBuilder.addConstraintsProperty('The offending constraints were', this);
-        throw errorBuilder.build();
+        information.add(ErrorProperty<SliverConstraints>('The offending constraints were', this));
+        throw FlutterError(information);
       }
       verify(axis != null, 'The "axis" is null.');
       verify(growthDirection != null, 'The "growthDirection" is null.');
@@ -701,25 +698,22 @@ class SliverGeometry extends Diagnosticable {
   /// Does nothing if asserts are disabled. Always returns true.
   bool debugAssertIsValid({
     InformationCollector informationCollector,
-    RenderErrorBuilder errorBuilder,
   }) {
     assert(() {
-      void verify(
-        bool check,
-        String message, {
-        RenderErrorBuilder errorBuilder,
-      }) {
+      void verify(bool check, String summary, {List<DiagnosticsNode> details}) {
         if (check)
           return;
-        if (informationCollector != null) {
-          final StringBuffer information = StringBuffer();
-          informationCollector(information);
-          errorBuilder ??= RenderErrorBuilder();
-          errorBuilder.addDescription(information.toString());
+        final List<DiagnosticsNode> information = <DiagnosticsNode>[];
+        information.add(ErrorSummary('$runtimeType is not valid: $summary'));
+        if (details != null) {
+          information.addAll(details);
         }
-        errorBuilder.error = '$runtimeType is not valid: $message';
-        throw errorBuilder.build();
+        if (informationCollector != null) {
+          informationCollector(information);
+        }
+        throw FlutterError(information);
       }
+
       verify(scrollExtent != null, 'The "scrollExtent" is null.');
       verify(scrollExtent >= 0.0, 'The "scrollExtent" is negative.');
       verify(paintExtent != null, 'The "paintExtent" is null.');
@@ -731,7 +725,7 @@ class SliverGeometry extends Diagnosticable {
       if (layoutExtent > paintExtent) {
         verify(false,
           'The "layoutExtent" exceeds the "paintExtent".',
-          errorBuilder: _debugCompareFloats('paintExtent', paintExtent, 'layoutExtent', layoutExtent),
+          details: _debugCompareFloats('paintExtent', paintExtent, 'layoutExtent', layoutExtent),
         );
       }
       verify(maxPaintExtent != null, 'The "maxPaintExtent" is null.');
@@ -740,8 +734,9 @@ class SliverGeometry extends Diagnosticable {
       if (paintExtent - maxPaintExtent > _epsilon) {
         verify(false,
           'The "maxPaintExtent" is less than the "paintExtent".',
-          errorBuilder: _debugCompareFloats('maxPaintExtent', maxPaintExtent, 'paintExtent', paintExtent)
-            ..addContract('By definition, a sliver can\'t paint more than the maximum that it can paint!')
+          details:
+            _debugCompareFloats('maxPaintExtent', maxPaintExtent, 'paintExtent', paintExtent)
+              ..add(ErrorDetails('By definition, a sliver can\'t paint more than the maximum that it can paint!'))
         );
       }
       verify(hitTestExtent != null, 'The "hitTestExtent" is null.');
@@ -881,22 +876,22 @@ class SliverPhysicalParentData extends ParentData {
 /// children using absolute coordinates.
 class SliverPhysicalContainerParentData extends SliverPhysicalParentData with ContainerParentDataMixin<RenderSliver> { }
 
-RenderErrorBuilder _debugCompareFloats(String labelA, double valueA, String labelB, double valueB) {
-  final RenderErrorBuilder errorBuilder = RenderErrorBuilder();
+List<DiagnosticsNode> _debugCompareFloats(String labelA, double valueA, String labelB, double valueB) {
+  final List<DiagnosticsNode> information = <DiagnosticsNode>[];
   if (valueA.toStringAsFixed(1) != valueB.toStringAsFixed(1)) {
-    errorBuilder..addViolation(
-        'The $labelA is ${valueA.toStringAsFixed(1)}, but '
-        'the $labelB is ${valueB.toStringAsFixed(1)}.'
-      );
+    information..add(ErrorDetails(
+      'The $labelA is ${valueA.toStringAsFixed(1)}, but '
+      'the $labelB is ${valueB.toStringAsFixed(1)}.'
+    ));
   } else {
-    errorBuilder
-      ..addViolation('The $labelA is $valueA, but the $labelB is $valueB.')
-      ..addHint(
-          'Maybe you have fallen prey to floating point rounding errors, and should explicitly '
-              'apply the min() or max() functions, or the clamp() method, to the $labelB?'
-      );
+    information
+      ..add(ErrorDetails('The $labelA is $valueA, but the $labelB is $valueB.'))
+      ..add(ErrorHint(
+        'Maybe you have fallen prey to floating point rounding errors, and should explicitly '
+        'apply the min() or max() functions, or the clamp() method, to the $labelB?'
+      ));
   }
-  return errorBuilder;
+  return information;
 }
 
 /// Base class for the render objects that implement scroll effects in viewports.
@@ -1061,31 +1056,30 @@ RenderSliver extends RenderObject {
           (!sizedByParent && debugDoingThisLayout))
         return true;
       assert(!debugDoingThisResize);
-      String contract, violation, hint;
+      DiagnosticsNode contract, violation, hint;
       if (debugDoingThisLayout) {
         assert(sizedByParent);
-        violation = 'It appears that the geometry setter was called from performLayout().';
-        hint = '';
+        violation = ErrorDetails('It appears that the geometry setter was called from performLayout().');
       } else {
-        violation = 'The geometry setter was called from outside layout (neither performResize() nor performLayout() were being run for this object).';
+        violation = ErrorDetails('The geometry setter was called from outside layout (neither performResize() nor performLayout() were being run for this object).');
         if (owner != null && owner.debugDoingLayout)
-          hint = 'Only the object itself can set its geometry. It is a contract violation for other objects to set it.';
+          hint = ErrorDetails('Only the object itself can set its geometry. It is a contract violation for other objects to set it.');
       }
       if (sizedByParent)
-        contract = 'Because this RenderSliver has sizedByParent set to true, it must set its geometry in performResize().';
+        contract = ErrorDetails('Because this RenderSliver has sizedByParent set to true, it must set its geometry in performResize().');
       else
-        contract = 'Because this RenderSliver has sizedByParent set to false, it must set its geometry in performLayout().';
+        contract = ErrorDetails('Because this RenderSliver has sizedByParent set to false, it must set its geometry in performLayout().');
 
-      final RenderErrorBuilder errorBuilder = RenderErrorBuilder()
-        ..addError('RenderSliver geometry setter called incorrectly.')
-        ..addViolation(violation);
-      if (hint.isNotEmpty) {
-        errorBuilder.addHint(hint);
-      }
-      errorBuilder.addContract(contract);
-      errorBuilder.addRenderObject('The RenderSliver in question is', this);
+      final List<DiagnosticsNode> information = <DiagnosticsNode>[
+        ErrorSummary('RenderSliver geometry setter called incorrectly.'),
+        violation
+      ];
+      if (hint != null)
+        information.add(hint);
+      information.add(contract);
+      information.add(describeForError('The RenderSliver in question is'));
 
-      throw errorBuilder.build();
+      throw FlutterError(information);
     }());
     _geometry = value;
   }
@@ -1119,26 +1113,23 @@ RenderSliver extends RenderObject {
   @override
   void debugAssertDoesMeetConstraints() {
     assert(geometry.debugAssertIsValid(
-      errorBuilder: RenderErrorBuilder()..addRenderObject(
-        'The RenderSliver that returned the offending geometry was',
-        this,
-      ),
+      informationCollector: (List<DiagnosticsNode> information) {
+        information.add(describeForError('The RenderSliver that returned the offending geometry was'));
+      }
     ));
     assert(() {
       if (geometry.paintExtent > constraints.remainingPaintExtent) {
-        throw FlutterError.from(RenderErrorBuilder()
-          ..error = 'SliverGeometry has a paintOffset that exceeds the remainingPaintExtent from the constraints.'
-          ..addRenderObject('The render object whose geometry violates the constraints is the following', this)
-          ..addAll(
-            _debugCompareFloats('remainingPaintExtent', constraints.remainingPaintExtent,
-                              'paintExtent', geometry.paintExtent)
-              .toDiagnostics()
-          )
-          ..addViolation(
-            'The paintExtent must cause the child sliver to paint within the viewport, and so '
-            'cannot exceed the remainingPaintExtent.',
-          )
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('SliverGeometry has a paintOffset that exceeds the remainingPaintExtent from the constraints.'),
+          describeForError('The render object whose geometry violates the constraints is the following')
+        ]..addAll(_debugCompareFloats(
+            'remainingPaintExtent', constraints.remainingPaintExtent,
+            'paintExtent', geometry.paintExtent,
+        ))
+        ..add(ErrorDetails(
+          'The paintExtent must cause the child sliver to paint within the viewport, and so '
+          'cannot exceed the remainingPaintExtent.',
+        )));
       }
       return true;
     }());
@@ -1309,7 +1300,7 @@ RenderSliver extends RenderObject {
   @protected
   double childMainAxisPosition(covariant RenderObject child) {
     assert(() {
-      throw FlutterError('$runtimeType does not implement childPosition.');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('$runtimeType does not implement childPosition.')]);
     }());
     return 0.0;
   }
@@ -1346,7 +1337,7 @@ RenderSliver extends RenderObject {
   @override
   void applyPaintTransform(RenderObject child, Matrix4 transform) {
     assert(() {
-      throw FlutterError('$runtimeType does not implement applyPaintTransform.');
+      throw FlutterError(<DiagnosticsNode>[ErrorSummary('$runtimeType does not implement applyPaintTransform.')]);
     }());
   }
 

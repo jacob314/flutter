@@ -319,11 +319,13 @@ class RenderFlow extends RenderBox
     final FlowParentData childParentData = child.parentData;
     assert(() {
       if (childParentData._transform != null) {
-        throw FlutterError(
-          'Cannot call paintChild twice for the same child.',
-          contract: 'The flow delegate of type ${_delegate.runtimeType} attempted to '
-          'paint child $i multiple times, which is not permitted.'
-        );
+        throw FlutterError(<DiagnosticsNode>[
+          ErrorSummary('Cannot call paintChild twice for the same child.'),
+          ErrorDetails(
+            'The flow delegate of type ${_delegate.runtimeType} attempted to '
+            'paint child $i multiple times, which is not permitted.'
+          )
+        ]);
       }
       return true;
     }());
