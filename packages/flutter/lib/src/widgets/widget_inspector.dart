@@ -1005,6 +1005,8 @@ mixin WidgetInspectorService {
     final FlutterExceptionHandler structuredExceptionHandler = _reportError;
     final FlutterExceptionHandler defaultExceptionHandler = FlutterError.onError;
 
+    FlutterError.onError = structuredExceptionHandler;
+
     _registerBoolServiceExtension(
       name: 'structuredErrors',
       getter: () async => FlutterError.onError == structuredExceptionHandler,
