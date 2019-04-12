@@ -347,4 +347,9 @@ class _FakeTicker implements Ticker {
 
   @override
   String toString({ bool debugIncludeStack = false }) => super.toString();
+
+  @override
+  DiagnosticsNode describeForError(String name) {
+    return DiagnosticsProperty<Ticker>(name, this, style: DiagnosticsTreeStyle.errorProperty);
+  }
 }
