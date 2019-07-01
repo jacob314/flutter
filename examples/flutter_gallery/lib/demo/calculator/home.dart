@@ -153,6 +153,54 @@ class CalcDisplay extends StatelessWidget {
   }
 }
 
+class CalcKey extends StatelessWidget {
+  const CalcKey(this.text, this.onTap);
+
+  final String text;
+  final GestureTapCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Orientation orientation = MediaQuery.of(context).orientation;
+    return Expanded(
+      child: InkResponse(
+        onTap: onTap,
+        child: Center(
+          child: Text(
+            text,
+            style: TextStyle(
+                fontSize: (orientation == Orientation.portrait) ? 32.0 : 24.0
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class NumberKey extends CalcKey {
+  NumberKey(int value, _CalculatorState calcState)
+      : super('$value', () {
+    calcState.handleNumberTap(value);
+  });
+}
+class KeyRow extends StatelessWidget {
+  const KeyRow(this.keys);
+
+  final List<Widget> keys;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: keys,
+      ),
+    );
+  }
+}
+
+
 class KeyPad extends StatelessWidget {
   const KeyPad({ this.calcState });
 
@@ -178,11 +226,6 @@ class KeyPad extends StatelessWidget {
               child: Column(
                 children: <Widget>[
                   KeyRow(<Widget>[
-                    NumberKey(7, calcState),
-                    NumberKey(8, calcState),
-                    NumberKey(9, calcState),
-                  ]),
-                  KeyRow(<Widget>[
                     NumberKey(4, calcState),
                     NumberKey(5, calcState),
                     NumberKey(6, calcState),
@@ -191,6 +234,13 @@ class KeyPad extends StatelessWidget {
                     NumberKey(1, calcState),
                     NumberKey(2, calcState),
                     NumberKey(3, calcState),
+                  ]),
+
+
+                  KeyRow(<Widget>[
+                    NumberKey(7, calcState),
+                    NumberKey(8, calcState),
+                    NumberKey(9, calcState),
                   ]),
                   KeyRow(<Widget>[
                     CalcKey('.', calcState.handlePointTap),
@@ -205,66 +255,8 @@ class KeyPad extends StatelessWidget {
                 color: themeData.backgroundColor,
                 child: Column(
                   children: <Widget>[
-                    CalcKey('\u232B', calcState.handleDelTap),
-                    CalcKey('\u00F7', calcState.handleDivTap),
                     CalcKey('\u00D7', calcState.handleMultTap),
                     CalcKey('-', calcState.handleMinusTap),
-                    CalcKey('+', calcState.handlePlusTap),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class KeyRow extends StatelessWidget {
-  const KeyRow(this.keys);
-
-  final List<Widget> keys;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: keys,
-      ),
-    );
-  }
-}
-
-class CalcKey extends StatelessWidget {
-  const CalcKey(this.text, this.onTap);
-
-  final String text;
-  final GestureTapCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final Orientation orientation = MediaQuery.of(context).orientation;
-    return Expanded(
-      child: InkResponse(
-        onTap: onTap,
-        child: Center(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: (orientation == Orientation.portrait) ? 32.0 : 24.0
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class NumberKey extends CalcKey {
-  NumberKey(int value, _CalculatorState calcState)
-    : super('$value', () {
-        calcState.handleNumberTap(value);
-      });
-}
+                    CalcKey('\u232B', calcState.handleDelTap),
+                    CalcKey('\u00F7', calcState.handleDivTap),
+                    CalcKey('+', calcState.handlePlusTap),],),),),],),),);}}
