@@ -3019,6 +3019,9 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
     _updateInheritance();
     assert(() {
       _debugLifecycleState = _ElementLifecycle.active;
+      if (debugOnRebuildDirtyWidget != null) {
+        debugOnRebuildDirtyWidget(this, _debugBuiltOnce);
+      }
       return true;
     }());
   }
@@ -3040,7 +3043,9 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
         && newWidget != widget
         && depth != null
         && _active
-        && Widget.canUpdate(widget, newWidget));
+        && Widget.canUpdate(widget, newWidget)
+        && (debugOnUpdateWidget == null || (() { debugOnUpdateWidget(this, _widget, newWidget); return true; })())
+    );
     _widget = newWidget;
   }
 
@@ -3368,12 +3373,17 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
     }
     assert(() {
       _debugLifecycleState = _ElementLifecycle.defunct;
+      if (debugOnUnmountWidget != null) {
+        debugOnUnmountWidget(this);
+      }
       return true;
     }());
   }
 
   @override
   RenderObject findRenderObject() => renderObject;
+
+  bool get debugIsActive => _debugLifecycleState == _ElementLifecycle.active;
 
   @override
   Size get size {

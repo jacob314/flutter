@@ -1189,12 +1189,7 @@ class OffsetLayer extends ContainerLayer {
     assert(bounds != null);
     assert(pixelRatio != null);
     final ui.SceneBuilder builder = ui.SceneBuilder();
-    final Matrix4 transform = Matrix4.translationValues(
-      (-bounds.left  - offset.dx) * pixelRatio,
-      (-bounds.top - offset.dy) * pixelRatio,
-      0.0,
-    );
-    transform.scale(pixelRatio, pixelRatio);
+    final Matrix4 transform = buildImageTransform(bounds, pixelRatio: pixelRatio);
     builder.pushTransform(transform.storage);
     final ui.Scene scene = buildScene(builder);
 
@@ -1208,6 +1203,22 @@ class OffsetLayer extends ContainerLayer {
     } finally {
       scene.dispose();
     }
+  }
+
+  /// Builds the transform going from coordinates of the layer to coordinates
+  /// in raster image of the layer with size of offset specified by [bounds].
+  ///
+  /// See also:
+  /// * [toImage], which uses this transform to capture an image of this layer
+  ///   and its children.
+  Matrix4 buildImageTransform(Rect bounds, {double pixelRatio = 1.0}) {
+    final Matrix4 transform = Matrix4.translationValues(
+      (-bounds.left  - offset.dx) * pixelRatio,
+      (-bounds.top - offset.dy) * pixelRatio,
+      0.0,
+    );
+    transform.scale(pixelRatio, pixelRatio);
+    return transform;
   }
 }
 
