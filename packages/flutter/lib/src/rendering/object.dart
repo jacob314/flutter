@@ -122,7 +122,8 @@ class PaintingContext extends ClipContext {
       child._layer = childLayer = OffsetLayer();
     } else {
       assert(childLayer is OffsetLayer);
-      assert(debugAlsoPaintedParent || childLayer.attached);
+      // XXX what happened?
+//      assert(debugAlsoPaintedParent || childLayer.attached);
       childLayer.removeAllChildren();
     }
     assert(identical(childLayer, child._layer));
