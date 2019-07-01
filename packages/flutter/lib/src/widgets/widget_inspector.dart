@@ -18,7 +18,7 @@ import 'dart:ui' as ui
         PointMode,
         SceneBuilder,
         Vertices;
-import 'dart:ui' show Canvas, Offset;
+import 'dart:ui' show Canvas, Offset, lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
@@ -41,6 +41,13 @@ typedef _RegisterServiceExtensionCallback = void Function({
   @required String name,
   @required ServiceExtensionCallback callback,
 });
+
+class Screenshot {
+  Screenshot(this.image, this.transformedRect);
+
+  final _TransformedRect transformedRect;
+  final ui.Image image;
+}
 
 /// A layer that mimics the behavior of another layer.
 ///
@@ -532,17 +539,22 @@ class _ScreenshotPaintingContext extends PaintingContext {
   ///    that are repaint boundaries that can be used outside of the inspector.
   ///  * [OffsetLayer.toImage] for a similar API at the layer level.
   ///  * [dart:ui.Scene.toImage] for more information about the image returned.
-  static Future<ui.Image> toImage(
+  static Future<Screenshot> toImage(
     RenderObject renderObject,
     Rect renderBounds, {
     double pixelRatio = 1.0,
     bool debugPaint = false,
-  }) {
+  }) async {
+    if (!renderObject.attached) {return null;}
+
     RenderObject repaintBoundary = renderObject;
     while (repaintBoundary != null && !repaintBoundary.isRepaintBoundary) {
       repaintBoundary = repaintBoundary.parent;
     }
     assert(repaintBoundary != null);
+    if (repaintBoundary.debugLayer == null) {
+      return null; // Not really painted. That is fine.
+    }
     final _ScreenshotData data = _ScreenshotData(target: renderObject);
     final _ScreenshotPaintingContext context = _ScreenshotPaintingContext(
       containerLayer: repaintBoundary.debugLayer,
@@ -550,7 +562,7 @@ class _ScreenshotPaintingContext extends PaintingContext {
       screenshotData: data,
     );
 
-    if (identical(renderObject, repaintBoundary)) {
+    if (identical(renderObject, repaintBoundary) && !repaintBoundary.debugNeedsPaint) {
       // Painting the existing repaint boundary to the screenshot is sufficient.
       // We don't just take a direct screenshot of the repaint boundary as we
       // want to capture debugPaint information as well.
@@ -592,7 +604,15 @@ class _ScreenshotPaintingContext extends PaintingContext {
     // been called successfully for all layers in the regular scene.
     repaintBoundary.debugLayer.buildScene(ui.SceneBuilder());
 
-    return data.containerLayer.toImage(renderBounds, pixelRatio: pixelRatio);
+    var image = await data.containerLayer.toImage(renderBounds, pixelRatio: pixelRatio);
+    return Screenshot(
+      image,
+      _TransformedRect.raw(
+        renderBounds,
+        data.containerLayer.buildImageTransform(renderBounds.shift(-data.containerLayer.offset), pixelRatio: pixelRatio),
+      ),
+    );
+
   }
 }
 
@@ -726,6 +746,8 @@ mixin WidgetInspectorService {
   /// instead listens for `dart:developer` `inspect` events which also trigger
   /// when the inspection target changes on device.
   InspectorSelectionChangedCallback selectionChangedCallback;
+  GlobalKey screenshotRootParent;
+
 
   /// The Observatory protocol does not keep alive object references so this
   /// class needs to manually manage groups of objects that should be kept
@@ -993,12 +1015,15 @@ mixin WidgetInspectorService {
           if (value) {
             assert(debugOnRebuildDirtyWidget == null);
             debugOnRebuildDirtyWidget = _onRebuildWidget;
+            assert(debugOnUnmountWidget == null);
+            debugOnUnmountWidget = _onUnmountWidget;
             // Trigger a rebuild so there are baseline stats for rebuilds
             // performed by the app.
             await forceRebuild();
             return;
           } else {
             debugOnRebuildDirtyWidget = null;
+            debugOnUnmountWidget = null;
             return;
           }
         },
@@ -1056,6 +1081,84 @@ mixin WidgetInspectorService {
     _registerServiceExtensionWithArg(
       name: 'setSelectionById',
       callback: setSelectionById,
+    );
+    registerServiceExtension(
+      name: 'setSelectionByLocation',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('file'));
+        assert(parameters.containsKey('line'));
+        assert(parameters.containsKey('column'));
+        return <String, dynamic>{'result': setSelection(_Location(
+          file: parameters['file'],
+          line: int.parse(parameters['line']),
+          column: int.parse(parameters['column'],
+        )))
+        };
+      },
+    );
+    registerServiceExtension(
+      name: 'getElementsAtLocation',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('file'));
+        assert(parameters.containsKey('line'));
+        assert(parameters.containsKey('column'));
+        assert(parameters.containsKey('count'));
+        assert(parameters.containsKey('groupName'));
+        return <String, dynamic>{
+          'result': _getElements(
+            _Location(
+              file: parameters['file'],
+              line: int.parse(parameters['line']),
+              column: int.parse(parameters['column']),
+            ),
+            int.parse(parameters['count']),
+            parameters['groupName'],
+          )
+        };
+      },
+    );
+    registerServiceExtension(
+      name: 'getBoundingBoxes',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('rootId'));
+        assert(parameters.containsKey('targetId'));
+        assert(parameters.containsKey('groupName'));
+        return <String, dynamic>{
+          'result': _getBoundingBoxes(
+            parameters['rootId'],
+            parameters['targetId'],
+            parameters['groupName'],
+          ),
+        };
+      },
+    );
+    registerServiceExtension(
+      name: 'hitTest',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('id'));
+        assert(parameters.containsKey('startLine') == parameters.containsKey('endLine'));
+        assert(parameters.containsKey('dx'));
+        assert(parameters.containsKey('dy'));
+        assert(parameters.containsKey('groupName'));
+        return <String, dynamic>{
+          'result': _hitTest(
+            id: parameters['id'],
+            file: parameters['file'],
+            startLine: parameters.containsKey('startLine') ? int.parse(parameters['startLine']) : null,
+            endLine: parameters.containsKey('endLine') ? int.parse(parameters['endLine']) : null,
+            offset: Offset(
+              double.parse(parameters['dx']),
+              double.parse(parameters['dy']),
+            ),
+            groupName: parameters['groupName'],
+          )
+        };
+      },
+    );
+
+    _registerObjectGroupServiceExtension(
+      name: 'getElementForScreenshot',
+      callback: _getElementForScreenshot,
     );
     _registerServiceExtensionWithArg(
       name: 'getParentChain',
@@ -1123,6 +1226,19 @@ mixin WidgetInspectorService {
       name: 'isWidgetCreationTracked',
       callback: isWidgetCreationTracked,
     );
+
+    registerServiceExtension(
+      name: 'setProperty',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('id'));
+        assert(parameters.containsKey('property'));
+        assert(parameters.containsKey('value'));
+
+        return <String, Object>{
+          'result': _setProperty(toObject(parameters['id']), property: parameters['property'], value: parameters['value']),
+        };
+      },
+    );
     registerServiceExtension(
       name: 'screenshot',
       callback: (Map<String, String> parameters) async {
@@ -1130,7 +1246,7 @@ mixin WidgetInspectorService {
         assert(parameters.containsKey('width'));
         assert(parameters.containsKey('height'));
 
-        final ui.Image image = await screenshot(
+        final Screenshot data = await screenshot(
           toObject(parameters['id']),
           width: double.parse(parameters['width']),
           height: double.parse(parameters['height']),
@@ -1140,13 +1256,57 @@ mixin WidgetInspectorService {
               double.parse(parameters['maxPixelRatio']) : 1.0,
           debugPaint: parameters['debugPaint'] == 'true',
         );
-        if (image == null) {
+        if (data == null || data.image == null) {
           return <String, Object>{'result': null};
         }
-        final ByteData byteData = await image.toByteData(format:ui.ImageByteFormat.png);
+        final ByteData byteData = await data.image.toByteData(format:ui.ImageByteFormat.png);
 
         return <String, Object>{
-          'result': base64.encoder.convert(Uint8List.view(byteData.buffer)),
+          'result': <String, Object>{
+            'image': base64.encoder.convert(Uint8List.view(byteData.buffer)),
+            'transformedRect': data.transformedRect,
+          },
+        };
+      },
+    );
+
+    registerServiceExtension(
+      name: 'screenshoWithSelection',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('rootId'));
+        assert(parameters.containsKey('width'));
+        assert(parameters.containsKey('height'));
+        assert(parameters.containsKey('groupName'));
+        var root = toObject(parameters['rootId']);
+        var target = toObject(parameters['targetId']);
+
+        // get boxes first as that is not async.
+        var boxes = _getBoundingBoxesHelper(root, target, parameters['groupName']);
+
+        final Screenshot data = await screenshot(
+          root,
+          width: double.parse(parameters['width']),
+          height: double.parse(parameters['height']),
+          margin: parameters.containsKey('margin') ?
+          double.parse(parameters['margin']) : 0.0,
+          maxPixelRatio: parameters.containsKey('maxPixelRatio') ?
+          double.parse(parameters['maxPixelRatio']) : 1.0,
+          debugPaint: parameters['debugPaint'] == 'true',
+        );
+        if (data == null || data.image == null) {
+          return <String, Object>{'result': null};
+        }
+        final ByteData byteData = await data.image.toByteData(format:ui.ImageByteFormat.png);
+
+        var screenshotJson =  <String, Object>{
+          'image': base64.encoder.convert(Uint8List.view(byteData.buffer)),
+          'transformedRect': data.transformedRect,
+        };
+        return <String, Object>{
+          'result': <String, Object>{
+            'screenshot': screenshotJson,
+            'boxes': boxes,
+          },
         };
       },
     );
@@ -1311,20 +1471,27 @@ mixin WidgetInspectorService {
   /// API surface of methods called from the Flutter IntelliJ Plugin.
   @protected
   bool setSelection(Object object, [ String groupName ]) {
-    if (object is Element || object is RenderObject) {
+    if (object is Element || object is RenderObject || object is _Location) {
       if (object is Element) {
         if (object == selection.currentElement) {
           return false;
         }
         selection.currentElement = object;
-        developer.inspect(selection.currentElement);
-      } else {
+      } else if (object is RenderObject){
         if (object == selection.current) {
           return false;
         }
-        selection.current = object;
-        developer.inspect(selection.current);
+        // XXX CLEANUP.
+        selection.currentElement = object.debugCreator?.element;
+      } else if (object is _Location) {
+        if (object == selection.location) {
+          return false;
+        }
+        selection.location = object;
       }
+      // XXX dispatch eventy instead.
+      // developer.inspect(selection.currentElement);
+
       if (selectionChangedCallback != null) {
         if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
           selectionChangedCallback();
@@ -1693,7 +1860,7 @@ mixin WidgetInspectorService {
   /// areas that are slightly outside of the normal bounds of an object such as
   /// some debug paint information.
   @protected
-  Future<ui.Image> screenshot(
+  Future<Screenshot> screenshot(
     Object object, {
     @required double width,
     @required double height,
@@ -1701,6 +1868,8 @@ mixin WidgetInspectorService {
     double maxPixelRatio = 1.0,
     bool debugPaint = false,
   }) async {
+    assert(height > 0 && width > 0);
+//    print("XXX maxPixelRatio = $maxPixelRatio, $width, $height");
     if (object is! Element && object is! RenderObject) {
       return null;
     }
@@ -1743,12 +1912,13 @@ mixin WidgetInspectorService {
       ),
     );
 
-    return _ScreenshotPaintingContext.toImage(
-      renderObject,
-      renderBounds,
-      pixelRatio: pixelRatio,
-      debugPaint: debugPaint,
-    );
+    return
+      await _ScreenshotPaintingContext.toImage(
+        renderObject,
+        renderBounds,
+        pixelRatio: pixelRatio,
+        debugPaint: debugPaint,
+      );
   }
 
   Map<String, Object> _getSelectedWidget(String previousSelectionId, String groupName) {
@@ -1833,11 +2003,47 @@ mixin WidgetInspectorService {
   final _ElementLocationStatsTracker _rebuildStats = _ElementLocationStatsTracker();
   final _ElementLocationStatsTracker _repaintStats = _ElementLocationStatsTracker();
 
+  bool isAncestorOf(Element element, Element target) {
+    bool matches = false;
+    if (element.renderObject?.attached != true || target.renderObject?.attached != true) {
+      return false;
+    }
+    element.visitAncestorElements((Element ancestor) {
+      if (identical(ancestor, target)) {
+        matches = true;
+        return false;
+      }
+      return true;
+    });
+    return matches;
+  }
+  double _scoreElement(Element element, Element target) {
+    if (identical(element, target)) return double.maxFinite;
+    return (isAncestorOf(element, target) || isAncestorOf(target, element)) ? 1 : 0;
+  }
+
+  Iterable<Element> getActiveElementsForLocation(_Location location, {@required Element closestTo}) {
+    List<Element> matches = _rebuildStats.getActiveElementsForLocation(location).toList();
+    if (matches.length > 1 && closestTo != null) {
+      final Map<Element, double> scores = Map.identity();
+      for (Element element in matches) {
+        scores[element] = _scoreElement(element, closestTo);
+      }
+      matches.sort((Element a, Element b) => scores[b].compareTo(scores[a]));
+    }
+    return matches;
+  }
+
   void _onRebuildWidget(Element element, bool builtOnce) {
-    _rebuildStats.add(element);
+    _rebuildStats.update(element, true);
+  }
+
+  void _onUnmountWidget(Element element) {
+    _rebuildStats.update(element, false);
   }
 
   void _onPaint(RenderObject renderObject) {
+    print("XXX don't do this");
     try {
       final Element element = renderObject.debugCreator?.element;
       if (element is! RenderObjectElement) {
@@ -1847,7 +2053,7 @@ mixin WidgetInspectorService {
         // to improve robustness.
         return;
       }
-      _repaintStats.add(element);
+      _repaintStats.update(element, true);
 
       // Give all ancestor elements credit for repainting as long as they do
       // not have their own associated RenderObject.
@@ -1857,7 +2063,7 @@ mixin WidgetInspectorService {
           // when it repaints.
           return false;
         }
-        _repaintStats.add(ancestor);
+        _repaintStats.update(ancestor, true);
         return true;
       });
     }
@@ -1880,6 +2086,143 @@ mixin WidgetInspectorService {
     _clearStats();
     _resetErrorCount();
   }
+
+  int hitTestCount = 0;
+  List<Map<String, dynamic>> _hitTest({
+    String id,
+    String file,
+    int startLine,
+    int endLine,
+    Offset offset,
+    String groupName
+  }) {
+    hitTestCount++;
+    Element element;
+    final Object target = toObject(id);
+    RenderObject root;
+    if (target is Element) {
+      root = target.renderObject;
+      final Rect renderBounds = _calculateSubtreeBounds(root);
+      final List<RenderObject> hits = _hitTestRenderObject(offset, root, Matrix4.identity());
+      if (hits.isNotEmpty) {
+        for (RenderObject hit in hits) {
+          element = _findFirstMatchingElement(hit, file, startLine, endLine, target);
+          if (element != null) break;
+        }
+        element ??= target;
+      }
+    }
+    if (element == null) return null;
+    return _getBoundingBoxesHelper(target, element, groupName);
+  }
+
+  Element _findFirstMatchingElement(RenderObject hit, String file, int startLine, int endLine, Element root) {
+    bool withinRange(Element element) {
+      final _Location location = _getCreationLocation(element);
+      if (file == null) {
+        return _isLocalCreationLocation(location);
+      }
+      return location != null && location.file == file && (startLine == null || location.line >= startLine && location.line <= endLine);
+    }
+    Element element = hit.debugCreator.element;
+
+    if (withinRange(element)) {
+      return element;
+    }
+    Element match;
+    element.visitAncestorElements((Element ancestor) {
+      if (withinRange(ancestor)) {
+        match = ancestor;
+        return false;
+      }
+      return !identical(ancestor, root);
+    });
+    return match;
+  }
+
+  List<Map<String, dynamic>> _getElements(_Location location, int count, String groupName) {
+    List<Element> elements;
+    final List<Element> active = getActiveElementsForLocation(location, closestTo: selection?._lastLocalElement);
+    final List<DiagnosticsNode> nodes = active.map((Element element) => element.toDiagnosticsNode()).toList();
+    return _nodesToJson(nodes, _SerializationDelegate(groupName: groupName, service: this), parent: null);
+  }
+
+  List<Map<String, dynamic>> _getBoundingBoxes(String rootId, String targetId, String groupName) {
+    final Object root = toObject(rootId);
+    final Object target = toObject(targetId);
+    return _getBoundingBoxesHelper(root, target, groupName);
+  }
+
+  List<Map<String, dynamic>> _getBoundingBoxesHelper(Element rootElement, Element targetElement, String groupName) {
+    RenderObject rootRenderObject = rootElement?.renderObject;
+    final RenderObject targetRenderObject = targetElement?.renderObject;
+    if (rootRenderObject == null || rootRenderObject.attached == false || targetRenderObject == null || targetRenderObject.attached == null) return null;
+
+    List<Element> elements;
+
+    final List<Element> active = getActiveElementsForLocation(_getCreationLocation(targetElement), closestTo: _isAncestor(targetRenderObject, rootRenderObject) ? targetElement : null);
+    final List<DiagnosticsNode> nodes = active
+        .where((Element element) => _isAncestorElement(element, rootElement))
+        .map((Element element) => element.toDiagnosticsNode()).toList();
+    // TODO(jacobr): document why we need to go all the way to the parent of the root for the transform.
+    rootRenderObject = rootRenderObject?.parent;
+    return _nodesToJson(
+        nodes,
+        _SerializationDelegate(groupName: groupName, service: this, includeProperties: false, includeTransform: true, root: rootRenderObject),
+        parent: null
+    );
+  }
+
+  Map<String, dynamic> _getElementForScreenshot(String groupName) {
+    return _nodeToJson(
+      _elementForScreenshot()?.toDiagnosticsNode(),
+      _SerializationDelegate(groupName: groupName, service: this, includeProperties: false),
+    );
+  }
+
+  /// XXX CLEANUP.
+  Element _elementForScreenshot() {
+    Element e = screenshotRootParent?.currentContext ?? WidgetsBinding.instance?.renderViewElement;
+
+    Element child;
+    e?.visitChildren((Element c) { child = c;});
+    return child;
+  }
+
+  bool _setProperty(Object element, {String property, String value}) {
+    if (element is! Element) return false;
+    if (property == 'color') {
+      if (value == null) {
+        // TODO(jacobr): reset color.
+      } else {
+        return _maybeSetColor(element, int.parse(value));
+      }
+    }
+    return false;
+  }
+}
+
+bool _isAncestor(RenderObject renderer, RenderObject ancestor) {
+  if (renderer == null || ancestor == null || !renderer.attached  || !ancestor.attached) return false;
+  while (renderer != null) {
+    if (identical(renderer, ancestor)) return true;
+    renderer = renderer.parent;
+  }
+  return false;
+}
+
+bool _isAncestorElement(Element e1, Element e2) {
+  if (identical(e1, e2)) return true;
+  if (!e1.debugIsActive || !e2.debugIsActive) return false;
+  bool matches = false;
+  e1.visitAncestorElements((Element ancestor) {
+    if (identical(ancestor, e2)) {
+      matches = true;
+      return false;
+    }
+    return true;
+  });
+  return matches;
 }
 
 /// Accumulator for a count associated with a specific source location.
@@ -1901,17 +2244,24 @@ class _LocationCount {
 
   final _Location location;
 
+  final Set<Element> elements = Set<Element>.identity();
   int get count => _count;
   int _count = 0;
 
   /// Reset the count.
   void reset() {
     _count = 0;
+//    elements.clear();
   }
 
   /// Increment the count.
-  void increment() {
-    _count++;
+  void update(Element element, bool add) {
+    if (add) {
+      _count++;
+      elements.add(element);
+    } else {
+      elements.remove(element);
+    }
   }
 }
 
@@ -1947,9 +2297,25 @@ class _ElementLocationStatsTracker {
   /// optimization.
   final List<_LocationCount> newLocations = <_LocationCount>[];
 
+  Iterable<Element> getActiveElementsForLocation(_Location location) {
+    if (location == null) {
+      return const <Element>[];
+    }
+    int id = _locationToId[location];
+    if (id == null) {
+      return const <Element>[];
+    }
+
+    if (id >= _stats.length) {
+      return const <Element>[];
+    }
+    var stat = _stats[id];
+    return stat?.elements ?? const <Element>[];
+  }
+
   /// Increments the count associated with the creation location of [element] if
   /// the creation location is local to the current project.
-  void add(Element element) {
+  void update(Element element, bool add) {
     final Object widget = element.widget;
     if (widget is! _HasCreationLocation) {
       return;
@@ -1987,7 +2353,7 @@ class _ElementLocationStatsTracker {
       if (entry.count == 0) {
         active.add(entry);
       }
-      entry.increment();
+      entry.update(element, add);
     }
   }
 
@@ -2090,6 +2456,111 @@ class WidgetInspector extends StatefulWidget {
   _WidgetInspectorState createState() => _WidgetInspectorState();
 }
 
+/// Distance from the edge of of the bounding box for an element to consider
+/// as selecting the edge of the bounding box.
+const double _edgeHitMargin = 2.0;
+
+bool _hitTestHelper(
+    List<RenderObject> hits,
+    List<RenderObject> edgeHits,
+    Offset position,
+    RenderObject object,
+    Matrix4 transform,
+    ) {
+  bool hit = false;
+  final Matrix4 inverse = Matrix4.tryInvert(transform);
+  if (inverse == null) {
+    // We cannot invert the transform. That means the object doesn't appear on
+    // screen and cannot be hit.
+    return false;
+  }
+  final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
+
+  final List<DiagnosticsNode> children = object.debugDescribeChildren();
+  for (int i = children.length - 1; i >= 0; i -= 1) {
+    final DiagnosticsNode diagnostics = children[i];
+    assert(diagnostics != null);
+    if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
+        diagnostics.value is! RenderObject)
+      continue;
+    final RenderObject child = diagnostics.value;
+    final Rect paintClip = object.describeApproximatePaintClip(child);
+    if (paintClip != null && !paintClip.contains(localPosition))
+      continue;
+
+    final Matrix4 childTransform = transform.clone();
+    object.applyPaintTransform(child, childTransform);
+    if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
+      hit = true;
+  }
+
+  final Rect bounds = object.semanticBounds;
+  if (bounds.contains(localPosition)) {
+    hit = true;
+    // Hits that occur on the edge of the bounding box of an object are
+    // given priority to provide a way to select objects that would
+    // otherwise be hard to select.
+    if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
+      edgeHits.add(object);
+  }
+  if (hit)
+    hits.add(object);
+  return hit;
+}
+
+/// Returns the list of render objects located at the given position ordered
+/// by priority.
+///
+/// All render objects that are not offstage that match the location are
+/// included in the list of matches. Priority is given to matches that occur
+/// on the edge of a render object's bounding box and to matches found by
+/// [RenderBox.hitTest].
+List<RenderObject> _hitTestRenderObject(Offset position, RenderObject root, Matrix4 transform) {
+  final List<RenderObject> regularHits = <RenderObject>[];
+  final List<RenderObject> edgeHits = <RenderObject>[];
+
+  _hitTestHelper(regularHits, edgeHits, position, root, transform);
+  final Map<RenderObject, double> scores = {};
+  for (RenderObject object in regularHits) {
+    Element element = object.debugCreator?.element;
+    double score = 0;
+    if (element != null) {
+      int depthToSummary = 0;
+      int summaryDepth = 0;
+      int depth = 0;
+      Element nearestLocal;
+      if (element.debugIsActive) {
+        element.visitAncestorElements((Element ancestor) {
+          if (_isLocalCreationLocation(ancestor)) {
+            if (nearestLocal == null) {
+              nearestLocal = ancestor;
+              depthToSummary = depth;
+            }
+            summaryDepth++;
+          }
+          depth++;
+          return true;
+        });
+      }
+      score = summaryDepth.toDouble();
+    }
+    scores[object] = score;
+  }
+  // Order matches by the size of the hit area.
+  double _area(RenderObject object) {
+    final Size size = object.semanticBounds?.size;
+    return size == null ? double.maxFinite : size.width * size.height;
+  }
+  regularHits.sort((RenderObject a, RenderObject b) => scores[b].compareTo(scores[a]));
+  /*
+    final Set<RenderObject> hits = <RenderObject>{
+      ...edgeHits,
+      ...regularHits,
+    };
+    */
+  return regularHits;
+}
+
 class _WidgetInspectorState extends State<WidgetInspector>
     with WidgetsBindingObserver {
 
@@ -2108,10 +2579,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   final GlobalKey _ignorePointerKey = GlobalKey();
 
-  /// Distance from the edge of of the bounding box for an element to consider
-  /// as selecting the edge of the bounding box.
-  static const double _edgeHitMargin = 2.0;
-
   InspectorSelectionChangedCallback _selectionChangedCallback;
   @override
   void initState() {
@@ -2123,6 +2590,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
         // changed.
       });
     };
+    WidgetInspectorService.instance.screenshotRootParent = _ignorePointerKey;
     WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
   }
 
@@ -2134,89 +2602,15 @@ class _WidgetInspectorState extends State<WidgetInspector>
     super.dispose();
   }
 
-  bool _hitTestHelper(
-    List<RenderObject> hits,
-    List<RenderObject> edgeHits,
-    Offset position,
-    RenderObject object,
-    Matrix4 transform,
-  ) {
-    bool hit = false;
-    final Matrix4 inverse = Matrix4.tryInvert(transform);
-    if (inverse == null) {
-      // We cannot invert the transform. That means the object doesn't appear on
-      // screen and cannot be hit.
-      return false;
-    }
-    final Offset localPosition = MatrixUtils.transformPoint(inverse, position);
-
-    final List<DiagnosticsNode> children = object.debugDescribeChildren();
-    for (int i = children.length - 1; i >= 0; i -= 1) {
-      final DiagnosticsNode diagnostics = children[i];
-      assert(diagnostics != null);
-      if (diagnostics.style == DiagnosticsTreeStyle.offstage ||
-          diagnostics.value is! RenderObject)
-        continue;
-      final RenderObject child = diagnostics.value;
-      final Rect paintClip = object.describeApproximatePaintClip(child);
-      if (paintClip != null && !paintClip.contains(localPosition))
-        continue;
-
-      final Matrix4 childTransform = transform.clone();
-      object.applyPaintTransform(child, childTransform);
-      if (_hitTestHelper(hits, edgeHits, position, child, childTransform))
-        hit = true;
-    }
-
-    final Rect bounds = object.semanticBounds;
-    if (bounds.contains(localPosition)) {
-      hit = true;
-      // Hits that occur on the edge of the bounding box of an object are
-      // given priority to provide a way to select objects that would
-      // otherwise be hard to select.
-      if (!bounds.deflate(_edgeHitMargin).contains(localPosition))
-        edgeHits.add(object);
-    }
-    if (hit)
-      hits.add(object);
-    return hit;
-  }
-
-  /// Returns the list of render objects located at the given position ordered
-  /// by priority.
-  ///
-  /// All render objects that are not offstage that match the location are
-  /// included in the list of matches. Priority is given to matches that occur
-  /// on the edge of a render object's bounding box and to matches found by
-  /// [RenderBox.hitTest].
-  List<RenderObject> hitTest(Offset position, RenderObject root) {
-    final List<RenderObject> regularHits = <RenderObject>[];
-    final List<RenderObject> edgeHits = <RenderObject>[];
-
-    _hitTestHelper(regularHits, edgeHits, position, root, root.getTransformTo(null));
-    // Order matches by the size of the hit area.
-    double _area(RenderObject object) {
-      final Size size = object.semanticBounds?.size;
-      return size == null ? double.maxFinite : size.width * size.height;
-    }
-    regularHits.sort((RenderObject a, RenderObject b) => _area(a).compareTo(_area(b)));
-    final Set<RenderObject> hits = <RenderObject>{
-      ...edgeHits,
-      ...regularHits,
-    };
-    return hits.toList();
-  }
-
   void _inspectAt(Offset position) {
     if (!isSelectMode)
       return;
 
-    final RenderIgnorePointer ignorePointer = _ignorePointerKey.currentContext.findRenderObject();
-    final RenderObject userRender = ignorePointer.child;
-    final List<RenderObject> selected = hitTest(position, userRender);
+    final RenderObject userRender = WidgetInspectorService.instance._elementForScreenshot().renderObject;
+    final List<RenderObject> selected = _hitTestRenderObject(position, userRender, userRender.getTransformTo(null));
 
     setState(() {
-      selection.candidates = selected;
+      selection.currentElement = selected.first.debugCreator?.element;
     });
   }
 
@@ -2298,30 +2692,18 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
 /// Mutable selection state of the inspector.
 class InspectorSelection {
-  /// Render objects that are candidates to be selected.
-  ///
-  /// Tools may wish to iterate through the list of candidates.
-  List<RenderObject> get candidates => _candidates;
-  List<RenderObject> _candidates = <RenderObject>[];
-  set candidates(List<RenderObject> value) {
-    _candidates = value;
-    _index = 0;
-    _computeCurrent();
-  }
 
-  /// Index within the list of candidates that is currently selected.
-  int get index => _index;
-  int _index = 0;
-  set index(int value) {
-    _index = value;
-    _computeCurrent();
+  /// Elements  that match even if they are not specifically selected.
+  Iterable<Element> get matching {
+    if (_location == null) {
+      return const <Element>[];
+    }
+    return WidgetInspectorService.instance.getActiveElementsForLocation(_location, closestTo: _lastLocalElement);
   }
 
   /// Set the selection to empty.
   void clear() {
-    _candidates = <RenderObject>[];
-    _index = 0;
-    _computeCurrent();
+    currentElement = null;
   }
 
   /// Selected render object typically from the [candidates] list.
@@ -2331,12 +2713,6 @@ class InspectorSelection {
   /// Returns null if the selection is invalid.
   RenderObject get current => _current;
   RenderObject _current;
-  set current(RenderObject value) {
-    if (_current != value) {
-      _current = value;
-      _currentElement = value.debugCreator.element;
-    }
-  }
 
   /// Selected [Element] consistent with the [current] selected [RenderObject].
   ///
@@ -2345,26 +2721,43 @@ class InspectorSelection {
   /// Returns null if the selection is invalid.
   Element get currentElement => _currentElement;
   Element _currentElement;
+  Element _localElement;
+  _Location get location => _location;
+  _Location _location;
+  Element _lastLocalElement;
+  
+  set location(_Location location) {
+    if (_location == location) return;
+    _location = location;
+    if (_location == null) {
+      currentElement = null;
+    }
+    final List<Element> active = WidgetInspectorService.instance.getActiveElementsForLocation(_location, closestTo: _lastLocalElement);
+    if (active.isEmpty) {
+      _currentElement = null;
+      _current = null;
+      _localElement = null;
+      return;
+    }
+    currentElement = active.first;
+  }
+
   set currentElement(Element element) {
     if (currentElement != element) {
       _currentElement = element;
-      _current = element.findRenderObject();
-    }
-  }
-
-  void _computeCurrent() {
-    if (_index < candidates.length) {
-      _current = candidates[index];
-      _currentElement = _current.debugCreator.element;
-    } else {
-      _current = null;
-      _currentElement = null;
+      _current = element?.findRenderObject();
+      _localElement = _findNearestLocalElement(element);
+      _location = _getCreationLocation(_localElement);
+      _lastLocalElement = _localElement;
     }
   }
 
   /// Whether the selected render object is attached to the tree or has gone
   /// out of scope.
-  bool get active => _current != null && _current.attached;
+  bool get active {
+    if (_current != null && _current.attached) return true;
+    return matching.any((Element element) => element.renderObject?.attached);
+  }
 }
 
 class _InspectorOverlay extends LeafRenderObjectWidget {
@@ -2423,9 +2816,20 @@ class _RenderInspectorOverlay extends RenderBox {
 }
 
 class _TransformedRect {
-  _TransformedRect(RenderObject object)
+  _TransformedRect(RenderObject object, {RenderObject root})
     : rect = object.semanticBounds,
-      transform = object.getTransformTo(null);
+      transform = object.getTransformTo(root);
+
+
+  _TransformedRect.raw(this.rect, this.transform);
+
+  factory _TransformedRect.fake(RenderObject object, {RenderObject root}) {
+    final Rect targetRect = MatrixUtils.transformRect(
+        object.getTransformTo(root), object.semanticBounds);
+    print("XXX fake ${targetRect}");
+    return _TransformedRect.raw(targetRect, Matrix4.identity());
+  }
+
 
   final Rect rect;
   final Matrix4 transform;
@@ -2438,6 +2842,15 @@ class _TransformedRect {
     return rect == typedOther.rect && transform == typedOther.transform;
   }
 
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'left': rect.left,
+      'top': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+      'transform': transform.storage.toList(),
+    };
+  }
   @override
   int get hashCode => hashValues(rect, transform);
 }
@@ -2531,18 +2944,19 @@ class _InspectorOverlayLayer extends Layer {
     if (!selection.active)
       return;
 
-    final RenderObject selected = selection.current;
+    final RenderObject selected = selection._localElement?.renderObject;
     final List<_TransformedRect> candidates = <_TransformedRect>[];
-    for (RenderObject candidate in selection.candidates) {
-      if (candidate == selected || !candidate.attached)
+    for (Element candidate in selection.matching) {
+      final RenderObject renderObject = candidate.renderObject;
+      if (renderObject == selected || renderObject == null || renderObject.attached == false)
         continue;
-      candidates.add(_TransformedRect(candidate));
+      candidates.add(_TransformedRect(renderObject));
     }
 
     final _InspectorOverlayRenderState state = _InspectorOverlayRenderState(
       overlayRect: overlayRect,
-      selected: _TransformedRect(selected),
-      tooltip: selection.currentElement.toStringShort(),
+      selected: selected != null && selected.attached ?_TransformedRect(selected) : null,
+      tooltip: selection?._localElement?.toStringShort() ?? "",
       textDirection: TextDirection.ltr,
       candidates: candidates,
     );
@@ -2569,35 +2983,44 @@ class _InspectorOverlayLayer extends Layer {
       ..color = _kHighlightedRenderObjectBorderColor;
 
     // Highlight the selected renderObject.
-    final Rect selectedPaintRect = state.selected.rect.deflate(0.5);
-    canvas
-      ..save()
-      ..transform(state.selected.transform.storage)
-      ..drawRect(selectedPaintRect, fillPaint)
-      ..drawRect(selectedPaintRect, borderPaint)
-      ..restore();
-
-    // Show all other candidate possibly selected elements. This helps selecting
-    // render objects by selecting the edge of the bounding box shows all
-    // elements the user could toggle the selection between.
-    for (_TransformedRect transformedRect in state.candidates) {
+    if (state.selected != null) {
+      final Rect selectedPaintRect = state.selected.rect.deflate(0.5);
       canvas
         ..save()
-        ..transform(transformedRect.transform.storage)
-        ..drawRect(transformedRect.rect.deflate(0.5), borderPaint)
+        ..transform(state.selected.transform.storage)
+        ..drawRect(selectedPaintRect, fillPaint)..drawRect(
+          selectedPaintRect, borderPaint)
         ..restore();
+
+      // Show all other candidate possibly selected elements. This helps selecting
+      // render objects by selecting the edge of the bounding box shows all
+      // elements the user could toggle the selection between.
+      for (_TransformedRect transformedRect in state.candidates) {
+        canvas
+          ..save()
+          ..transform(transformedRect.transform.storage)
+          ..drawRect(transformedRect.rect.deflate(0.5), borderPaint)
+          ..restore();
+      }
+
+      final Rect targetRect = MatrixUtils.transformRect(
+          state.selected.transform, state.selected.rect);
+      final Offset target = Offset(targetRect.left, targetRect.center.dy);
+      const double offsetFromWidget = 9.0;
+      final double verticalOffset = (targetRect.height) / 2 + offsetFromWidget;
+
+      _paintDescription(
+          canvas,
+          state.tooltip,
+          state.textDirection,
+          target,
+          verticalOffset,
+          size,
+          targetRect);
+
+      // TODO(jacobr): provide an option to perform a debug paint of just the
+      // selected widget.
     }
-
-    final Rect targetRect = MatrixUtils.transformRect(
-        state.selected.transform, state.selected.rect);
-    final Offset target = Offset(targetRect.left, targetRect.center.dy);
-    const double offsetFromWidget = 9.0;
-    final double verticalOffset = (targetRect.height) / 2 + offsetFromWidget;
-
-    _paintDescription(canvas, state.tooltip, state.textDirection, target, verticalOffset, size, targetRect);
-
-    // TODO(jacobr): provide an option to perform a debug paint of just the
-    // selected widget.
     return recorder.endRecording();
   }
 
@@ -2720,6 +3143,17 @@ class _Location {
   /// Optional locations of the parameters of the member at this location.
   final List<_Location> parameterLocations;
 
+  @override
+  bool operator==(dynamic other) {
+    if (other is! _Location) {
+      return false;
+    }
+    return other.file == file && other.line == line && other.column == column;
+  }
+
+  @override
+  int get hashCode => hashValues(file, line, column);
+
   Map<String, Object> toJsonMap() {
     final Map<String, Object> json = <String, Object>{
       'file': file,
@@ -2834,6 +3268,22 @@ bool _isLocalCreationLocation(Object object) {
   return WidgetInspectorService.instance._isLocalCreationLocation(location);
 }
 
+Element _findNearestLocalElement(Element element) {
+  if (element == null) return null;
+  if (_isLocalCreationLocation(element)) return element;
+  Element nearestLocal;
+  element.visitAncestorElements((Element ancestor) {
+    if (_isLocalCreationLocation(ancestor)) {
+      if (nearestLocal == null) { // XX not needed.
+        nearestLocal = ancestor;
+      }
+      return false;
+    }
+    return true;
+  });
+  return nearestLocal;
+}
+
 /// Returns the creation location of an object in String format if one is available.
 ///
 /// ex: "file:///path/to/main.dart:4:3"
@@ -2887,6 +3337,8 @@ class _SerializationDelegate implements DiagnosticsSerializationDelegate {
     this.expandPropertyValues = true,
     this.subtreeDepth = 1,
     this.includeProperties = false,
+    this.includeTransform = false,
+    this.root = null,
     @required this.service,
   });
 
@@ -2903,6 +3355,9 @@ class _SerializationDelegate implements DiagnosticsSerializationDelegate {
 
   @override
   final bool expandPropertyValues;
+
+  final bool includeTransform;
+  final RenderObject root;
 
   final List<DiagnosticsNode> _nodesCreatedByLocalProject = <DiagnosticsNode>[];
 
@@ -2926,6 +3381,19 @@ class _SerializationDelegate implements DiagnosticsSerializationDelegate {
       if (service._isLocalCreationLocation(creationLocation)) {
         _nodesCreatedByLocalProject.add(node);
         result['createdByLocalProject'] = true;
+      }
+    }
+    if (includeTransform) {
+      RenderObject renderObject;
+      if (value is Element) {
+        renderObject = value.renderObject;
+      } else if (value is RenderObject) {
+        renderObject = value;
+      }
+      if (renderObject != null && _isAncestor(renderObject, root)) {
+        result['transformToRoot'] = _TransformedRect(renderObject, root: root).toJson();
+        // TO DEBUG AXIS ALIGNED CASES.
+//        result['transformToRoot'] = _TransformedRect.fake(renderObject, root: root).toJson();
       }
     }
     return result;
@@ -2975,7 +3443,28 @@ class _SerializationDelegate implements DiagnosticsSerializationDelegate {
       expandPropertyValues: expandPropertyValues,
       subtreeDepth: subtreeDepth ?? this.subtreeDepth,
       includeProperties: includeProperties ?? this.includeProperties,
+      includeTransform: this.includeTransform,
+      root: this.root,
       service: service,
     );
   }
+}
+
+bool _maybeSetColor(Element element, int value) {
+  RenderObject render = element?.renderObject;
+  if (render is! RenderParagraph) { return false; }
+  print("XXX trying to set color");
+  RenderParagraph paragraph = render;
+  final InlineSpan inlineSpan = paragraph.text;
+  if (inlineSpan is! TextSpan) return false;
+  final TextSpan existing = inlineSpan;
+  paragraph.text = TextSpan(text: existing.text,
+      children: existing.children,
+      style: existing.style.copyWith(color: Color(value)),
+      recognizer: existing.recognizer,
+      semanticsLabel: existing.semanticsLabel,
+  );
+
+  paragraph.markNeedsPaint(); /// XXX NOT NEEDED!
+  return true;
 }
