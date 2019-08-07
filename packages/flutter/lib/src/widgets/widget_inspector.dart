@@ -2094,6 +2094,68 @@ class _WidgetInspectorState extends State<WidgetInspector>
     super.initState();
 
     _selectionChangedCallback = () {
+      RenderObject renderObject = selection.current;
+      Element element = selection.currentElement;
+      if (renderObject != null && renderObject.attached) {
+        print("=======================");
+        print("Selection is: $element");
+        print("Render object is: $renderObject");
+        var o = renderObject;
+        Rect lastRect = null;
+        Constraints lastConstraints = null;
+
+        while (o != null) {
+          Element e = o.debugCreator.element;
+          RenderObject parent = o.parent;
+          List<String> parts = <String>[];
+          if (_isLocalCreationLocation(e)) {
+            parts.add('[LOCAL WIDGET]');
+          }
+          parts.add('${o.toStringShort()} (${e.toStringShort()})');
+          Rect rect = o.semanticBounds;
+          if (lastRect != rect) {
+            parts.add('$rect');
+            lastRect = rect;
+          }
+          Constraints constraints = o.constraints;
+          if (lastConstraints != constraints) {
+            parts.add('constraints: $constraints');
+            lastConstraints = constraints;
+          }
+          parts.add('sizedByParent: ${o.sizedByParent}');
+
+          String describeTransform(Matrix4 transform) {
+            if (transform == null) {
+              return '';
+            }
+            if (MatrixUtils.isIdentity(transform)) {
+              return '';
+            }
+            final Offset offset = transform != null ? MatrixUtils
+                .getAsTranslation(transform) : null;
+
+            if (offset != null) {
+                return 'Offset: $offset';
+            }
+            final double scale = MatrixUtils.getAsScale(transform);
+            if (scale != null) {
+              return 'scaled by ${scale.toStringAsFixed(1)}x';
+            }
+            final String matrix = transform.toString().split('\n').take(4).map<
+            String>((String line) => line.substring(4)).join('; ');
+            return 'transform [$matrix]';
+          }
+
+          String transformDescription = describeTransform(o.getTransformTo(parent));
+          if (transformDescription.isNotEmpty) {
+            parts.add(transformDescription);
+          }
+          print(parts.join(", "));
+          o = parent;
+        }
+        print ("End of story of your location");
+        print("=======================================");
+      }
       setState(() {
         // The [selection] property which the build method depends on has
         // changed.
