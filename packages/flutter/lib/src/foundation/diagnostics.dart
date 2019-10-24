@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:meta/meta.dart';
 
+import '../../widgets.dart';
 import 'assertions.dart';
 import 'constants.dart';
 import 'debug.dart';

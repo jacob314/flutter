@@ -9,6 +9,7 @@ import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../widgets.dart';
 import 'debug.dart';
 import 'focus_manager.dart';
 
@@ -2686,6 +2687,31 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
 
   Element _parent;
 
+  // TODO(albertusangga): Create comment
+  ///
+  bool didUnconstrainOneOfItsChildren() {
+    assert(!kReleaseMode);
+    final Constraints constraints = renderObject.debugConstraints;
+    if (constraints is BoxConstraints) {
+      bool flag = false;
+      // Visit all direct children and see whether this unconstrained at least one of its direct child
+      visitChildElements((Element child) {
+        if (child.depth - depth > 1)
+          return false;
+        final Constraints childConstraints = child.renderObject.debugConstraints;
+        if (childConstraints is BoxConstraints) {
+          flag |=
+            constraints.hasBoundedHeight && !childConstraints.hasBoundedHeight ||
+            constraints.hasBoundedWidth && !childConstraints.hasBoundedWidth
+          ;
+        }
+        return true;
+      });
+      return flag;
+    }
+    return false;
+  }
+
   // Custom implementation of `operator ==` optimized for the ".of" pattern
   // used with `InheritedWidgets`.
   @override
@@ -3815,7 +3841,7 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.defaultDiagnosticsTreeStyle= DiagnosticsTreeStyle.dense;
+    properties.defaultDiagnosticsTreeStyle = DiagnosticsTreeStyle.dense;
     properties.add(ObjectFlagProperty<int>('depth', depth, ifNull: 'no depth'));
     properties.add(ObjectFlagProperty<Widget>('widget', widget, ifNull: 'no widget'));
     if (widget != null) {
@@ -5356,6 +5382,9 @@ abstract class RenderObjectElement extends Element {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties.add(DiagnosticsProperty<RenderObject>('renderObject', renderObject, defaultValue: null));
+    // TODO(albertusangga): Configure the correct way to add this property
+    // ignore: invalid_use_of_protected_member
+    properties.add(DiagnosticsProperty<Constraints>('constraints', renderObject?.constraints, defaultValue: null));
   }
 }
 

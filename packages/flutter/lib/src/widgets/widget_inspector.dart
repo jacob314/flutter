@@ -3606,6 +3606,62 @@ class InspectorSerializationDelegate implements DiagnosticsSerializationDelegate
 
   bool get _interactive => groupName != null;
 
+  Map<String, Object> _additionalSummaryTreeNodeProperties(DiagnosticsNode summaryTreeNode) {
+    final Map<String, Object> result = <String, Object>{};
+    final Object value = summaryTreeNode.value;
+    if (value is Element) {
+      if (value.didUnconstrainOneOfItsChildren()) {
+        result['warning'] = 'This widget did unconstrain its widgets';
+      }
+      final RenderObject renderObject = value.renderObject;
+      if (renderObject != null) {
+        final Constraints constraints = renderObject.debugConstraints;
+        if (constraints != null) {
+          final Map<String, Object> constraintsProperty = <String, Object>{
+            'type': constraints.runtimeType.toString(),
+            'description': constraints.toString(),
+          };
+          if (constraints is BoxConstraints) {
+            constraintsProperty.addAll(<String, Object>{
+              'hasBoundedHeight': constraints.hasBoundedHeight,
+              'hasBoundedWidth': constraints.hasBoundedWidth,
+              'minWidth': constraints.minWidth,
+              'minHeight': constraints.minHeight,
+            });
+            if (constraints.hasBoundedHeight)
+              constraintsProperty['maxHeight']  = constraints.maxHeight;
+            if (constraints.hasBoundedWidth)
+              constraintsProperty['maxWidth']  = constraints.maxWidth;
+          }
+          // TODO(albertusangga): handle [SliverConstraint]'s case
+          result['constraints'] = constraintsProperty;
+        }
+        if (renderObject is RenderBox) {
+          final Map<String, Object> sizeProperty = <String, Object>{};
+          sizeProperty['width'] = renderObject.size.width;
+          sizeProperty['height'] = renderObject.size.height;
+          result['size'] = sizeProperty;
+
+          final ParentData parentData = renderObject.parentData;
+          if (parentData is FlexParentData) {
+            result['flexFactor'] = parentData.flex;
+          }
+        }
+        result['renderObject'] =
+          renderObject.toDiagnosticsNode()?.toJsonMap(
+            copyWith(
+              subtreeDepth: 0,
+              includeProperties: true,
+            ),
+          );
+        if (value.widget is Flex) {
+          result['isFlex'] = value.widget is Flex;
+        }
+      }
+    }
+    return result;
+  }
+
   @override
   Map<String, Object> additionalNodeProperties(DiagnosticsNode node) {
     final Map<String, Object> result = <String, Object>{};
@@ -3616,6 +3672,7 @@ class InspectorSerializationDelegate implements DiagnosticsSerializationDelegate
     }
     if (summaryTree) {
       result['summaryTree'] = true;
+      result.addAll(_additionalSummaryTreeNodeProperties(node));
     }
     final _Location creationLocation = _getCreationLocation(value);
     if (creationLocation != null) {
