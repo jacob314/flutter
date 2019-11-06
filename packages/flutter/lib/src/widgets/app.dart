@@ -694,7 +694,7 @@ class WidgetsApp extends StatefulWidget {
   /// and view what widgets and render objects associated with it. An outline of
   /// the selected widget and some summary information is shown on device and
   /// more detailed information is shown in the IDE or Observatory.
-  static bool debugShowWidgetInspectorOverride = false; // XXX true
+  static bool debugShowWidgetInspectorOverride = false;
 
   /// If false, prevents the debug banner from being visible.
   ///
@@ -1129,7 +1129,6 @@ class _WidgetsAppState extends State<WidgetsApp> with WidgetsBindingObserver {
       if (widget.debugShowWidgetInspector || WidgetsApp.debugShowWidgetInspectorOverride) {
         result = WidgetInspector(
           child: result,
-          selectButtonBuilder: widget.inspectorSelectButtonBuilder,
         );
       }
       if (widget.debugShowCheckedModeBanner && WidgetsApp.debugAllowBannerOverride) {
