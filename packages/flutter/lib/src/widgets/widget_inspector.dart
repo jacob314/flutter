@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 import 'app.dart';
@@ -32,6 +33,8 @@ import 'binding.dart';
 import 'debug.dart';
 import 'framework.dart';
 import 'gesture_detector.dart';
+import 'ticker_provider.dart';
+import 'value_listenable_builder.dart';
 
 /// Signature for the builder callback used by
 /// [WidgetInspector.selectButtonBuilder].
@@ -743,6 +746,14 @@ mixin WidgetInspectorService {
   /// displayed on the device.
   final InspectorSelection selection = InspectorSelection();
 
+  /// Whether the inspector is in select mode.
+  ///
+  /// In select mode, pointer interactions trigger widget selection instead of
+  /// normal interactions. Otherwise the previously selected widget will be
+  /// temporarily highlighted but the application can be interacted with
+  /// normally.
+  final ValueNotifier<bool> isSelectMode = ValueNotifier<bool>(false);
+
   /// Callback typically registered by the [WidgetInspector] to receive
   /// notifications when [selection] changes.
   ///
@@ -999,8 +1010,30 @@ mixin WidgetInspectorService {
         if (WidgetsApp.debugShowWidgetInspectorOverride == value) {
           return Future<void>.value();
         }
+        isSelectMode.value = value;
+        WidgetsApp.debugShowWidgetInspectorOverride = value;
+
+        return forceRebuild();
+      },
+    );
+
+    _registerBoolServiceExtension(
+      name: 'enable',
+      getter: () async => WidgetsApp.debugShowWidgetInspectorOverride,
+      setter: (bool value) {
+        if (WidgetsApp.debugShowWidgetInspectorOverride == value) {
+          return Future<void>.value();
+        }
         WidgetsApp.debugShowWidgetInspectorOverride = value;
         return forceRebuild();
+      },
+    );
+
+    _registerBoolServiceExtension(
+      name: 'selectMode',
+      getter: () async => isSelectMode.value,
+      setter: (bool value) async {
+        isSelectMode.value = value;
       },
     );
 
@@ -1284,6 +1317,14 @@ mixin WidgetInspectorService {
         var root = toObject(parameters['rootId']);
         var target = toObject(parameters['targetId']);
 
+        if (root is! Element) {
+          return <String, Object>{'result': null};
+        }
+        Element element = root;
+        if (!element.renderObject.attached) {
+          return <String, Object>{'result': null};
+        }
+
         // get boxes first as that is not async.
         var boxes = _getBoundingBoxesHelper(root, target, parameters['groupName']);
 
@@ -1477,23 +1518,14 @@ mixin WidgetInspectorService {
   bool setSelection(Object object, [ String groupName ]) {
     if (object is Element || object is RenderObject || object is _Location) {
       if (object is Element) {
-        if (object == selection.currentElement) {
-          return false;
-        }
         selection.currentElement = object;
       } else if (object is RenderObject){
-        if (object == selection.current) {
-          return false;
-        }
-        // XXX CLEANUP.
         selection.currentElement = object.debugCreator?.element;
       } else if (object is _Location) {
-        if (object == selection.location) {
-          return false;
-        }
         selection.location = object;
       }
       // XXX dispatch eventy instead.
+      // XXX bring this back??
       // developer.inspect(selection.currentElement);
 
       if (selectionChangedCallback != null) {
@@ -2443,18 +2475,12 @@ class WidgetInspector extends StatefulWidget {
   const WidgetInspector({
     Key key,
     @required this.child,
-    @required this.selectButtonBuilder,
+    @deprecated InspectorSelectButtonBuilder selectButtonBuilder,
   }) : assert(child != null),
        super(key: key);
 
   /// The widget that is being inspected.
   final Widget child;
-
-  /// A builder that is called to create the select button.
-  ///
-  /// The `onPressed` callback passed as an argument to the builder should be
-  /// hooked up to the returned widget.
-  final InspectorSelectButtonBuilder selectButtonBuilder;
 
   @override
   _WidgetInspectorState createState() => _WidgetInspectorState();
@@ -2566,7 +2592,11 @@ List<RenderObject> _hitTestRenderObject(Offset position, RenderObject root, Matr
 }
 
 class _WidgetInspectorState extends State<WidgetInspector>
-    with WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver{
+
+  static const Duration _fadeInDuration = Duration(milliseconds: 150);
+  static const Duration _fadeOutDuration = Duration(milliseconds: 75);
+  static const Duration _showDuration = Duration(milliseconds: 1500);
 
   _WidgetInspectorState() : selection = WidgetInspectorService.instance.selection;
 
@@ -2574,28 +2604,65 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   final InspectorSelection selection;
 
-  /// Whether the inspector is in select mode.
-  ///
-  /// In select mode, pointer interactions trigger widget selection instead of
-  /// normal interactions. Otherwise the previously selected widget is
-  /// highlighted but the application can be interacted with normally.
-  bool isSelectMode = true;
-
   final GlobalKey _ignorePointerKey = GlobalKey();
 
   InspectorSelectionChangedCallback _selectionChangedCallback;
+
+  AnimationController _controller;
+  Timer _hideTimer;
+
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      duration: _fadeInDuration,
+      reverseDuration: _fadeOutDuration,
+      vsync: this,
+    )
+      ..addStatusListener(_handleStatusChanged);
 
     _selectionChangedCallback = () {
       setState(() {
-        // The [selection] property which the build method depends on has
-        // changed.
+
       });
+      if (selection.active) {
+        _showOverlay();
+      }
     };
     WidgetInspectorService.instance.screenshotRootParent = _ignorePointerKey;
     WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
+  }
+
+  void _handleStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      _updateHideTimer();
+    }
+  }
+
+  void _updateHideTimer() {
+    final bool selectMode = WidgetInspectorService.instance.isSelectMode.value;
+    if (selectMode || !_controller.isCompleted) {
+      if (selectMode) {
+        _controller.forward();
+      }
+      _hideTimer?.cancel();
+      _hideTimer = null;
+    } else {
+      _hideTimer ??= Timer(_showDuration, _controller.reverse);
+    }
+  }
+
+  void _hideOverlay() {
+    _controller.reverse();
+  }
+
+  void _showOverlay() {
+    // Cancel the in progress hide timer.
+    _hideTimer?.cancel();
+    _hideTimer = null;
+
+    _controller.forward();
+    _updateHideTimer();
   }
 
   @override
@@ -2607,9 +2674,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   void _inspectAt(Offset position) {
-    if (!isSelectMode)
-      return;
-
     final RenderObject userRender = WidgetInspectorService.instance._elementForScreenshot().renderObject;
     final List<RenderObject> selected = _hitTestRenderObject(position, userRender, userRender.getTransformTo(null));
 
@@ -2643,8 +2707,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
   }
 
   void _handleTap() {
-    if (!isSelectMode)
-      return;
     if (_lastPointerLocation != null) {
       _inspectAt(_lastPointerLocation);
 
@@ -2653,43 +2715,44 @@ class _WidgetInspectorState extends State<WidgetInspector>
         developer.inspect(selection.current);
       }
     }
-    setState(() {
-      // Only exit select mode if there is a button to return to select mode.
-      if (widget.selectButtonBuilder != null)
-        isSelectMode = false;
-    });
-  }
-
-  void _handleEnableSelect() {
-    setState(() {
-      isSelectMode = true;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Stack(children: <Widget>[
-      GestureDetector(
-        onTap: _handleTap,
-        onPanDown: _handlePanDown,
-        onPanEnd: _handlePanEnd,
-        onPanUpdate: _handlePanUpdate,
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        child: IgnorePointer(
-          ignoring: isSelectMode,
-          key: _ignorePointerKey,
-          ignoringSemantics: false,
-          child: widget.child,
-        ),
+      ValueListenableBuilder<bool>(
+        valueListenable: WidgetInspectorService.instance.isSelectMode,
+        builder: (BuildContext _, bool isSelectMode, Widget child) {
+          _updateHideTimer();
+          if (!isSelectMode) {
+            return child;
+          }
+          _hideTimer?.cancel();
+          _hideTimer = null;
+          return GestureDetector(
+            onTap: _handleTap,
+            onPanDown: _handlePanDown,
+            onPanEnd: _handlePanEnd,
+            onPanUpdate: _handlePanUpdate,
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            child: IgnorePointer(
+              ignoring: isSelectMode,
+              key: _ignorePointerKey,
+              ignoringSemantics: false,
+              child: child,
+            ),
+          );
+        },
+        child: widget.child,
       ),
-      if (!isSelectMode && widget.selectButtonBuilder != null)
-        Positioned(
-          left: _kInspectButtonMargin,
-          bottom: _kInspectButtonMargin,
-          child: widget.selectButtonBuilder(context, _handleEnableSelect),
+      FadeTransition(
+        opacity: CurvedAnimation(
+          parent: _controller,
+          curve: Curves.fastOutSlowIn,
         ),
-      _InspectorOverlay(selection: selection),
+        child: _InspectorOverlay(selection: selection),
+      ),
     ]);
   }
 }
@@ -2957,10 +3020,16 @@ class _InspectorOverlayLayer extends Layer {
       candidates.add(_TransformedRect(renderObject));
     }
 
+    final List<String> tooltipParts = <String>[];
+    tooltipParts.add(selection?._localElement?.toStringShort());
+    final String detailTip = selection?._currentElement?.toStringShort();
+    if (detailTip != tooltipParts.first) {
+      tooltipParts.add(detailTip);
+    }
     final _InspectorOverlayRenderState state = _InspectorOverlayRenderState(
       overlayRect: overlayRect,
       selected: selected != null && selected.attached ?_TransformedRect(selected) : null,
-      tooltip: selection?._localElement?.toStringShort() ?? "",
+      tooltip: tooltipParts.join(' > '),
       textDirection: TextDirection.ltr,
       candidates: candidates,
     );
@@ -3453,8 +3522,8 @@ class _SerializationDelegate implements DiagnosticsSerializationDelegate {
       expandPropertyValues: expandPropertyValues,
       subtreeDepth: subtreeDepth ?? this.subtreeDepth,
       includeProperties: includeProperties ?? this.includeProperties,
-      includeTransform: this.includeTransform,
-      root: this.root,
+      includeTransform: includeTransform,
+      root: root,
       service: service,
     );
   }
