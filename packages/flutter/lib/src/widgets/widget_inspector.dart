@@ -1306,6 +1306,86 @@ mixin WidgetInspectorService {
         };
       },
     );
+/*
+    assert(parameters.containsKey('file'));
+    assert(parameters.containsKey('line'));
+    assert(parameters.containsKey('column'));
+    assert(parameters.containsKey('count'));
+    assert(parameters.containsKey('groupName'));
+    return <String, dynamic>{
+      'result': _getElements(
+        _Location(
+          file: parameters['file'],
+          line: int.parse(parameters['line']),
+          column: int.parse(parameters['column']),
+        ),
+        int.parse(parameters['count']),
+        parameters['groupName'],
+      )
+    };*/
+    registerServiceExtension(
+      name: 'screenshotAtLocation',
+      callback: (Map<String, String> parameters) async {
+        assert(parameters.containsKey('width'));
+        assert(parameters.containsKey('height'));
+        assert(parameters.containsKey('groupName'));
+        List<Element> elements;
+        if (parameters.containsKey('file')) {
+          assert(parameters.containsKey('line'));
+          assert(parameters.containsKey('column'));
+          final _Location location = _Location(
+            file: parameters['file'],
+            line: int.parse(parameters['line']),
+            column: int.parse(parameters['column']),
+          );
+          final int count = int.parse(parameters['count']);
+          elements = getActiveElementsForLocation(location, closestTo: selection?._lastLocalElement).take(count).toList();
+        } else {
+          elements = <Element>[_elementForScreenshot()];
+        }
+        var target = toObject(parameters['targetId']);
+
+        if (elements.isEmpty) {
+          return <String, Object>{'result': null};
+        }
+        final Element element = elements.first;
+        if (!element.renderObject.attached) {
+          return <String, Object>{'result': null};
+        }
+
+        // Get boxes first as that is not async and we need the boxes when the
+        // screenshot was taken and not the boxes after the
+        var boxes = _getBoundingBoxesHelper(element, target, parameters['groupName']);
+
+        final Screenshot data = await screenshot(
+          element,
+          width: double.parse(parameters['width']),
+          height: double.parse(parameters['height']),
+          margin: parameters.containsKey('margin') ?
+          double.parse(parameters['margin']) : 0.0,
+          maxPixelRatio: parameters.containsKey('maxPixelRatio') ?
+          double.parse(parameters['maxPixelRatio']) : 1.0,
+          debugPaint: parameters['debugPaint'] == 'true',
+        );
+        if (data == null || data.image == null) {
+          return <String, Object>{'result': null};
+        }
+        final ByteData byteData = await data.image.toByteData(format:ui.ImageByteFormat.png);
+
+        var screenshotJson =  <String, Object>{
+          'image': base64.encoder.convert(Uint8List.view(byteData.buffer)),
+          'transformedRect': data.transformedRect,
+        };
+
+        return <String, Object>{
+          'result': <String, Object>{
+            'screenshot': screenshotJson,
+            'boxes': boxes,
+            'elements': nodesToJson(elements, _SerializationDelegate(groupName: groupName, service: this), parent: null),
+          },
+        };
+      },
+    );
 
     registerServiceExtension(
       name: 'screenshoWithSelection',
