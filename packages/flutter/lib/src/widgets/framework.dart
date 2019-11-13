@@ -3043,7 +3043,9 @@ abstract class Element extends DiagnosticableTree implements BuildContext {
         && newWidget != widget
         && depth != null
         && _active
-        && Widget.canUpdate(widget, newWidget));
+        && Widget.canUpdate(widget, newWidget)
+        && (debugOnUpdateWidget == null || (() { debugOnUpdateWidget(this, _widget, newWidget); return true; })())
+    );
     _widget = newWidget;
   }
 
