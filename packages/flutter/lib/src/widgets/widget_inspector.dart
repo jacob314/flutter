@@ -295,6 +295,7 @@ class _MulticastCanvas implements Canvas {
 }
 
 Rect _calculateSubtreeBoundsHelper(RenderObject object, Matrix4 transform) {
+  if (object.debugNeedsLayout) return Rect.zero;
   Rect bounds = MatrixUtils.transformRect(transform, object.semanticBounds);
 
   object.visitChildren((RenderObject child) {
@@ -1054,6 +1055,7 @@ mixin WidgetInspectorService {
             debugOnRebuildDirtyWidget = _onRebuildWidget;
             assert(debugOnUnmountWidget == null);
             debugOnUnmountWidget = _onUnmountWidget;
+            debugOnUpdateWidget = _onUpdateWidget;
             // Trigger a rebuild so there are baseline stats for rebuilds
             // performed by the app.
             await forceRebuild();
@@ -1329,7 +1331,9 @@ mixin WidgetInspectorService {
         assert(parameters.containsKey('width'));
         assert(parameters.containsKey('height'));
         assert(parameters.containsKey('groupName'));
+        assert(parameters.containsKey('count'));
         List<Element> elements;
+        final int count = int.parse(parameters['count']);
         if (parameters.containsKey('file')) {
           assert(parameters.containsKey('line'));
           assert(parameters.containsKey('column'));
@@ -1338,12 +1342,12 @@ mixin WidgetInspectorService {
             line: int.parse(parameters['line']),
             column: int.parse(parameters['column']),
           );
-          final int count = int.parse(parameters['count']);
           elements = getActiveElementsForLocation(location, closestTo: selection?._lastLocalElement).take(count).toList();
         } else {
           elements = <Element>[_elementForScreenshot()];
         }
-        var target = toObject(parameters['targetId']);
+        var target = selection?._currentElement;
+
 
         if (elements.isEmpty) {
           return <String, Object>{'result': null};
@@ -1353,9 +1357,11 @@ mixin WidgetInspectorService {
           return <String, Object>{'result': null};
         }
 
+        final String groupName = parameters['groupName'];
+
         // Get boxes first as that is not async and we need the boxes when the
         // screenshot was taken and not the boxes after the
-        var boxes = _getBoundingBoxesHelper(element, target, parameters['groupName']);
+        var boxes = _getBoundingBoxesHelper(element, target, groupName);
 
         final Screenshot data = await screenshot(
           element,
@@ -1377,16 +1383,19 @@ mixin WidgetInspectorService {
           'transformedRect': data.transformedRect,
         };
 
+        final List<DiagnosticsNode> nodes = elements.take(count).map((Element element) => element.toDiagnosticsNode()).toList();
+
         return <String, Object>{
           'result': <String, Object>{
             'screenshot': screenshotJson,
             'boxes': boxes,
-            'elements': nodesToJson(elements, _SerializationDelegate(groupName: groupName, service: this), parent: null),
+            'elements': _nodesToJson(nodes, _SerializationDelegate(groupName: groupName, service: this), parent: null),
           },
         };
       },
     );
 
+    // XXX remove this.
     registerServiceExtension(
       name: 'screenshoWithSelection',
       callback: (Map<String, String> parameters) async {
@@ -2151,11 +2160,19 @@ mixin WidgetInspectorService {
   }
 
   void _onRebuildWidget(Element element, bool builtOnce) {
-    _rebuildStats.update(element, true);
+    _rebuildStats.update(element, element.widget, true);
   }
 
   void _onUnmountWidget(Element element) {
-    _rebuildStats.update(element, false);
+    _rebuildStats.update(element, element.widget, false);
+  }
+
+  void _onUpdateWidget(Element element, Widget oldWidget, Widget newWidget) {
+    if (identical(oldWidget, newWidget)) return;
+    // TODO(jacobr): could optimize slightly for the typical case where the
+    // creation location is identical.
+    _rebuildStats.update(element, oldWidget, false);
+    _rebuildStats.update(element, newWidget, true);
   }
 
   void _onPaint(RenderObject renderObject) {
@@ -2169,7 +2186,7 @@ mixin WidgetInspectorService {
         // to improve robustness.
         return;
       }
-      _repaintStats.update(element, true);
+      _repaintStats.update(element, element.widget, true);
 
       // Give all ancestor elements credit for repainting as long as they do
       // not have their own associated RenderObject.
@@ -2179,7 +2196,7 @@ mixin WidgetInspectorService {
           // when it repaints.
           return false;
         }
-        _repaintStats.update(ancestor, true);
+        _repaintStats.update(ancestor, element.widget, true);
         return true;
       });
     }
@@ -2431,12 +2448,13 @@ class _ElementLocationStatsTracker {
 
   /// Increments the count associated with the creation location of [element] if
   /// the creation location is local to the current project.
-  void update(Element element, bool add) {
-    final Object widget = element.widget;
+  void update(Element element, Widget widget, bool add) {
     if (widget is! _HasCreationLocation) {
       return;
     }
-    final _HasCreationLocation creationLocationSource = widget;
+    //
+    Object widgetObject = widget;
+    final _HasCreationLocation creationLocationSource = widgetObject;
     final _Location location = creationLocationSource._location;
     final int id = _toLocationId(location);
 
@@ -2684,7 +2702,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
 
   final InspectorSelection selection;
 
-  final GlobalKey _ignorePointerKey = GlobalKey();
+  final GlobalKey _repaintBoundaryKey = GlobalKey();
 
   InspectorSelectionChangedCallback _selectionChangedCallback;
 
@@ -2709,7 +2727,7 @@ class _WidgetInspectorState extends State<WidgetInspector>
         _showOverlay();
       }
     };
-    WidgetInspectorService.instance.screenshotRootParent = _ignorePointerKey;
+    WidgetInspectorService.instance.screenshotRootParent = _repaintBoundaryKey;
     WidgetInspectorService.instance.selectionChangedCallback = _selectionChangedCallback;
   }
 
@@ -2804,6 +2822,10 @@ class _WidgetInspectorState extends State<WidgetInspector>
         valueListenable: WidgetInspectorService.instance.isSelectMode,
         builder: (BuildContext _, bool isSelectMode, Widget child) {
           _updateHideTimer();
+          child = RepaintBoundary(
+              key: _repaintBoundaryKey,
+              child: child,
+          );
           if (!isSelectMode) {
             return child;
           }
@@ -2818,7 +2840,6 @@ class _WidgetInspectorState extends State<WidgetInspector>
             excludeFromSemantics: true,
             child: IgnorePointer(
               ignoring: isSelectMode,
-              key: _ignorePointerKey,
               ignoringSemantics: false,
               child: child,
             ),
