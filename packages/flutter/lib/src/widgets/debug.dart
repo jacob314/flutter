@@ -37,6 +37,8 @@ typedef RebuildDirtyWidgetCallback = void Function(Element e, bool builtOnce);
 
 typedef UnmountWidgetCallback = void Function(Element e);
 
+typedef UpdateWidgetCallback = void Function(Element e, Widget oldWidget, Widget newWidget);
+
 /// Callback invoked for every dirty widget built each frame.
 ///
 /// This callback is only invoked in debug builds.
@@ -53,7 +55,9 @@ typedef UnmountWidgetCallback = void Function(Element e);
 ///    `ext.flutter.inspector.trackRebuildDirtyWidgets` service extension is
 ///    enabled.
 RebuildDirtyWidgetCallback debugOnRebuildDirtyWidget;
+
 UnmountWidgetCallback debugOnUnmountWidget;
+UpdateWidgetCallback debugOnUpdateWidget;
 
 /// Log all calls to [BuildOwner.buildScope].
 ///

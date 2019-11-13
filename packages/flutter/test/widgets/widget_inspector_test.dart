@@ -2201,7 +2201,7 @@ class TestWidgetInspectorService extends Object with WidgetInspectorService {
 
       final Element clipRect = find.byType(ClipRRect).evaluate().single;
 
-      final Future<Screenshot> clipRectScreenshot = service.screenshot(
+      final Future<ScreenshotTransformPair> clipRectScreenshot = service.screenshot(
         clipRect,
         width: 100.0,
         height: 100.0,
