@@ -1389,7 +1389,7 @@ mixin WidgetInspectorService {
           'result': <String, Object>{
             'screenshot': screenshotJson,
             'boxes': boxes,
-            'elements': _nodesToJson(nodes, _SerializationDelegate(groupName: groupName, service: this), parent: null),
+            'elements': _nodesToJson(nodes, InspectorSerializationDelegate(groupName: groupName, service: this), parent: null),
           },
         };
       },
@@ -2278,7 +2278,7 @@ mixin WidgetInspectorService {
     List<Element> elements;
     final List<Element> active = getActiveElementsForLocation(location, closestTo: selection?._lastLocalElement);
     final List<DiagnosticsNode> nodes = active.map((Element element) => element.toDiagnosticsNode()).toList();
-    return _nodesToJson(nodes, _SerializationDelegate(groupName: groupName, service: this), parent: null);
+    return _nodesToJson(nodes, InspectorSerializationDelegate(groupName: groupName, service: this), parent: null);
   }
 
   List<Map<String, dynamic>> _getBoundingBoxes(String rootId, String targetId, String groupName) {
@@ -2302,7 +2302,7 @@ mixin WidgetInspectorService {
     rootRenderObject = rootRenderObject?.parent;
     return _nodesToJson(
         nodes,
-        _SerializationDelegate(groupName: groupName, service: this, includeProperties: false, includeTransform: true, root: rootRenderObject),
+        InspectorSerializationDelegate(groupName: groupName, service: this, includeProperties: false, includeTransform: true, root: rootRenderObject),
         parent: null
     );
   }
@@ -2310,7 +2310,7 @@ mixin WidgetInspectorService {
   Map<String, dynamic> _getElementForScreenshot(String groupName) {
     return _nodeToJson(
       _elementForScreenshot()?.toDiagnosticsNode(),
-      _SerializationDelegate(groupName: groupName, service: this, includeProperties: false),
+      InspectorSerializationDelegate(groupName: groupName, service: this, includeProperties: false),
     );
   }
 
@@ -3639,6 +3639,7 @@ class InspectorSerializationDelegate implements DiagnosticsSerializationDelegate
     }
     if (addAdditionalPropertiesCallback != null) {
       result.addAll(addAdditionalPropertiesCallback(node, this) ?? <String, Object>{});
+    }
     return result;
   }
 
@@ -3678,7 +3679,7 @@ class InspectorSerializationDelegate implements DiagnosticsSerializationDelegate
   }
 
   @override
-  DiagnosticsSerializationDelegate copyWith({int subtreeDepth, bool includeProperties}) {
+  InspectorSerializationDelegate copyWith({int subtreeDepth, bool includeProperties}) {
     return InspectorSerializationDelegate(
       groupName: groupName,
       summaryTree: summaryTree,
@@ -3695,20 +3696,54 @@ class InspectorSerializationDelegate implements DiagnosticsSerializationDelegate
 }
 
 bool _maybeSetColor(Element element, int value) {
+  final color = Color(value);
   RenderObject render = element?.renderObject;
-  if (render is! RenderParagraph) { return false; }
-  print("XXX trying to set color");
-  RenderParagraph paragraph = render;
-  final InlineSpan inlineSpan = paragraph.text;
-  if (inlineSpan is! TextSpan) return false;
-  final TextSpan existing = inlineSpan;
-  paragraph.text = TextSpan(text: existing.text,
+
+  if (render is RenderParagraph) {
+    RenderParagraph paragraph = render;
+    final InlineSpan inlineSpan = paragraph.text;
+    if (inlineSpan is! TextSpan) return false;
+    final TextSpan existing = inlineSpan;
+    paragraph.text = TextSpan(text: existing.text,
       children: existing.children,
-      style: existing.style.copyWith(color: Color(value)),
+      style: existing.style.copyWith(color: color),
       recognizer: existing.recognizer,
       semanticsLabel: existing.semanticsLabel,
-  );
+    );
 
-  paragraph.markNeedsPaint(); /// XXX NOT NEEDED!
-  return true;
+    /// XXX NOT NEEDED!
+    paragraph.markNeedsPaint();
+    return true;
+  } else {
+    RenderDecoratedBox findFirstMatching(Element root) {
+      RenderDecoratedBox match = null;
+      void _matchHelper(Element e) {
+        if (match != null || !identical(e, root) && _isLocalCreationLocation(e)) return;
+        final r = e.renderObject;
+        if (r is RenderDecoratedBox) {
+          match = r;
+          return;
+        }
+        e.visitChildElements(_matchHelper);
+      }
+      _matchHelper(root);
+      return match;
+    }
+
+    final RenderDecoratedBox render = findFirstMatching(element);
+    if (render != null) {
+      final BoxDecoration existingDecoration = render.decoration;
+      BoxDecoration decoration;
+      if (existingDecoration is BoxDecoration) {
+        decoration = existingDecoration.copyWith(color: color);
+      } else if (existingDecoration == null) {
+        decoration = BoxDecoration(color: color);
+      }
+      if (decoration != null) {
+        render.decoration = decoration;
+        return true;
+      }
+    }
+  }
+  return false;
 }
